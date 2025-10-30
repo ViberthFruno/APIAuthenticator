@@ -1,0 +1,30 @@
+# API Authentication Service Dependencies
+
+# Core Dependencies
+requests>=2.31.0          # HTTP client library
+urllib3>=2.0.0           # HTTP library with thread-safe connection pooling
+
+# Image Processing
+Pillow>=10.0.0           # Python Imaging Library (PIL Fork)
+
+# PDF Generation (optional)
+reportlab>=4.0.0         # PDF generation library
+
+# Data Processing
+python-dotenv>=1.0.0     # Load environment variables from .env file
+
+# Testing (optional for production)
+pytest>=7.4.0            # Testing framework
+pytest-cov>=4.1.0        # Coverage plugin for pytest
+pytest-mock>=3.11.0      # Mock object library for pytest
+responses>=0.23.0        # Mock library for requests
+
+# Development Tools (optional for production)
+black>=23.0.0            # Code formatter
+flake8>=6.0.0            # Linting tool
+mypy>=1.0.0             # Static type checker
+isort>=5.12.0           # Import sorter
+
+# Documentation (optional)
+sphinx>=7.0.0           # Documentation generator
+sphinx-rtd-theme>=1.3.0 # ReadTheDocs theme for Sphinx
