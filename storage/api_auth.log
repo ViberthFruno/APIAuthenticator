@@ -18,3 +18,39 @@
 2025-10-30 13:31:59,011 - __main__ - INFO - Modo interactivo finalizado
 2025-10-30 13:31:59,013 - api_ifrpro.api_client - INFO - Sesión del cliente API cerrada
 2025-10-30 13:31:59,013 - __main__ - INFO - Servicio finalizado
+2025-10-30 14:02:19,188 - api_ifrpro.api_client - INFO - Cliente API inicializado para https://pruebas.api.ifrpro.nargallo.com
+2025-10-30 14:02:19,188 - __main__ - INFO - Servicio de autenticación API inicializado
+2025-10-30 14:02:19,189 - __main__ - INFO - Iniciando modo interactivo...
+2025-10-30 14:02:26,508 - __main__ - INFO - Modo interactivo finalizado
+2025-10-30 14:02:26,508 - api_ifrpro.api_client - INFO - Sesión del cliente API cerrada
+2025-10-30 14:02:26,508 - __main__ - INFO - Servicio finalizado
+2025-10-30 14:02:56,753 - api_ifrpro.api_client - INFO - Cliente API inicializado para https://pruebas.api.ifrpro.nargallo.com
+2025-10-30 14:02:56,753 - __main__ - INFO - Servicio de autenticación API inicializado
+2025-10-30 14:02:56,753 - __main__ - INFO - Iniciando modo interactivo...
+2025-10-30 14:02:59,461 - __main__ - INFO - Modo interactivo finalizado
+2025-10-30 14:02:59,461 - api_ifrpro.api_client - INFO - Sesión del cliente API cerrada
+2025-10-30 14:02:59,461 - __main__ - INFO - Servicio finalizado
+2025-10-30 14:07:29,394 - api_ifrpro.api_client - INFO - Cliente API inicializado para https://pruebas.api.ifrpro.nargallo.com
+2025-10-30 14:07:29,394 - __main__ - INFO - Servicio de autenticación API inicializado
+2025-10-30 14:07:29,394 - __main__ - INFO - Iniciando modo interactivo...
+2025-10-30 14:07:40,760 - __main__ - INFO - Modo interactivo finalizado
+2025-10-30 14:07:40,760 - api_ifrpro.api_client - INFO - Sesión del cliente API cerrada
+2025-10-30 14:07:40,760 - __main__ - INFO - Servicio finalizado
+2025-10-30 14:07:44,301 - api_ifrpro.api_client - INFO - Cliente API inicializado para https://pruebas.api.ifrpro.nargallo.com
+2025-10-30 14:07:44,301 - __main__ - INFO - Servicio de autenticación API inicializado
+2025-10-30 14:07:44,301 - __main__ - INFO - Iniciando modo interactivo...
+2025-10-30 14:07:49,692 - __main__ - INFO - Modo interactivo finalizado
+2025-10-30 14:07:49,692 - api_ifrpro.api_client - INFO - Sesión del cliente API cerrada
+2025-10-30 14:07:49,692 - __main__ - INFO - Servicio finalizado
+2025-10-30 14:11:02,007 - api_ifrpro.api_client - INFO - Cliente API inicializado para https://pruebas.api.ifrpro.nargallo.com
+2025-10-30 14:11:02,007 - __main__ - INFO - Servicio de autenticación API inicializado
+2025-10-30 14:11:02,007 - __main__ - INFO - Iniciando modo interactivo...
+2025-10-30 14:11:17,849 - __main__ - INFO - Modo interactivo finalizado
+2025-10-30 14:11:17,849 - api_ifrpro.api_client - INFO - Sesión del cliente API cerrada
+2025-10-30 14:11:17,849 - __main__ - INFO - Servicio finalizado
+2025-10-30 14:11:21,357 - api_ifrpro.api_client - INFO - Cliente API inicializado para https://pruebas.api.ifrpro.nargallo.com
+2025-10-30 14:11:21,357 - __main__ - INFO - Servicio de autenticación API inicializado
+2025-10-30 14:11:21,357 - __main__ - INFO - Iniciando modo interactivo...
+2025-10-30 14:11:23,354 - __main__ - INFO - Modo interactivo finalizado
+2025-10-30 14:11:23,354 - api_ifrpro.api_client - INFO - Sesión del cliente API cerrada
+2025-10-30 14:11:23,354 - __main__ - INFO - Servicio finalizado
