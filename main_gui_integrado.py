@@ -115,14 +115,31 @@ class IntegratedGUI:
             messagebox.showerror("Error", f"Error inicializando sistema:\n{e}")
 
     def setup_main_frame(self):
-        """Configura el marco principal de la aplicación"""
-        self.main_frame = ttk.Frame(self.root)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        """Configura el marco principal de la aplicación con pestañas"""
+        # Crear el notebook (control de pestañas)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Pestaña 1: Panel Principal
+        self.main_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.main_frame, text="Panel Principal")
 
         self.main_frame.columnconfigure(0, weight=1)
         self.main_frame.columnconfigure(1, weight=1)
         self.main_frame.rowconfigure(0, weight=2)
         self.main_frame.rowconfigure(1, weight=1)
+
+        # Pestaña 2: API
+        self.api_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.api_frame, text="API")
+
+        # Configurar diseño de dos columnas para la pestaña API
+        self.api_frame.columnconfigure(0, weight=1)
+        self.api_frame.columnconfigure(1, weight=2)
+        self.api_frame.rowconfigure(0, weight=1)
+
+        self.setup_api_left_panel()
+        self.setup_api_right_panel()
 
     def setup_top_panel(self):
         """Configura el panel superior principal"""
@@ -207,13 +224,59 @@ class IntegratedGUI:
 
         self.logger.set_text_widget(self.log_text)
 
+    def setup_api_left_panel(self):
+        """Configura el panel izquierdo de la pestaña API con controles"""
+        left_panel = ttk.LabelFrame(self.api_frame, text="Operaciones API")
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+
+        # Frame para búsqueda de Pre-Ingreso
+        search_frame = ttk.LabelFrame(left_panel, text="Buscar Pre-Ingreso", padding="10")
+        search_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Etiqueta y campo de entrada
+        ttk.Label(search_frame, text="Boleta / Orden de Servicio / Guía:").pack(anchor="w", pady=(0, 5))
+
+        self.boleta_entry = ttk.Entry(search_frame, width=30)
+        self.boleta_entry.pack(fill=tk.X, pady=(0, 10))
+
+        # Botón de búsqueda
+        self.search_button = ttk.Button(
+            search_frame,
+            text="Buscar",
+            command=self.buscar_preingreso
+        )
+        self.search_button.pack(fill=tk.X)
+
+    def setup_api_right_panel(self):
+        """Configura el panel derecho de la pestaña API con el log"""
+        right_panel = ttk.LabelFrame(self.api_frame, text="Log de Respuestas API")
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+
+        # Crear widget de texto para el log de API
+        self.api_log_text = tk.Text(
+            right_panel,
+            wrap=tk.WORD,
+            height=20,
+            width=50,
+            font=("Courier", 9)
+        )
+        self.api_log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Scrollbar para el log
+        api_scrollbar = ttk.Scrollbar(right_panel, command=self.api_log_text.yview)
+        api_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.api_log_text.config(yscrollcommand=api_scrollbar.set)
+
+        # Estado inicial deshabilitado (solo lectura)
+        self.api_log_text.config(state=tk.DISABLED)
+
     def initialize_components(self):
         """Inicializa componentes adicionales y carga la configuración"""
         config = self.config_manager.load_config()
         if config:
             self.logger.log("Configuración cargada correctamente.")
 
-    # ===== MÉTODOS DE CONFIGURACIÓN =====
+    # ===== MÉTODOS DE CONFIGURACIÃ“N =====
 
     def open_email_config_modal(self):
         """Abre una ventana modal para la configuración de correo"""
@@ -418,13 +481,13 @@ class IntegratedGUI:
         cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
         cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
-    # ===== MÉTODOS DE ACCIÓN =====
+    # ===== MÉTODOS DE ACCIÃ“N =====
 
     def test_api_connection(self):
         """Prueba la conexión con la API"""
 
         def test():
-            self.logger.log("🔍 Probando conexión API...")
+            self.logger.log("Probando conexión API...")
             try:
                 if self.api_client.health_check():
                     self.logger.log("✅ Conexión API exitosa", level="INFO")
@@ -468,7 +531,7 @@ class IntegratedGUI:
             self.monitoring = False
             self.monitor_button.config(text="Iniciar Monitoreo")
             self.status_label.config(text="Estado: Detenido", foreground="red")
-            self.logger.log("⏸️ Monitoreo de emails detenido", level="INFO")
+            self.logger.log("Monitoreo de emails detenido", level="INFO")
 
     def monitor_emails(self):
         """Función que se ejecuta en un hilo separado para monitorear emails"""
@@ -483,7 +546,7 @@ class IntegratedGUI:
                     search_titles.append(search_params['caso1'].strip())
 
                 if search_titles:
-                    self.logger.log(f"🔍 Revisando correos... ({datetime.now().strftime('%H:%M:%S')})")
+                    self.logger.log(f"Revisando correos... ({datetime.now().strftime('%H:%M:%S')})")
 
                     self.email_manager.check_and_process_emails(
                         config['provider'],
@@ -499,6 +562,113 @@ class IntegratedGUI:
             except Exception as e:
                 self.logger.log(f"❌ Error en el monitoreo: {str(e)}", level="ERROR")
                 time.sleep(60)
+
+    def buscar_preingreso(self):
+        """Busca información de pre-ingreso usando el número de boleta, orden de servicio o guía"""
+        numero_boleta = self.boleta_entry.get().strip()
+
+        if not numero_boleta:
+            self.log_api_message("❌ Error: Debe ingresar un número de boleta", "ERROR")
+            messagebox.showwarning("Advertencia", "Ingrese un número de boleta")
+            return
+
+        # Deshabilitar botón mientras se procesa
+        self.search_button.config(state=tk.DISABLED)
+        self.search_button.config(text="Buscando...")
+
+        # Ejecutar en hilo separado para no bloquear la UI
+        def search():
+            try:
+                self.log_api_message("=" * 60)
+                self.log_api_message(f"Buscando Pre-Ingreso: {numero_boleta}")
+                self.log_api_message(f"Fecha/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                self.log_api_message("-" * 60)
+
+                # Construir endpoint (sin agregar "0" extra)
+                endpoint = f"/v1/reparacion/{numero_boleta}/consultar"
+
+                self.log_api_message(f"📡 Endpoint: {endpoint}")
+                self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
+                self.log_api_message("")
+
+                # Realizar petición GET
+                response = self.api_client.get(endpoint)
+
+                # Log de respuesta
+                self.log_api_message(f"📥 Status Code: {response.status_code}")
+                self.log_api_message("")
+
+                if response.status_code == 200:
+                    self.log_api_message("✅ Respuesta exitosa")
+                    self.log_api_message("-" * 60)
+
+                    try:
+                        # Intentar parsear JSON
+                        data = response.json()
+                        import json
+                        formatted_json = json.dumps(data, indent=2, ensure_ascii=False)
+                        self.log_api_message("📄 Datos recibidos:")
+                        self.log_api_message("")
+                        self.log_api_message(formatted_json)
+                    except Exception as e:
+                        # Si no es JSON, mostrar texto plano
+                        self.log_api_message("📄 Respuesta (texto plano):")
+                        self.log_api_message("")
+                        self.log_api_message(response.text)
+                else:
+                    self.log_api_message(f"⚠️ Error en la respuesta: {response.status_code}")
+                    self.log_api_message("")
+                    self.log_api_message("📄 Contenido:")
+                    self.log_api_message(response.text if response.text else "(vacío)")
+
+                self.log_api_message("")
+                self.log_api_message("=" * 60)
+
+            except Exception as e:
+                self.log_api_message(f"❌ Error al realizar la petición: {str(e)}", "ERROR")
+                self.log_api_message("")
+                import traceback
+                self.log_api_message("📋 Detalles del error:")
+                self.log_api_message(traceback.format_exc())
+                self.log_api_message("=" * 60)
+
+            finally:
+                # Rehabilitar botón
+                self.search_button.config(state=tk.NORMAL)
+                self.search_button.config(text="Buscar")
+
+        threading.Thread(target=search, daemon=True).start()
+
+    def log_api_message(self, message, level="INFO"):
+        """Escribe un mensaje en el log de API"""
+        # Habilitar edición temporal
+        self.api_log_text.config(state=tk.NORMAL)
+
+        # Insertar mensaje con timestamp
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        if level == "ERROR":
+            tag = "error"
+            self.api_log_text.tag_config(tag, foreground="red")
+        elif level == "WARNING":
+            tag = "warning"
+            self.api_log_text.tag_config(tag, foreground="orange")
+        else:
+            tag = "info"
+            self.api_log_text.tag_config(tag, foreground="black")
+
+        # Agregar mensaje
+        if message.startswith("=") or message.startswith("-"):
+            # Líneas separadoras sin timestamp
+            self.api_log_text.insert(tk.END, f"{message}\n", tag)
+        else:
+            self.api_log_text.insert(tk.END, f"{message}\n", tag)
+
+        # Scroll al final
+        self.api_log_text.see(tk.END)
+
+        # Deshabilitar edición
+        self.api_log_text.config(state=tk.DISABLED)
 
     def quit_app(self):
         """Cierra la aplicación de forma segura"""

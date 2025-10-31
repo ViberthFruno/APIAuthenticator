@@ -247,10 +247,10 @@ Para más información, visite: https://github.com/tu-repo
     # Banner de inicio
     print()
     print("╔═══════════════════════════════════════════════════════════╗")
-    print("║                                                            ║")
+    print("║                                                           ║")
     print("║         Sistema Integrado - API iFR Pro + Correo          ║")
-    print("║                        v1.0.0                              ║")
-    print("║                                                            ║")
+    print("║                        v1.0.0                             ║")
+    print("║                                                           ║")
     print("╚═══════════════════════════════════════════════════════════╝")
     print()
 

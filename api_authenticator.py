@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Autenticación para API iFR Pro usando HMAC-SHA384
+Autenticación para API iFR Pro
 """
 
 import hashlib
