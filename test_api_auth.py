@@ -5,8 +5,7 @@ Pruebas unitarias para el autenticador de API
 
 import unittest
 import hashlib
-from datetime import datetime
-from api_ifrpro.api_authenticator import APIAuthenticator
+from api_authenticator import APIAuthenticator
 
 
 class TestAPIAuthenticator(unittest.TestCase):

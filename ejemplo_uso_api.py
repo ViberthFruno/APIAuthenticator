@@ -1,5 +1,5 @@
 import requests
-from api_ifrpro.api_authenticator import APIAuthenticator
+from api_authenticator import APIAuthenticator
 
 
 def ejemplo_peticion_get():
