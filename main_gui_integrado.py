@@ -247,6 +247,18 @@ class IntegratedGUI:
         )
         self.search_button.pack(fill=tk.X)
 
+        # Frame para Preingreso Manual
+        preingreso_frame = ttk.LabelFrame(left_panel, text="Crear Preingreso", padding="10")
+        preingreso_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Botón de preingreso manual
+        self.preingreso_button = ttk.Button(
+            preingreso_frame,
+            text="📄 Preingreso Manual",
+            command=self.abrir_preingreso_manual
+        )
+        self.preingreso_button.pack(fill=tk.X)
+
     def setup_api_right_panel(self):
         """Configura el panel derecho de la pestaña API con el log"""
         right_panel = ttk.LabelFrame(self.api_frame, text="Log de Respuestas API")
@@ -682,6 +694,322 @@ class IntegratedGUI:
                 self.root.quit()
         else:
             self.root.quit()
+
+    # ===== MÉTODOS PARA PREINGRESO MANUAL =====
+
+    def abrir_preingreso_manual(self):
+        """Abre el diálogo para cargar un PDF y crear un preingreso"""
+        from tkinter import filedialog
+
+        self.log_api_message("=" * 60)
+        self.log_api_message("Iniciando Preingreso Manual")
+        self.log_api_message("=" * 60)
+
+        # Abrir diálogo para seleccionar archivo PDF
+        archivo_pdf = filedialog.askopenfilename(
+            title="Seleccionar Boleta de Reparación (PDF)",
+            filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
+            initialdir=os.path.expanduser("~")
+        )
+
+        if not archivo_pdf:
+            self.log_api_message("❌ No se seleccionó ningún archivo")
+            return
+
+        self.log_api_message(f"📄 Archivo seleccionado: {os.path.basename(archivo_pdf)}")
+
+        # Procesar PDF en un hilo separado
+        def procesar():
+            try:
+                # Leer el archivo PDF
+                with open(archivo_pdf, 'rb') as f:
+                    pdf_content = f.read()
+
+                self.log_api_message(f"📊 Tamaño del archivo: {len(pdf_content):,} bytes")
+
+                # Extraer texto del PDF
+                self.log_api_message("🔍 Extrayendo datos del PDF...")
+                datos_extraidos = self.extraer_datos_boleta_pdf(pdf_content)
+
+                if not datos_extraidos:
+                    self.log_api_message("❌ No se pudieron extraer datos del PDF", "ERROR")
+                    messagebox.showerror("Error", "No se pudieron extraer datos del PDF")
+                    return
+
+                # Mostrar datos extraídos
+                self.log_api_message("✅ Datos extraídos exitosamente:")
+                self.log_api_message(f"   • Cliente: {datos_extraidos.get('nombre_cliente', 'N/A')}")
+                self.log_api_message(f"   • Teléfono: {datos_extraidos.get('telefono_cliente', 'N/A')}")
+                self.log_api_message(f"   • Correo: {datos_extraidos.get('correo_cliente', 'N/A')}")
+                self.log_api_message(f"   • Producto: {datos_extraidos.get('descripcion_producto', 'N/A')}")
+                self.log_api_message(f"   • Marca: {datos_extraidos.get('marca', 'N/A')}")
+                self.log_api_message(f"   • Modelo: {datos_extraidos.get('modelo', 'N/A')}")
+
+                # Abrir formulario de preingreso
+                self.root.after(0, lambda: self.abrir_formulario_preingreso(datos_extraidos, archivo_pdf))
+
+            except Exception as e:
+                self.log_api_message(f"❌ Error al procesar PDF: {str(e)}", "ERROR")
+                import traceback
+                self.log_api_message(traceback.format_exc())
+                messagebox.showerror("Error", f"Error al procesar PDF:\n{str(e)}")
+
+        threading.Thread(target=procesar, daemon=True).start()
+
+    def extraer_datos_boleta_pdf(self, pdf_content):
+        """Extrae datos de un PDF de boleta de reparación"""
+        try:
+            import io
+            import re
+            try:
+                import pdfplumber
+            except ImportError:
+                self.logger.log("Instalando pdfplumber...", level="WARNING")
+                import subprocess
+                subprocess.check_call(['pip', 'install', 'pdfplumber', '--break-system-packages'])
+                import pdfplumber
+
+            # Extraer texto del PDF
+            pdf_file = io.BytesIO(pdf_content)
+            text = ""
+            with pdfplumber.open(pdf_file) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+
+            if not text.strip():
+                return None
+
+            # Extraer datos usando regex
+            datos = {}
+
+            # Número de transacción
+            match = re.search(r'No\.Transaccion:\s*(\S+)', text)
+            if match:
+                datos['numero_transaccion'] = match.group(1).strip()
+
+            # Número de boleta
+            match = re.search(r'No\.\s*Boleta:\s*(\S+)', text)
+            if match:
+                datos['numero_boleta'] = match.group(1).strip()
+
+            # Fecha
+            match = re.search(r'Fecha:\s*(\d{2}/\d{2}/\d{4})', text)
+            if match:
+                fecha_str = match.group(1).strip()
+                # Convertir de DD/MM/YYYY a YYYY-MM-DD
+                partes = fecha_str.split('/')
+                datos['fecha'] = f"{partes[2]}-{partes[1]}-{partes[0]}"
+
+            # Cliente
+            match = re.search(r'C L I E N T E:\s*(.+?)\s+Tel:', text)
+            if match:
+                datos['nombre_cliente'] = match.group(1).strip()
+
+            # Teléfono del cliente
+            match = re.search(r'C L I E N T E:.*?Tel:\s*(\d+)', text)
+            if match:
+                datos['telefono_cliente'] = match.group(1).strip()
+
+            # Correo electrónico
+            match = re.search(r'Correo:\s*([\w\.\-]+@[\w\.\-]+\.\w+)', text)
+            if match:
+                datos['correo_cliente'] = match.group(1).strip()
+
+            # Dirección
+            match = re.search(r'Direcc:\s*(.+?)(?=\n.*?No\. Factura|\nNo\. Factura)', text, re.DOTALL)
+            if match:
+                direccion = match.group(1).strip()
+                direccion = ' '.join(direccion.split())
+                datos['direccion_cliente'] = direccion
+
+            # Código del producto
+            match = re.search(r'Código:\s*(\d+)', text)
+            if match:
+                datos['codigo_producto'] = match.group(1).strip()
+
+            # Descripción del producto
+            match = re.search(r'Código:\s*\d+\s+([A-Z\s]+?)\s+Serie:', text)
+            if match:
+                datos['descripcion_producto'] = match.group(1).strip()
+
+            # Serie
+            match = re.search(r'Serie:\s*(\S+)', text)
+            if match:
+                datos['serie'] = match.group(1).strip()
+
+            # Marca
+            match = re.search(r'Marca:\s*(\S+)', text)
+            if match:
+                datos['marca'] = match.group(1).strip()
+
+            # Modelo
+            match = re.search(r'Modelo:\s*(.+?)(?=\n|$)', text)
+            if match:
+                datos['modelo'] = match.group(1).strip()
+
+            # Número de factura
+            match = re.search(r'No\.\s*Factura:\s*(\S+)', text)
+            if match:
+                datos['numero_factura'] = match.group(1).strip()
+
+            # Fecha de compra
+            match = re.search(r'Fecha de Compra:\s*(\d{2}/\d{2}/\d{4})', text)
+            if match:
+                fecha_str = match.group(1).strip()
+                partes = fecha_str.split('/')
+                datos['fecha_compra'] = f"{partes[2]}-{partes[1]}-{partes[0]}"
+
+            # Daños
+            match = re.search(r'D A Ñ O S:\s*(.+?)(?=\n={5,}|\n-{5,}|$)', text, re.DOTALL)
+            if match:
+                danos = match.group(1).strip()
+                danos = ' '.join(danos.split())
+                datos['danos'] = danos
+
+            # Sucursal
+            match = re.search(r'(\d{3}\s+[\w\-]+)', text)
+            if match:
+                datos['sucursal'] = match.group(1).strip()
+
+            return datos
+
+        except Exception as e:
+            self.logger.log(f"Error extrayendo datos del PDF: {e}", level="ERROR")
+            return None
+
+    def abrir_formulario_preingreso(self, datos_extraidos, pdf_path):
+        """Abre un formulario para completar y enviar el preingreso"""
+        # Crear ventana modal
+        modal = tk.Toplevel(self.root)
+        modal.title("Crear Preingreso - Completar Datos")
+        modal.geometry("700x600")
+        modal.transient(self.root)
+        modal.grab_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Frame principal con scroll
+        main_frame = ttk.Frame(modal, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Título
+        ttk.Label(
+            scrollable_frame,
+            text="Complete los datos faltantes para crear el preingreso",
+            font=("Arial", 11, "bold")
+        ).grid(row=0, column=0, columnspan=2, pady=(0, 15), sticky="w")
+
+        row = 1
+
+        # Variables para almacenar los datos del formulario
+        form_vars = {}
+
+        # DATOS EXTRAÍDOS (solo lectura)
+        ttk.Label(scrollable_frame, text="DATOS EXTRAÍDOS DEL PDF", font=("Arial", 10, "bold")).grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(10, 5)
+        )
+        row += 1
+
+        # Mostrar datos extraídos
+        datos_mostrar = [
+            ("Número de Boleta", datos_extraidos.get('numero_boleta', 'N/A')),
+            ("Cliente", datos_extraidos.get('nombre_cliente', 'N/A')),
+            ("Teléfono", datos_extraidos.get('telefono_cliente', 'N/A')),
+            ("Correo", datos_extraidos.get('correo_cliente', 'N/A')),
+            ("Producto", datos_extraidos.get('descripcion_producto', 'N/A')),
+            ("Marca", datos_extraidos.get('marca', 'N/A')),
+            ("Modelo", datos_extraidos.get('modelo', 'N/A')),
+            ("Serie", datos_extraidos.get('serie', 'N/A')),
+            ("Daños", datos_extraidos.get('danos', 'N/A')),
+        ]
+
+        for label, valor in datos_mostrar:
+            ttk.Label(scrollable_frame, text=f"{label}:").grid(row=row, column=0, sticky="w", padx=5, pady=2)
+            ttk.Label(scrollable_frame, text=valor, foreground="blue").grid(row=row, column=1, sticky="w", padx=5,
+                                                                            pady=2)
+            row += 1
+
+        # DATOS FALTANTES (editables)
+        ttk.Separator(scrollable_frame, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky="ew", pady=10)
+        row += 1
+
+        ttk.Label(scrollable_frame, text="COMPLETAR DATOS FALTANTES", font=("Arial", 10, "bold")).grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(5, 10)
+        )
+        row += 1
+
+        # Código de sucursal
+        ttk.Label(scrollable_frame, text="*Código Sucursal:").grid(row=row, column=0, sticky="w", padx=5, pady=5)
+        form_vars['codigo_sucursal'] = tk.StringVar(value="")
+        ttk.Entry(scrollable_frame, textvariable=form_vars['codigo_sucursal'], width=40).grid(
+            row=row, column=1, sticky="w", padx=5, pady=5
+        )
+        row += 1
+
+        # Nota explicativa
+        ttk.Label(
+            scrollable_frame,
+            text="⚠️ Por ahora, esta es una versión simplificada para pruebas.\n"
+                 "Complete el código de sucursal para continuar.",
+            foreground="orange",
+            wraplength=600
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=5, pady=10)
+        row += 1
+
+        # Botones
+        button_frame = ttk.Frame(scrollable_frame)
+        button_frame.grid(row=row, column=0, columnspan=2, pady=20)
+
+        def enviar_preingreso():
+            codigo_sucursal = form_vars['codigo_sucursal'].get().strip()
+
+            if not codigo_sucursal:
+                messagebox.showwarning("Advertencia", "Debe ingresar el código de sucursal")
+                return
+
+            self.log_api_message("=" * 60)
+            self.log_api_message("Enviando Preingreso a la API...")
+            self.log_api_message("=" * 60)
+            self.log_api_message(f"Código Sucursal: {codigo_sucursal}")
+            self.log_api_message(f"Archivo PDF: {os.path.basename(pdf_path)}")
+
+            # Por ahora solo mostrar mensaje de éxito
+            messagebox.showinfo(
+                "Información",
+                "Función en desarrollo.\n\n"
+                "Los datos han sido extraídos correctamente.\n"
+            )
+
+            self.log_api_message("✅ Datos preparados para envío (función en desarrollo)")
+            self.log_api_message("=" * 60)
+
+            modal.destroy()
+
+        ttk.Button(button_frame, text="✅ Enviar Preingreso", command=enviar_preingreso).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="❌ Cancelar", command=modal.destroy).pack(side=tk.LEFT, padx=5)
 
 
 def main():
