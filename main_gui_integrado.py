@@ -3,6 +3,29 @@
 main_gui_integrado.py - Interfaz gráfica integrada: API iFR Pro + Bot de Correo
 Combina autenticación API con procesamiento automático de correos
 """
+import tracemalloc
+
+from api_integration.application.dtos import HealthCheckResult, GetPreingresoOutput
+from api_integration.application.use_cases import GetPreingresoInput, GetPreingresoUseCase, CreatePreingresoOutput, \
+    HealthCheckUseCase
+from api_integration.infrastructure.retry_policy import RetryPolicy
+
+tracemalloc.start()
+
+from dotenv import load_dotenv
+
+from api_integration.domain.entities import ApiCredentials
+from api_integration.infrastructure.authenticator_adapter import create_api_authenticator
+from api_integration.infrastructure.http_client import create_api_client
+from api_integration.infrastructure.api_ifrpro_repository import create_ifrpro_repository
+
+from gui_async_helper import (
+    get_async_helper,
+    run_async_with_callback
+)
+
+# Cargar variables de entorno
+load_dotenv()
 
 import os
 import sys
@@ -10,37 +33,67 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import tkinter.font as tkfont
 import threading
-import logging
 import time
-from dotenv import load_dotenv
 from datetime import datetime
-
-# Cargar variables de entorno
-load_dotenv()
 
 # Importar módulos necesarios
 try:
-    from api_client import APIClient
-    from file_handler import FileHandler
     from settings import Settings
     from config_manager import ConfigManager
     from email_manager import EmailManager
     from case_handler import CaseHandler
-    from logger import Logger
+    from logger import setup_logging, LoggerMixin
 except ImportError as e:
     print(f"Error importando módulos: {e}")
     print("Asegúrese de que todos los archivos necesarios estén en el directorio")
+
+    # Definir variables como None para evitar NameError
+    Settings = ConfigManager = None
+    EmailManager = CaseHandler = setup_logging = LoggerMixin = None
     sys.exit(1)
 
 
-class IntegratedGUI:
+class IntegratedGUI(LoggerMixin):
     """Interfaz gráfica integrada para API y Correo"""
+    WINDOW_WIDTH = 900
+    WINDOW_HEIGHT = 600
 
-    def __init__(self, root):
+    def __init__(self, root, settings):
+        self.credentials = None
+        self.repository = None
+        self.retry_policy = None
+        self.case_handler = None
+        self.preingreso_button = None
+        self.search_button = None
+        self.api_config_button = None
+        self.cc_users_button = None
+        self.search_params_button = None
+        self.config_button = None
+        self.email_status = None
+        self.api_status = None
+        self.status_label = None
+        self.monitor_button = None
+        self.boleta_entry = None
+        self.api_log_text = None
+        self.top_panel = None
+        self.log_text = None
+        self.bottom_right_panel = None
+        self.bottom_left_panel = None
+        self.api_frame = None
+        self.main_frame = None
+        self.notebook = None
+        self.email_manager = None
+        self.api_client = None
+
         self.root = root
         self.root.title("API iFR Pro + Bot de Correo - Sistema Integrado")
-        self.root.geometry("900x600")
+        self.root.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}")
         self.root.configure(bg="#f0f0f0")
+
+        # Configurar cierre seguro
+        self.root.protocol("WM_DELETE_WINDOW", self.quit_app)
+
+        self._center_window()
 
         # Configurar fuente predeterminada
         default_font = tkfont.nametofont("TkDefaultFont")
@@ -52,10 +105,10 @@ class IntegratedGUI:
         self.monitor_thread = None
 
         # Inicializar componentes
-        self.settings = Settings()
+        self.settings = settings
         self.config_manager = ConfigManager()
-        self.logger = Logger()
-        self.setup_logging()
+
+        self.async_helper = get_async_helper()
 
         # Inicializar clientes
         self.initialize_clients()
@@ -68,50 +121,64 @@ class IntegratedGUI:
         self.initialize_components()
 
         # Mensaje de bienvenida
-        self.logger.log("=" * 60)
-        self.logger.log("Sistema Integrado: API iFR Pro + Bot de Correo")
-        self.logger.log("=" * 60)
+        self.logger.info("=" * 60)
+        self.logger.info("Sistema Integrado: API iFR Pro + Bot de Correo")
+        self.logger.info("=" * 60)
 
-    def setup_logging(self):
-        """Configura el sistema de logging"""
-        os.makedirs(self.settings.LOG_DIR, exist_ok=True)
-        logging.basicConfig(
-            level=getattr(logging, self.settings.LOG_LEVEL),
-            format="%(asctime)s - %(levelname)s - %(message)s",
-            datefmt="%H:%M:%S",
-            handlers=[
-                logging.FileHandler(
-                    os.path.join(self.settings.LOG_DIR, 'integrated_gui.log'),
-                    mode='a',
-                    encoding='utf-8'
-                )
-            ]
-        )
+    def _center_window(self):
+        self.root.update_idletasks()
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        self.root.geometry(f'{width}x{height}+{x}+{y}')
 
     def initialize_clients(self):
         """Inicializa los clientes de API y correo"""
         try:
             # Cliente API
-            self.api_client = APIClient(
-                cuenta_api=self.settings.API_CUENTA,
-                llave_api=self.settings.API_LLAVE,
+
+            # 1. Configurar credenciales
+            self.credentials = ApiCredentials(
+                cuenta=self.settings.API_CUENTA,
+                llave=self.settings.API_LLAVE,
                 codigo_servicio=self.settings.API_CODIGO_SERVICIO,
-                pais=self.settings.API_PAIS,
+                pais=self.settings.API_PAIS
+            )
+
+            # 3. Crear authenticator
+            authenticator = create_api_authenticator()
+
+            # 2. Crear cliente HTTP con políticas
+            self.api_client, self.retry_policy, rate_limiter = create_api_client(
+                authenticator=authenticator,
                 base_url=self.settings.API_BASE_URL,
                 timeout=self.settings.API_TIMEOUT,
-                verify=self.settings.ENABLE_SSL_VERIFY
+                verify_ssl=self.settings.ENABLE_SSL_VERIFY,
+                max_attempts=self.settings.MAX_RETRIES,
+                rate_limit_calls=self.settings.RATE_LIMIT_CALLS
             )
-            logging.info("Cliente API inicializado correctamente")
+
+            # 4. Crear repositorio
+            self.repository = create_ifrpro_repository(
+                api_client=self.api_client,
+                authenticator=authenticator,
+                credentials=self.credentials,
+                base_url=self.settings.API_BASE_URL,
+                rate_limiter=rate_limiter
+            )
+
+            self.logger.info("Cliente API inicializado correctamente")
 
             # Gestor de correo
             self.email_manager = EmailManager()
 
             # Manejador de casos
             self.case_handler = CaseHandler()
-            logging.info(f"Casos cargados: {self.case_handler.get_available_cases()}")
+            self.logger.info(f"Casos cargados: {self.case_handler.get_available_cases()}")
 
         except Exception as e:
-            logging.error(f"Error inicializando clientes: {e}")
+            self.logger.error(f"Error inicializando clientes: {e}")
             messagebox.showerror("Error", f"Error inicializando sistema:\n{e}")
 
     def setup_main_frame(self):
@@ -222,7 +289,7 @@ class IntegratedGUI:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_text.config(yscrollcommand=scrollbar.set)
 
-        self.logger.set_text_widget(self.log_text)
+        # self.logger.set_text_widget(self.log_text)
 
     def setup_api_left_panel(self):
         """Configura el panel izquierdo de la pestaña API con controles"""
@@ -286,9 +353,9 @@ class IntegratedGUI:
         """Inicializa componentes adicionales y carga la configuración"""
         config = self.config_manager.load_config()
         if config:
-            self.logger.log("Configuración cargada correctamente.")
+            self.log_api_message("Configuración cargada correctamente.")
 
-    # ===== MÉTODOS DE CONFIGURACIÃ“N =====
+    # ===== MÉTODOS DE CONFIGURACIÓN =====
 
     def open_email_config_modal(self):
         """Abre una ventana modal para la configuración de correo"""
@@ -338,21 +405,21 @@ class IntegratedGUI:
             password = password_var.get()
 
             if not all([provider, email, password]):
-                self.logger.log("Error: Todos los campos son obligatorios", level="ERROR")
+                self.log_api_message("Error: Todos los campos son obligatorios", level="ERROR")
                 return
 
-            self.logger.log("Probando conexión SMTP e IMAP...")
+            self.log_api_message("Probando conexión SMTP e IMAP...")
             smtp_result = self.email_manager.test_smtp_connection(provider, email, password)
             imap_result = self.email_manager.test_imap_connection(provider, email, password)
 
             if smtp_result and imap_result:
-                self.logger.log(f"✅ Conexión exitosa a {provider} (SMTP e IMAP)", level="INFO")
+                self.log_api_message(f"✅ Conexión exitosa a {provider} (SMTP e IMAP)", level="INFO")
                 self.email_status.config(text="Email: Conectado", foreground="green")
             else:
                 if not smtp_result:
-                    self.logger.log(f"❌ Error en la conexión SMTP a {provider}", level="ERROR")
+                    self.log_api_message(f"❌ Error en la conexión SMTP a {provider}", level="ERROR")
                 if not imap_result:
-                    self.logger.log(f"❌ Error en la conexión IMAP a {provider}", level="ERROR")
+                    self.log_api_message(f"❌ Error en la conexión IMAP a {provider}", level="ERROR")
                 self.email_status.config(text="Email: Error", foreground="red")
 
         def save_config_modal():
@@ -364,14 +431,14 @@ class IntegratedGUI:
             })
 
             if not all([current_config['provider'], current_config['email'], current_config['password']]):
-                self.logger.log("Error: Todos los campos son obligatorios para guardar", level="ERROR")
+                self.log_api_message("Error: Todos los campos son obligatorios para guardar", level="ERROR")
                 return
 
             if self.config_manager.save_config(current_config):
-                self.logger.log("✅ Configuración guardada correctamente", level="INFO")
+                self.log_api_message("✅ Configuración guardada correctamente", level="INFO")
                 modal.destroy()
             else:
-                self.logger.log("❌ Error al guardar la configuración", level="ERROR")
+                self.log_api_message("❌ Error al guardar la configuración", level="ERROR")
 
         test_button = ttk.Button(button_frame, text="Probar Conexión", command=test_connection_modal)
         test_button.grid(row=0, column=0, sticky="ew", padx=5)
@@ -426,10 +493,10 @@ class IntegratedGUI:
             }
 
             if self.config_manager.save_config(current_config):
-                self.logger.log("✅ Parámetros de búsqueda guardados correctamente", level="INFO")
+                self.log_api_message("✅ Parámetros de búsqueda guardados correctamente", level="INFO")
                 modal.destroy()
             else:
-                self.logger.log("❌ Error al guardar parámetros de búsqueda", level="ERROR")
+                self.log_api_message("❌ Error al guardar parámetros de búsqueda", level="ERROR")
 
         save_button = ttk.Button(button_frame, text="Guardar", command=save_search_params)
         save_button.grid(row=0, column=0, sticky="ew", padx=5)
@@ -482,10 +549,10 @@ class IntegratedGUI:
             current_config['cc_users'] = emails_list
 
             if self.config_manager.save_config(current_config):
-                self.logger.log("✅ Lista de usuarios CC guardada correctamente.", level="INFO")
+                self.log_api_message("✅ Lista de usuarios CC guardada correctamente.", level="INFO")
                 modal.destroy()
             else:
-                self.logger.log("❌ Error al guardar la lista de usuarios CC.", level="ERROR")
+                self.log_api_message("❌ Error al guardar la lista de usuarios CC.", level="ERROR")
 
         save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
         save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
@@ -493,41 +560,69 @@ class IntegratedGUI:
         cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
         cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
-    # ===== MÉTODOS DE ACCIÃ“N =====
+    # ===== MÉTODOS DE ACCIÓN =====
 
     def test_api_connection(self):
         """Prueba la conexión con la API"""
 
-        def test():
-            self.logger.log("Probando conexión API...")
-            try:
-                if self.api_client.health_check():
-                    self.logger.log("✅ Conexión API exitosa", level="INFO")
-                    self.api_status.config(text="API: Conectado", foreground="green")
-                    messagebox.showinfo("Éxito", "Conexión API exitosa")
-                else:
-                    self.logger.log("❌ Fallo en conexión API", level="ERROR")
-                    self.api_status.config(text="API: Error", foreground="red")
-                    messagebox.showerror("Error", "Fallo en conexión API")
-            except Exception as e:
-                self.logger.log(f"❌ Error en conexión API: {e}", level="ERROR")
-                self.api_status.config(text="API: Error", foreground="red")
-                messagebox.showerror("Error", f"Error en conexión API:\n{e}")
+        self.log_api_message("Probando conexión API...")
 
-        threading.Thread(target=test, daemon=True).start()
+        def on_success(result: HealthCheckResult):
+
+            """Callback de éxito"""
+            if result.is_healthy:
+                self.log_api_message("✅ Conexión API exitosa", level="INFO")
+                self.api_status.config(text=f"API: {result.get_message()}", foreground="green")
+                messagebox.showinfo(
+                    "Éxito",
+                    f"✅ Conexión API exitosa\n\n"
+                    f"Tiempo de respuesta: {result.response_time_ms:.0f}ms\n"
+                    f"Status: {result.status_code}"
+                )
+            else:
+                self.log_api_message(f"❌ Fallo en conexión API: {result.get_message()}", level="ERROR")
+                self.api_status.config(text=f"API: {result.get_message()}", foreground="red")
+                messagebox.showerror(
+                    "Advertencia",
+                    f"❌ Error de conexión API\n\n"
+                    f"Mensaje: {result.message}\n"
+                    f"Tipo: {result.error_type}\n"
+                    f"Tiempo: {result.response_time_ms:.0f}ms"
+                )
+
+        def on_error(error):
+            """Callback de error"""
+            error_msg = f"❌ Error inesperado: {str(error)}"
+            self.log_api_message(error_msg, level="EXCEPTION")
+            self.api_status.config(text="API: Error", foreground="red")
+            messagebox.showerror("Error", error_msg)
+
+        policy = RetryPolicy(base_delay=1.0, backoff_factor=2.0, max_delay=10.0)
+
+        use_case = HealthCheckUseCase(
+            api_ifrpro_repository=self.repository,
+            retry_policy=policy
+        )
+
+        # Ejecutar async
+        run_async_with_callback(
+            use_case.execute(endpoint="/"),
+            on_success=on_success,
+            on_error=on_error
+        )
 
     def toggle_monitoring(self):
         """Inicia o detiene el monitoreo de emails"""
         if not self.monitoring:
             config = self.config_manager.load_config()
             if not all([config.get('provider'), config.get('email'), config.get('password')]):
-                self.logger.log("❌ Error: Configure primero los datos de correo", level="ERROR")
+                self.log_api_message("❌ Error: Configure primero los datos de correo", level="ERROR")
                 messagebox.showwarning("Advertencia", "Configure primero el correo")
                 return
 
             search_params = config.get('search_params', {})
             if not search_params.get('caso1', '').strip():
-                self.logger.log("❌ Error: Configure primero los parámetros de búsqueda", level="ERROR")
+                self.log_api_message("❌ Error: Configure primero los parámetros de búsqueda", level="ERROR")
                 messagebox.showwarning("Advertencia", "Configure los parámetros de búsqueda")
                 return
 
@@ -538,12 +633,12 @@ class IntegratedGUI:
             self.monitor_thread = threading.Thread(target=self.monitor_emails, daemon=True)
             self.monitor_thread.start()
 
-            self.logger.log("✅ Monitoreo de emails iniciado", level="INFO")
+            self.log_api_message("✅ Monitoreo de emails iniciado", level="INFO")
         else:
             self.monitoring = False
             self.monitor_button.config(text="Iniciar Monitoreo")
             self.status_label.config(text="Estado: Detenido", foreground="red")
-            self.logger.log("Monitoreo de emails detenido", level="INFO")
+            self.log_api_message("Monitoreo de emails detenido", level="INFO")
 
     def monitor_emails(self):
         """Función que se ejecuta en un hilo separado para monitorear emails"""
@@ -558,7 +653,7 @@ class IntegratedGUI:
                     search_titles.append(search_params['caso1'].strip())
 
                 if search_titles:
-                    self.logger.log(f"Revisando correos... ({datetime.now().strftime('%H:%M:%S')})")
+                    self.log_api_message(f"Revisando correos... ({datetime.now().strftime('%H:%M:%S')})")
 
                     self.email_manager.check_and_process_emails(
                         config['provider'],
@@ -572,7 +667,7 @@ class IntegratedGUI:
                 time.sleep(30)
 
             except Exception as e:
-                self.logger.log(f"❌ Error en el monitoreo: {str(e)}", level="ERROR")
+                self.log_api_message(f"❌ Error en el monitoreo: {str(e)}", level="ERROR")
                 time.sleep(60)
 
     def buscar_preingreso(self):
@@ -585,105 +680,134 @@ class IntegratedGUI:
             return
 
         # Deshabilitar botón mientras se procesa
-        self.search_button.config(state=tk.DISABLED)
-        self.search_button.config(text="Buscando...")
+        self.search_button.config(state=tk.DISABLED, text="Buscando...")
 
-        # Ejecutar en hilo separado para no bloquear la UI
-        def search():
-            try:
-                self.log_api_message("=" * 60)
-                self.log_api_message(f"Buscando Pre-Ingreso: {numero_boleta}")
-                self.log_api_message(f"Fecha/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                self.log_api_message("-" * 60)
+        # Definir operación async
+        async def search_operation():
+            """Operación de búsqueda async"""
+            self.log_api_message("=" * 60)
+            self.log_api_message(f"Buscando Pre-Ingreso: {numero_boleta}")
+            self.log_api_message(f"Fecha/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            self.log_api_message("-" * 60)
 
-                # Construir endpoint (sin agregar "0" extra)
-                endpoint = f"/v1/reparacion/{numero_boleta}/consultar"
+            # Construir endpoint (sin agregar "0" extra)
+            endpoint = f"/v1/reparacion/{numero_boleta}/consultar"
 
-                self.log_api_message(f"📡 Endpoint: {endpoint}")
-                self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
-                self.log_api_message("")
+            self.log_api_message(f"📡 Endpoint: {endpoint}")
+            self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
+            self.log_api_message("")
 
-                # Realizar petición GET
-                response = self.api_client.get(endpoint)
+            use_case = GetPreingresoUseCase(self.repository)
 
-                # Log de respuesta
-                self.log_api_message(f"📥 Status Code: {response.status_code}")
-                self.log_api_message("")
+            result = await use_case.execute(
+                GetPreingresoInput(numero_boleta)
+            )
 
-                if response.status_code == 200:
-                    self.log_api_message("✅ Respuesta exitosa")
-                    self.log_api_message("-" * 60)
+            return result
 
-                    try:
-                        # Intentar parsear JSON
-                        data = response.json()
-                        import json
-                        formatted_json = json.dumps(data, indent=2, ensure_ascii=False)
-                        self.log_api_message("📄 Datos recibidos:")
-                        self.log_api_message("")
-                        self.log_api_message(formatted_json)
-                    except Exception as e:
-                        # Si no es JSON, mostrar texto plano
-                        self.log_api_message("📄 Respuesta (texto plano):")
-                        self.log_api_message("")
-                        self.log_api_message(response.text)
-                else:
-                    self.log_api_message(f"⚠️ Error en la respuesta: {response.status_code}")
-                    self.log_api_message("")
-                    self.log_api_message("📄 Contenido:")
-                    self.log_api_message(response.text if response.text else "(vacío)")
+        # Callbacks
+        def on_success(result: GetPreingresoOutput):
+            """Callback de éxito"""
+            self.log_api_message(f"📥 Status Code: {result.response.status_code}")
+            self.log_api_message("")
 
-                self.log_api_message("")
-                self.log_api_message("=" * 60)
+            if result.found:
+                self.log_api_message("✅ Respuesta exitosa")
+                try:
+                    data = result.response.body
+                    import json
+                    formatted_json = json.dumps(data, indent=2, ensure_ascii=False)
+                    self.log_api_message("📄 Datos recibidos:")
+                    self.log_api_message(formatted_json)
+                except:
+                    self.log_api_message("📄 Respuesta (texto plano):")
+                    self.log_api_message(result.response.raw_content)
+            else:
+                self.log_api_message(f"⚠️ Error: {result.response.status_code}")
+                self.log_api_message(result.response.body if result.response.body else "(vacío)")
 
-            except Exception as e:
-                self.log_api_message(f"❌ Error al realizar la petición: {str(e)}", "ERROR")
-                self.log_api_message("")
-                import traceback
-                self.log_api_message("📋 Detalles del error:")
-                self.log_api_message(traceback.format_exc())
-                self.log_api_message("=" * 60)
+            self.log_api_message("=" * 60)
 
-            finally:
-                # Rehabilitar botón
-                self.search_button.config(state=tk.NORMAL)
-                self.search_button.config(text="Buscar")
+            # Rehabilitar botón
+            self.search_button.config(state=tk.NORMAL, text="Buscar")
 
-        threading.Thread(target=search, daemon=True).start()
+        def on_error(error):
+            """Callback de error"""
+            self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
+            self.log_api_message("=" * 60)
 
-    def log_api_message(self, message, level="INFO"):
+            # Rehabilitar botón
+            self.search_button.config(state=tk.NORMAL, text="Buscar")
+
+        # Ejecutar operación async sin bloquear GUI
+        run_async_with_callback(
+            search_operation(),
+            on_success=on_success,
+            on_error=on_error
+        )
+
+    def log_api_message(self, message, level="INFO", exc_info=True, **kwargs):
+
         """Escribe un mensaje en el log de API"""
         # Habilitar edición temporal
+        self.log_text.config(state=tk.NORMAL)
         self.api_log_text.config(state=tk.NORMAL)
 
-        # Insertar mensaje con timestamp
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
         if level == "ERROR":
+            self.logger.error(message, **kwargs)
             tag = "error"
-            self.api_log_text.tag_config(tag, foreground="red")
+            self.api_log_text.tag_config(tag, foreground="#FF0000")
+            self.log_text.tag_config(tag, foreground="#FF0000")
+        elif level == "CRITICAL":
+            self.logger.critical(message, **kwargs)
+            tag = "critical"
+            self.api_log_text.tag_config(tag, foreground="#8B0000")
+            self.log_text.tag_config(tag, foreground="#8B0000")
+        elif level == "EXCEPTION":
+            self.logger.exception(message, exc_info, **kwargs)
+            tag = "exception"
+            self.api_log_text.tag_config(tag, foreground="#DC143C")
+            self.log_text.tag_config(tag, foreground="#DC143C")
         elif level == "WARNING":
+            self.logger.warning(message, **kwargs)
             tag = "warning"
-            self.api_log_text.tag_config(tag, foreground="orange")
-        else:
+            self.api_log_text.tag_config(tag, foreground="#FF8C00")
+            self.log_text.tag_config(tag, foreground="#FF8C00")
+        elif level == "INFO":
+            self.logger.info(message, **kwargs)
             tag = "info"
-            self.api_log_text.tag_config(tag, foreground="black")
+            self.api_log_text.tag_config(tag, foreground="#0066CC")
+            self.log_text.tag_config(tag, foreground="#0066CC")
+        else:
+            tag = "debug"
+            self.logger.debug(message, **kwargs)
+            self.api_log_text.tag_config(tag, foreground="#808080")
+            self.log_text.tag_config(tag, foreground="#808080")
 
         # Agregar mensaje
         if message.startswith("=") or message.startswith("-"):
             # Líneas separadoras sin timestamp
             self.api_log_text.insert(tk.END, f"{message}\n", tag)
+            self.log_text.insert(tk.END, f"{message}\n", tag)
         else:
             self.api_log_text.insert(tk.END, f"{message}\n", tag)
+            self.log_text.insert(tk.END, f"{message}\n", tag)
 
         # Scroll al final
         self.api_log_text.see(tk.END)
+        self.log_text.see(tk.END)
 
         # Deshabilitar edición
         self.api_log_text.config(state=tk.DISABLED)
+        self.log_text.config(state=tk.DISABLED)
 
     def quit_app(self):
         """Cierra la aplicación de forma segura"""
+
+        # Cerrar cliente httpx
+        if hasattr(self, 'api_client'):
+            self.api_client.close()
+
         if self.monitoring:
             if messagebox.askyesno(
                     "Confirmar",
@@ -691,9 +815,18 @@ class IntegratedGUI:
             ):
                 self.monitoring = False
                 time.sleep(1)
+
+                # Detener async helper
+                self.async_helper.stop_loop()
+
                 self.root.quit()
+                self.root.destroy()
         else:
+            # Detener async helper
+            self.async_helper.stop_loop()
+
             self.root.quit()
+            self.root.destroy()
 
     # ===== MÉTODOS PARA PREINGRESO MANUAL =====
 
@@ -764,7 +897,7 @@ class IntegratedGUI:
             try:
                 import pdfplumber
             except ImportError:
-                self.logger.log("Instalando pdfplumber...", level="WARNING")
+                self.log_api_message("Instalando pdfplumber...", level="EXCEPTION")
                 import subprocess
                 subprocess.check_call(['pip', 'install', 'pdfplumber', '--break-system-packages'])
                 import pdfplumber
@@ -813,7 +946,7 @@ class IntegratedGUI:
                 datos['telefono_cliente'] = match.group(1).strip()
 
             # Correo electrónico
-            match = re.search(r'Correo:\s*([\w\.\-]+@[\w\.\-]+\.\w+)', text)
+            match = re.search(r'Correo:\s*([\w.\-]+@[\w.\-]+\.\w+)', text)
             if match:
                 datos['correo_cliente'] = match.group(1).strip()
 
@@ -875,8 +1008,8 @@ class IntegratedGUI:
 
             return datos
 
-        except Exception as e:
-            self.logger.log(f"Error extrayendo datos del PDF: {e}", level="ERROR")
+        except Exception as ex:
+            self.log_api_message(f"Error extrayendo datos del PDF: {ex}", level="EXCEPTION")
             return None
 
     def abrir_formulario_preingreso(self, datos_extraidos, pdf_path):
@@ -906,7 +1039,7 @@ class IntegratedGUI:
 
         scrollable_frame.bind(
             "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            lambda ev: canvas.configure(scrollregion=canvas.bbox("all"))
         )
 
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
@@ -1014,20 +1147,24 @@ class IntegratedGUI:
 
 def main():
     """Función principal"""
+
+    # Crear ventana principal
     root = tk.Tk()
-    app = IntegratedGUI(root)
 
-    # Centrar ventana
-    root.update_idletasks()
-    width = root.winfo_width()
-    height = root.winfo_height()
-    x = (root.winfo_screenwidth() // 2) - (width // 2)
-    y = (root.winfo_screenheight() // 2) - (height // 2)
-    root.geometry(f'{width}x{height}+{x}+{y}')
+    # Cargar configuración
+    settings = Settings()
 
-    # Configurar cierre seguro
-    root.protocol("WM_DELETE_WINDOW", app.quit_app)
+    # Configurar sistema de logging
+    setup_logging(
+        log_level=settings.LOG_LEVEL,
+        log_dir=settings.LOG_DIR,
+        use_json=False
+    )
 
+    # Inicializar interfaz gráfica
+    app = IntegratedGUI(root, settings)
+
+    # Iniciar loop de eventos
     root.mainloop()
 
 

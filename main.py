@@ -4,11 +4,13 @@ main_integrado.py - Punto de entrada principal del sistema integrado
 API iFR Pro + Bot de Correo Electrónico
 """
 
+import argparse
 import os
 import sys
-import argparse
-import logging
+
 from dotenv import load_dotenv
+from logger import setup_logging
+from settings import Settings
 
 # Cargar variables de entorno
 load_dotenv()
@@ -30,22 +32,26 @@ def launch_gui():
         print("   - Bot de Correo Electrónico")
         print()
 
+        # Crear ventana principal
         root = tk.Tk()
-        app = IntegratedGUI(root)
 
-        # Centrar ventana
-        root.update_idletasks()
-        width = root.winfo_width()
-        height = root.winfo_height()
-        x = (root.winfo_screenwidth() // 2) - (width // 2)
-        y = (root.winfo_screenheight() // 2) - (height // 2)
-        root.geometry(f'{width}x{height}+{x}+{y}')
+        # Cargar configuración
+        settings = Settings()
 
-        # Cierre seguro
-        root.protocol("WM_DELETE_WINDOW", app.quit_app)
+        # Configurar sistema de logging
+        setup_logging(
+            log_level=settings.LOG_LEVEL,
+            log_dir=settings.LOG_DIR,
+            use_json=False
+        )
+
+        # Inicializar interfaz gráfica
+        app = IntegratedGUI(root, settings)
 
         print("✅ Sistema inicializado correctamente")
         print("=" * 60)
+
+        # Iniciar loop de eventos
         root.mainloop()
 
     except ImportError as e:

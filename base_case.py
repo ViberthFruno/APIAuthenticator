@@ -49,7 +49,7 @@ class BaseCase:
             sender = email_data.get('sender', '')
             subject = email_data.get('subject', '')
 
-            logger.log(f"Procesando {self._config_key} para email de {sender}", level="INFO")
+            logger.info(f"Procesando {self._config_key} para email de {sender}")
 
             response = {
                 'recipient': sender,
@@ -57,9 +57,9 @@ class BaseCase:
                 'body': self._response_message
             }
 
-            logger.log(f"Respuesta generada para {self._config_key}", level="INFO")
+            logger.info(f"Respuesta generada para {self._config_key}")
             return response
 
         except Exception as e:
-            logger.log(f"Error al procesar email en {self._config_key}: {e}", level="ERROR")
+            logger.exception(f"Error al procesar email en {self._config_key}: {str(e)}")
             return None

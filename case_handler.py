@@ -66,10 +66,10 @@ class CaseHandler:
                 case_obj = self.cases[case_name]
                 return case_obj.process_email(email_data, logger)
             except Exception as e:
-                logger.log(f"Error al ejecutar caso {case_name}: {str(e)}", level="ERROR")
+                logger.exception(f"Error al ejecutar caso {case_name}: {str(e)}")
                 return False
         else:
-            logger.log(f"Caso no encontrado: {case_name}", level="ERROR")
+            logger.error(f"Caso no encontrado: {case_name}")
             return False
 
     def find_matching_case(self, subject, logger):
@@ -79,10 +79,10 @@ class CaseHandler:
                 keywords = case_obj.get_search_keywords()
                 for keyword in keywords:
                     if keyword.lower() in subject.lower():
-                        logger.log(f"Caso encontrado: {case_name} para palabra clave: {keyword}", level="INFO")
+                        logger.info(f"Caso encontrado: {case_name} para palabra clave: {keyword}")
                         return case_name
             except Exception as e:
-                logger.log(f"Error al verificar caso {case_name}: {str(e)}", level="ERROR")
+                logger.exception(f"Error al verificar caso {case_name}: {str(e)}")
                 continue
 
         return None

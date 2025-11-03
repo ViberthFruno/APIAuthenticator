@@ -2,18 +2,121 @@
 # Ubicación: raíz del proyecto
 # Descripción: Gestiona las operaciones de correo electrónico (SMTP e IMAP)
 
-import smtplib
+import email
 import imaplib
-import ssl
 import os
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
+import smtplib
+import ssl
+from datetime import date, timedelta
 from email import encoders
 from email.header import decode_header
-import email
-from datetime import date, timedelta
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from case_handler import CaseHandler
+
+
+def _mark_as_read(imap_connection, msg_id, logger):
+    """Marca un email específico como leído"""
+    try:
+        status, result = imap_connection.store(msg_id, '+FLAGS', '\\Seen')
+
+        if status == 'OK':
+            logger.info(f"Email {msg_id} marcado como leído")
+            return True, "Email marcado como leído"
+        else:
+            return False, f"Estado no OK del servidor: {status}"
+
+    except Exception as e:
+        logger.exception(f"Excepción al marcar email como leído: {str(e)}")
+        return False, f"Error: {str(e)}"
+
+
+def _sanitize_string(text):
+    """Sanitiza un string para evitar problemas de codificación"""
+    if not isinstance(text, str):
+        return str(text)
+
+    text = ''.join(c for c in text if c.isprintable() and ord(c) != 0xA0)
+    return text
+
+
+def _decode_header_value(header_value):
+    """Decodifica un valor de cabecera que puede estar codificado"""
+    if not header_value:
+        return ""
+
+    try:
+        decoded_parts = decode_header(header_value)
+        decoded_text = ""
+
+        for part, encoding in decoded_parts:
+            if isinstance(part, bytes):
+                if encoding:
+                    decoded_text += part.decode(encoding)
+                else:
+                    decoded_text += part.decode('utf-8', errors='ignore')
+            else:
+                decoded_text += part
+
+        return decoded_text
+    except Exception as e:
+        print(f"Error al decodificar cabecera: {str(e)}")
+        return str(header_value)
+
+
+def _extract_attachments(email_message, logger):
+    """Extrae los archivos adjuntos de un email"""
+    attachments = []
+
+    try:
+        if not email_message.is_multipart():
+            return attachments
+
+        for part in email_message.walk():
+            content_disposition = str(part.get("Content-Disposition", ""))
+
+            if "attachment" in content_disposition:
+                filename = part.get_filename()
+
+                if filename:
+                    filename = _decode_header_value(filename)
+                    file_data = part.get_payload(decode=True)
+
+                    if file_data:
+                        attachments.append({
+                            'filename': filename,
+                            'data': file_data,
+                            'content_type': part.get_content_type()
+                        })
+
+        return attachments
+
+    except Exception as e:
+        logger.error(f"Error extrayendo adjuntos: {str(e)}")
+        return []
+
+
+def _attach_file(msg, attachment):
+    """Adjunta un archivo al mensaje MIME"""
+    try:
+        filename = attachment.get('filename', 'archivo_adjunto')
+        file_data = attachment.get('data')
+
+        if not file_data:
+            print(f"No hay datos para el archivo {filename}")
+            return
+
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(file_data)
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f'attachment; filename= {filename}')
+
+        msg.attach(part)
+
+    except Exception as e:
+        print(f"Error al adjuntar archivo {attachment.get('filename', 'desconocido')}: {str(e)}")
 
 
 class EmailManager:
@@ -59,8 +162,8 @@ class EmailManager:
             server = config['smtp_server']
             port = config['smtp_port']
 
-            email_addr = self._sanitize_string(email_addr)
-            password = self._sanitize_string(password)
+            email_addr = _sanitize_string(email_addr)
+            password = _sanitize_string(password)
 
             context = ssl.create_default_context()
 
@@ -84,8 +187,8 @@ class EmailManager:
             server = config['imap_server']
             port = config['imap_port']
 
-            email_addr = self._sanitize_string(email_addr)
-            password = self._sanitize_string(password)
+            email_addr = _sanitize_string(email_addr)
+            password = _sanitize_string(password)
 
             context = ssl.create_default_context()
 
@@ -106,8 +209,8 @@ class EmailManager:
             server = config['smtp_server']
             port = config['smtp_port']
 
-            email_addr = self._sanitize_string(email_addr)
-            password = self._sanitize_string(password)
+            email_addr = _sanitize_string(email_addr)
+            password = _sanitize_string(password)
 
             msg = MIMEMultipart()
             msg['From'] = email_addr
@@ -121,7 +224,7 @@ class EmailManager:
 
             if attachments:
                 for attachment in attachments:
-                    self._attach_file(msg, attachment)
+                    _attach_file(msg, attachment)
 
             context = ssl.create_default_context()
 
@@ -138,26 +241,6 @@ class EmailManager:
             print(f"Error al enviar correo: {str(e)}")
             return False
 
-    def _attach_file(self, msg, attachment):
-        """Adjunta un archivo al mensaje MIME"""
-        try:
-            filename = attachment.get('filename', 'archivo_adjunto')
-            file_data = attachment.get('data')
-
-            if not file_data:
-                print(f"No hay datos para el archivo {filename}")
-                return
-
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(file_data)
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename= {filename}')
-
-            msg.attach(part)
-
-        except Exception as e:
-            print(f"Error al adjuntar archivo {attachment.get('filename', 'desconocido')}: {str(e)}")
-
     def check_and_process_emails(self, provider, email_addr, password, search_titles, logger, cc_list=None):
         """Función principal que revisa emails y procesa los que coinciden"""
         try:
@@ -165,8 +248,8 @@ class EmailManager:
             server = config['imap_server']
             port = config['imap_port']
 
-            email_addr = self._sanitize_string(email_addr)
-            password = self._sanitize_string(password)
+            email_addr = _sanitize_string(email_addr)
+            password = _sanitize_string(password)
 
             context = ssl.create_default_context()
 
@@ -188,46 +271,46 @@ class EmailManager:
                         search_criteria.append(subject_queries[0])
 
                 final_query = ' '.join(search_criteria)
-                logger.log(f"Ejecutando búsqueda IMAP: {final_query}", level="INFO")
+                logger.info(f"Ejecutando búsqueda IMAP: {final_query}")
 
                 try:
                     status, messages = imap.search('UTF-8', final_query)
                 except:
-                    logger.log("Reintentando búsqueda sin UTF-8...", level="WARNING")
+                    logger.warning("Reintentando búsqueda sin UTF-8...")
                     status, messages = imap.search(None, final_query)
 
                 message_ids = messages[0].split()
 
                 if not message_ids:
-                    logger.log("No se encontraron correos nuevos que coincidan.", level="INFO")
+                    logger.info("No se encontraron correos nuevos que coincidan.")
                     return
 
-                logger.log(f"Encontrados {len(message_ids)} emails que coinciden", level="INFO")
+                logger.info(f"Encontrados {len(message_ids)} emails que coinciden")
 
                 for msg_id in message_ids:
                     try:
-                        logger.log(f"Procesando email ID: {msg_id}", level="INFO")
+                        logger.info(f"Procesando email ID: {msg_id}")
 
                         status, email_data = imap.fetch(msg_id, '(RFC822)')
 
                         if status != 'OK' or not email_data:
-                            logger.log(f"No se pudo obtener el email {msg_id}", level="WARNING")
+                            logger.warning(f"No se pudo obtener el email {msg_id}")
                             continue
 
                         raw_email = email_data[0][1]
                         email_message = email.message_from_bytes(raw_email, policy=email.policy.default)
 
-                        subject = self._decode_header_value(email_message.get('Subject', ''))
+                        subject = _decode_header_value(email_message.get('Subject', ''))
                         sender = email_message.get('From', '')
 
-                        logger.log(f"Revisando email: '{subject}' de {sender}", level="INFO")
+                        logger.info(f"Revisando email: '{subject}' de {sender}")
 
-                        attachments = self._extract_attachments(email_message, logger)
+                        attachments = _extract_attachments(email_message, logger)
 
                         matching_case = self.case_handler.find_matching_case(subject, logger)
 
                         if matching_case:
-                            logger.log(f"Email encontrado para caso: {matching_case}", level="INFO")
+                            logger.info(f"Email encontrado para caso: {matching_case}")
 
                             email_data_for_case = {
                                 'sender': sender,
@@ -239,55 +322,24 @@ class EmailManager:
                             response_data = self.case_handler.execute_case(matching_case, email_data_for_case, logger)
 
                             if response_data:
-                                self._mark_as_read(imap, msg_id, logger)
+                                _mark_as_read(imap, msg_id, logger)
 
                                 response_attachments = response_data.get('attachments', [])
                                 if self._send_case_reply(provider, email_addr, password, response_data, logger,
                                                          cc_list, response_attachments):
-                                    logger.log(f"Respuesta automática enviada usando {matching_case}", level="INFO")
+                                    logger.info(f"Respuesta automática enviada usando {matching_case}")
                                 else:
-                                    logger.log("Error al enviar respuesta automática", level="ERROR")
+                                    logger.error("Error al enviar respuesta automática")
                             else:
-                                logger.log(f"Error al procesar {matching_case}", level="ERROR")
+                                logger.error(f"Error al procesar {matching_case}")
                         else:
-                            logger.log(f"Email no coincide con ningún caso: '{subject}'", level="INFO")
+                            logger.info(f"Email no coincide con ningún caso: '{subject}'")
 
                     except Exception as e:
-                        logger.log(f"Error al procesar email individual {msg_id}: {str(e)}", level="ERROR")
+                        logger.exception(f"Error al procesar email individual {msg_id}: {str(e)}")
 
         except Exception as e:
-            logger.log(f"Error en check_and_process_emails: {str(e)}", level="ERROR")
-
-    def _extract_attachments(self, email_message, logger):
-        """Extrae los archivos adjuntos de un email"""
-        attachments = []
-
-        try:
-            if not email_message.is_multipart():
-                return attachments
-
-            for part in email_message.walk():
-                content_disposition = str(part.get("Content-Disposition", ""))
-
-                if "attachment" in content_disposition:
-                    filename = part.get_filename()
-
-                    if filename:
-                        filename = self._decode_header_value(filename)
-                        file_data = part.get_payload(decode=True)
-
-                        if file_data:
-                            attachments.append({
-                                'filename': filename,
-                                'data': file_data,
-                                'content_type': part.get_content_type()
-                            })
-
-            return attachments
-
-        except Exception as e:
-            logger.log(f"Error extrayendo adjuntos: {str(e)}", level="ERROR")
-            return []
+            logger.exception(f"Error en check_and_process_emails: {str(e)}")
 
     def _send_case_reply(self, provider, email_addr, password, response_data, logger, cc_list=None, attachments=None):
         """Envía una respuesta automática usando los datos del caso"""
@@ -317,51 +369,5 @@ class EmailManager:
             return result
 
         except Exception as e:
-            logger.log(f"Error al enviar respuesta del caso: {str(e)}", level="ERROR")
+            logger.exception(f"Error al enviar respuesta del caso: {str(e)}")
             return False
-
-    def _mark_as_read(self, imap_connection, msg_id, logger):
-        """Marca un email específico como leído"""
-        try:
-            status, result = imap_connection.store(msg_id, '+FLAGS', '\\Seen')
-
-            if status == 'OK':
-                logger.log(f"Email {msg_id} marcado como leído", level="INFO")
-                return True, "Email marcado como leído"
-            else:
-                return False, f"Estado no OK del servidor: {status}"
-
-        except Exception as e:
-            logger.log(f"Excepción al marcar email como leído: {str(e)}", level="ERROR")
-            return False, f"Error: {str(e)}"
-
-    def _sanitize_string(self, text):
-        """Sanitiza un string para evitar problemas de codificación"""
-        if not isinstance(text, str):
-            return str(text)
-
-        text = ''.join(c for c in text if c.isprintable() and ord(c) != 0xA0)
-        return text
-
-    def _decode_header_value(self, header_value):
-        """Decodifica un valor de cabecera que puede estar codificado"""
-        if not header_value:
-            return ""
-
-        try:
-            decoded_parts = decode_header(header_value)
-            decoded_text = ""
-
-            for part, encoding in decoded_parts:
-                if isinstance(part, bytes):
-                    if encoding:
-                        decoded_text += part.decode(encoding)
-                    else:
-                        decoded_text += part.decode('utf-8', errors='ignore')
-                else:
-                    decoded_text += part
-
-            return decoded_text
-        except Exception as e:
-            print(f"Error al decodificar cabecera: {str(e)}")
-            return str(header_value)

@@ -15,7 +15,7 @@ class Settings:
         """Inicializa la configuración con valores por defecto o de entorno"""
 
         # API Configuration
-        self.API_BASE_URL = os.getenv('API_BASE_URL', 'https://pruebas.api.ifrpro.nargallo.com')
+        self.API_BASE_URL = os.getenv('API_BASE_URL', '')
         self.API_CUENTA = os.getenv('API_CUENTA', '')
         self.API_LLAVE = os.getenv('API_LLAVE', '')
         self.API_CODIGO_SERVICIO = os.getenv('API_CODIGO_SERVICIO', '')
@@ -23,23 +23,22 @@ class Settings:
         self.API_TIMEOUT = int(os.getenv('API_TIMEOUT', '30'))
 
         # Application Settings
-        #self.API_ENV = os.getenv('API_ENV', 'production')
-        #self.LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-        #self.DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
+        # self.API_ENV = os.getenv('API_ENV', 'production')
+        # self.LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+        # self.DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
 
         self.API_ENV = os.getenv('API_ENV', 'development')
         self.LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
         self.DEBUG = os.getenv('DEBUG', 'true').lower() == 'true'
 
-
         # File Settings / Si no existe la variable de entorno entonces utiliza
         # una Carpeta dentro del proyecto actual ("storage").
         log_dir = os.path.join(os.getcwd(), "storage")
-        #os.makedirs(log_dir, exist_ok=True)
+        # os.makedirs(log_dir, exist_ok=True)
 
         self.UPLOAD_DIR = os.getenv('UPLOAD_DIR', log_dir)
         self.TEMP_DIR = os.getenv('TEMP_DIR', log_dir)
-        self.LOG_DIR = os.getenv('LOG_DIR', log_dir)
+        self.LOG_DIR = os.getenv('LOG_DIR', os.path.join(log_dir, "logs"))
         self.DATA_DIR = os.getenv('DATA_DIR', log_dir)
 
         # File Restrictions
@@ -49,6 +48,8 @@ class Settings:
 
         # Security
         self.ENABLE_SSL_VERIFY = os.getenv('ENABLE_SSL_VERIFY', 'true').lower() == 'true'
+        self.MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
+        self.RATE_LIMIT_CALLS = int(os.getenv('RATE_LIMIT_CALLS', '200'))
         self.REQUEST_RETRY_COUNT = int(os.getenv('REQUEST_RETRY_COUNT', '3'))
         self.REQUEST_RETRY_DELAY = int(os.getenv('REQUEST_RETRY_DELAY', '1'))
 
@@ -58,7 +59,7 @@ class Settings:
         self.CONNECTION_POOL_SIZE = int(os.getenv('CONNECTION_POOL_SIZE', '10'))
 
         # Create directories if they don't exist
-        #self._create_directories()
+        # self._create_directories()
 
     def _create_directories(self):
         """Crea los directorios necesarios si no existen"""
@@ -129,7 +130,7 @@ class Settings:
         if not self.API_BASE_URL:
             errors.append("API_BASE_URL no está configurado")
         elif not (self.API_BASE_URL.startswith('http://') or
-                 self.API_BASE_URL.startswith('https://')):
+                  self.API_BASE_URL.startswith('https://')):
             errors.append("API_BASE_URL debe empezar con http:// o https://")
 
         # Validar valores numéricos
