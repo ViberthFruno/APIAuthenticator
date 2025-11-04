@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any
+from uuid import UUID
 
 from .exceptions import APIException, APIValidationError
 
@@ -330,36 +331,28 @@ class PreingresoData:
     
     Representa la información necesaria para crear un preingreso en la API
     """
-    # Información de la boleta
-    numero_boleta: str
-    numero_transaccion: Optional[str] = None
-    fecha: Optional[str] = None  # YYYY-MM-DD
+    codigo_sucursal: str
+    tipo_preingreso_id: str
+    garantia_id: str
+    nombres_propietario: str
+    apellidos_propietario: str
+    correo_propietario: str
+    telefono1_propietario: str
+    division_1: str  # código provincia
+    division_2: str  # código cantón
+    division_3: str  # código distrito
+    descripcion_division: str  # Dirección exacta de la tienda
+    serie: str
+    marca_id: UUID
+    modelo_comercial_id: UUID
+    detalle_recepcion: str  # nombre marca + nombre modelo + Daños + observaciones.
+    referencia: str
 
-    # Cliente
-    nombre_cliente: str = ""
-    cedula_cliente: str = ""
-    telefono_cliente: str = ""
-    correo_cliente: str = ""
-    direccion_cliente: str = ""
+    boleta_tienda: str
 
-    # Producto
-    codigo_producto: str = ""
-    descripcion_producto: str = ""
-    marca: str = ""
-    modelo: str = ""
-    serie: str = ""
-
-    # Compra
-    numero_factura: str = ""
     fecha_compra: Optional[str] = None
-    distribuidor: str = ""
-
-    # Daños y observaciones
-    danos: str = ""
-    observaciones: str = ""
-
-    # Sucursal
-    codigo_sucursal: str = ""
+    otro_telefono_propietario: Optional[str] = None
+    numero_factura: Optional[str] = None
 
     # Archivos adjuntos
     pdf_filename: str = ""
@@ -367,11 +360,56 @@ class PreingresoData:
 
     def __post_init__(self):
         """Validaciones básicas de los parámetros que se extrajeron del PDF"""
-        if not self.numero_boleta:
-            raise ValueError("numero_boleta es requerido")
+        if not self.codigo_sucursal:
+            raise ValueError("codigo_sucursal es requerido")
 
-        if not self.nombre_cliente:
-            raise ValueError("nombre_cliente es requerido")
+        if not self.tipo_preingreso_id:
+            raise ValueError("tipo_preingreso_id es requerido")
+
+        if not self.garantia_id:
+            raise ValueError("garantia_id es requerido")
+
+        if not self.nombres_propietario:
+            raise ValueError("nombres_propietario es requerido")
+
+        if not self.apellidos_propietario:
+            raise ValueError("apellidos_propietario es requerido")
+
+        if not self.correo_propietario:
+            raise ValueError("correo_propietario es requerido")
+
+        if not self.telefono1_propietario:
+            raise ValueError("telefono1_propietario es requerido")
+
+        if not self.division_1:
+            raise ValueError("division_1 es requerido")
+
+        if not self.division_2:
+            raise ValueError("division_2 es requerido")
+
+        if not self.division_3:
+            raise ValueError("division_3 es requerido")
+
+        if not self.descripcion_division:
+            raise ValueError("descripcion_division es requerido")
+
+        if not self.serie:
+            raise ValueError("serie es requerido")
+
+        if not self.marca_id:
+            raise ValueError("marca_id es requerido")
+
+        if not self.modelo_comercial_id:
+            raise ValueError("modelo_comercial_id es requerido")
+
+        if not self.detalle_recepcion:
+            raise ValueError("detalle_recepcion es requerido")
+
+        if not self.referencia:
+            raise ValueError("referencia es requerido")
+
+        if not self.boleta_tienda:
+            raise ValueError("boleta_tienda es requerido")
 
     def validate_for_api(self) -> List[str]:
         """
@@ -384,12 +422,22 @@ class PreingresoData:
 
         # Campos requeridos
         required_fields = {
-            "numero_boleta": self.numero_boleta,
-            "nombre_cliente": self.nombre_cliente,
-            "cedula_cliente": self.cedula_cliente,
-            "telefono_cliente": self.telefono_cliente,
-            "correo_cliente": self.correo_cliente,
-            "codigo_sucursal": self.codigo_sucursal
+            "codigo_sucursal": self.codigo_sucursal,
+            "tipo_preingreso_id": self.tipo_preingreso_id,
+            "nombres_propietario": self.nombres_propietario,
+            "apellidos_propietario": self.apellidos_propietario,
+            "correo_propietario": self.correo_propietario,
+            "telefono1_propietario": self.telefono1_propietario,
+            "division_1": self.division_1,
+            "division_2": self.division_2,
+            "division_3": self.division_3,
+            "descripcion_division": self.descripcion_division,
+            "serie": self.serie,
+            "marca_id": self.marca_id,
+            "modelo_comercial_id": self.modelo_comercial_id,
+            "garantia_id": self.garantia_id,
+            "detalle_recepcion": self.detalle_recepcion,
+            "referencia": self.referencia
         }
 
         for field_name, field_value in required_fields.items():
@@ -412,25 +460,36 @@ class PreingresoData:
             Diccionario con los campos para el body
         """
         return {
-            "numero_boleta": self.numero_boleta,
-            "numero_transaccion": self.numero_transaccion or "",
-            "fecha": self.fecha or "",
-            "nombre_cliente": self.nombre_cliente,
-            "cedula_cliente": self.cedula_cliente,
-            "telefono_cliente": self.telefono_cliente,
-            "correo_cliente": self.correo_cliente,
-            "direccion_cliente": self.direccion_cliente,
-            "codigo_producto": self.codigo_producto,
-            "descripcion_producto": self.descripcion_producto,
-            "marca": self.marca,
-            "modelo": self.modelo,
+            "codigo_sucursal": self.codigo_sucursal,
+            "tipo_preingreso_id": self.tipo_preingreso_id,
+            "es_persona_juridica": False,
+            "nombres_propietario": self.nombres_propietario,
+            "apellidos_propietario": self.apellidos_propietario,
+            "correo_propietario": self.correo_propietario,
+            "telefono1_propietario": self.telefono1_propietario,
+            "telefono1_ext_propietario": "0",
+            "otro_telefono_propietario": self.otro_telefono_propietario or "0",
+            "otro_telefono_ext_propietario": "0",
+            "division_1": self.division_1,
+            "division_2": self.division_2,
+            "division_3": self.division_3,
+            "descripcion_division": self.descripcion_division,
+            "propietario_contactos_ids": "[]",
+            "imei_prestamo": "",
+            "numero_factura": self.numero_factura or "N/A",
+            "fecha_compra": self.fecha_compra,
+            "imei": "",
             "serie": self.serie,
-            "numero_factura": self.numero_factura,
-            "fecha_compra": self.fecha_compra or "",
-            "distribuidor": self.distribuidor,
-            "danos": self.danos,
-            "observaciones": self.observaciones,
-            "codigo_sucursal": self.codigo_sucursal
+            "marca_id": str(self.marca_id),
+            "modelo_comercial_id": str(self.modelo_comercial_id),
+            "modelo_fabrica_id": "",
+            "operador_id": "11",  # Genérico
+            "garantia_id": self.garantia_id,
+            "categoria_id": "5",  # Desconocido
+            "tipo_dispositivo_id": "7",  # Desconocido
+            "motivo_recepcion_id": "72",  # Otro problema
+            "detalle_recepcion": self.detalle_recepcion,
+            "referencia": self.referencia
         }
 
     def to_file_tuple(self) -> Optional[tuple]:
@@ -443,10 +502,9 @@ class PreingresoData:
         if not self.pdf_content:
             return None
 
-        filename = self.pdf_filename or f"boleta_{self.numero_boleta}.pdf"
+        filename = self.pdf_filename or f"boleta_{self.boleta_tienda}.pdf"
 
         return (
             "imagen_otra",  # Nombre del campo
             (filename, self.pdf_content, "application/pdf")
         )
-

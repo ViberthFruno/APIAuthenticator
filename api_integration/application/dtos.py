@@ -23,8 +23,8 @@ class DatosExtraidosPDF:
     garantia_nombre: str
 
     # Opcionales:
-    fecha_compra: Optional[str] = None # Si es DOA no tiene fecha compra.
-    factura: Optional[str] = None # Si es DOA no tiene factura.
+    fecha_compra: Optional[str] = None  # Si es DOA no tiene fecha compra.
+    factura: Optional[str] = None  # Si es DOA no tiene factura.
     cliente_cedula: Optional[str] = None
     cliente_direccion: Optional[str] = None
     cliente_telefono2: Optional[str] = None
@@ -53,6 +53,11 @@ class ArchivoAdjunto:
         with open(self.ruta_archivo, 'rb') as f:
             return f.read()
 
+    def obtener_tamano(self) -> int:
+        """Obtiene el tamaño del archivo en bytes"""
+        import os
+        return os.path.getsize(self.ruta_archivo)
+
 
 @dataclass
 class CreatePreingresoInput:
@@ -66,15 +71,18 @@ class CreatePreingresoInput:
 @dataclass
 class CreatePreingresoOutput:
     """Output de crear preingreso"""
-    success: bool
     response: Optional[ApiResponse]
+    success: bool
+    timestamp: datetime
     preingreso_id: Optional[str]  # ID retornado por la API
-    error_message: Optional[str] = None
-    validation_errors: list = None
+    boleta_usada: Optional[str]
+    message: Optional[str] = None
+    errors: list[str] = None
+    tiempo_ejecucion_ms: Optional[float] = None
 
     def __post_init__(self):
-        if self.validation_errors is None:
-            self.validation_errors = []
+        if self.errors is None:
+            self.errors = []
 
 
 @dataclass

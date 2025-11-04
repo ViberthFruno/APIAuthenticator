@@ -923,15 +923,16 @@ class IntegratedGUI(LoggerMixin):
                 # Procesar resultado de la creación del preingreso
                 if result.success:
                     print(f"✅ Preingreso creado exitosamente!")
+                    print(f"   Boleta usada: {result.boleta_usada}")
                     print(f"   Boleta de preingreso: {result.preingreso_id}")
                     print(f"   Status Code: {result.response.status_code}")
                     print(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
                 else:
                     print(f"❌ Error creando preingreso:")
-                    print(f"   Mensaje: {result.error_message}")
-                    if result.validation_errors:
+                    print(f"   Mensaje: {result.message}")
+                    if result.errors:
                         print(f"   Errores de validación:")
-                        for error in result.validation_errors:
+                        for error in result.errors:
                             print(f"      - {error}")
 
                 # Mostrar datos extraídos
