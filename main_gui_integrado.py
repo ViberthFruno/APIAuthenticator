@@ -6,9 +6,9 @@ Combina autenticación API con procesamiento automático de correos
 import tracemalloc
 
 from api_integration.application.dtos import HealthCheckResult, GetPreingresoOutput
-from api_integration.application.use_cases import GetPreingresoInput, GetPreingresoUseCase, CreatePreingresoOutput, \
-    HealthCheckUseCase
+from api_integration.application.use_cases import GetPreingresoInput, GetPreingresoUseCase, HealthCheckUseCase
 from api_integration.infrastructure.retry_policy import RetryPolicy
+from case1 import extract_repair_data
 
 tracemalloc.start()
 
@@ -915,98 +915,7 @@ class IntegratedGUI(LoggerMixin):
                 return None
 
             # Extraer datos usando regex
-            datos = {}
-
-            # Número de transacción
-            match = re.search(r'No\.Transaccion:\s*(\S+)', text)
-            if match:
-                datos['numero_transaccion'] = match.group(1).strip()
-
-            # Número de boleta
-            match = re.search(r'No\.\s*Boleta:\s*(\S+)', text)
-            if match:
-                datos['numero_boleta'] = match.group(1).strip()
-
-            # Fecha
-            match = re.search(r'Fecha:\s*(\d{2}/\d{2}/\d{4})', text)
-            if match:
-                fecha_str = match.group(1).strip()
-                # Convertir de DD/MM/YYYY a YYYY-MM-DD
-                partes = fecha_str.split('/')
-                datos['fecha'] = f"{partes[2]}-{partes[1]}-{partes[0]}"
-
-            # Cliente
-            match = re.search(r'C L I E N T E:\s*(.+?)\s+Tel:', text)
-            if match:
-                datos['nombre_cliente'] = match.group(1).strip()
-
-            # Teléfono del cliente
-            match = re.search(r'C L I E N T E:.*?Tel:\s*(\d+)', text)
-            if match:
-                datos['telefono_cliente'] = match.group(1).strip()
-
-            # Correo electrónico
-            match = re.search(r'Correo:\s*([\w.\-]+@[\w.\-]+\.\w+)', text)
-            if match:
-                datos['correo_cliente'] = match.group(1).strip()
-
-            # Dirección
-            match = re.search(r'Direcc:\s*(.+?)(?=\n.*?No\. Factura|\nNo\. Factura)', text, re.DOTALL)
-            if match:
-                direccion = match.group(1).strip()
-                direccion = ' '.join(direccion.split())
-                datos['direccion_cliente'] = direccion
-
-            # Código del producto
-            match = re.search(r'Código:\s*(\d+)', text)
-            if match:
-                datos['codigo_producto'] = match.group(1).strip()
-
-            # Descripción del producto
-            match = re.search(r'Código:\s*\d+\s+([A-Z\s]+?)\s+Serie:', text)
-            if match:
-                datos['descripcion_producto'] = match.group(1).strip()
-
-            # Serie
-            match = re.search(r'Serie:\s*(\S+)', text)
-            if match:
-                datos['serie'] = match.group(1).strip()
-
-            # Marca
-            match = re.search(r'Marca:\s*(\S+)', text)
-            if match:
-                datos['marca'] = match.group(1).strip()
-
-            # Modelo
-            match = re.search(r'Modelo:\s*(.+?)(?=\n|$)', text)
-            if match:
-                datos['modelo'] = match.group(1).strip()
-
-            # Número de factura
-            match = re.search(r'No\.\s*Factura:\s*(\S+)', text)
-            if match:
-                datos['numero_factura'] = match.group(1).strip()
-
-            # Fecha de compra
-            match = re.search(r'Fecha de Compra:\s*(\d{2}/\d{2}/\d{4})', text)
-            if match:
-                fecha_str = match.group(1).strip()
-                partes = fecha_str.split('/')
-                datos['fecha_compra'] = f"{partes[2]}-{partes[1]}-{partes[0]}"
-
-            # Daños
-            match = re.search(r'D A Ñ O S:\s*(.+?)(?=\n={5,}|\n-{5,}|$)', text, re.DOTALL)
-            if match:
-                danos = match.group(1).strip()
-                danos = ' '.join(danos.split())
-                datos['danos'] = danos
-
-            # Sucursal
-            match = re.search(r'(\d{3}\s+[\w\-]+)', text)
-            if match:
-                datos['sucursal'] = match.group(1).strip()
-
-            return datos
+            return extract_repair_data(text, self.logger)
 
         except Exception as ex:
             self.log_api_message(f"Error extrayendo datos del PDF: {ex}", level="EXCEPTION")
@@ -1017,7 +926,7 @@ class IntegratedGUI(LoggerMixin):
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
         modal.title("Crear Preingreso - Completar Datos")
-        modal.geometry("700x600")
+        modal.geometry("1024x600")
         modal.transient(self.root)
         modal.grab_set()
 
@@ -1069,14 +978,34 @@ class IntegratedGUI(LoggerMixin):
         # Mostrar datos extraídos
         datos_mostrar = [
             ("Número de Boleta", datos_extraidos.get('numero_boleta', 'N/A')),
-            ("Cliente", datos_extraidos.get('nombre_cliente', 'N/A')),
-            ("Teléfono", datos_extraidos.get('telefono_cliente', 'N/A')),
-            ("Correo", datos_extraidos.get('correo_cliente', 'N/A')),
+            ("Sucursal referencia", datos_extraidos.get('referencia', 'N/A')),
+            ("Sucursal", datos_extraidos.get('sucursal', 'N/A')),
+            ("Número de transacción", datos_extraidos.get('numero_transaccion', 'N/A')),
+            ("Fecha de transacción", datos_extraidos.get('fecha', 'N/A')),
+            ("Transacción gestionada por", datos_extraidos.get('gestionada_por', 'N/A')),
+            ("Teléfono sucursal", datos_extraidos.get('telefono_sucursal', 'N/A')),
+
+            ("Cliente nombre", datos_extraidos.get('nombre_cliente', 'N/A')),
+            ("Cliente cédula", datos_extraidos.get('cedula_cliente', 'N/A')),
+            ("Cliente teléfono", datos_extraidos.get('telefono_cliente', 'N/A')),
+            ("Cliente correo", datos_extraidos.get('correo_cliente', 'N/A')),
+            ("Cliente teléfono 2", datos_extraidos.get('telefono_adicional', 'N/A')),
+            ("Cliente dirección", datos_extraidos.get('direccion_cliente', 'N/A')),
+
+            ("Código producto", datos_extraidos.get('codigo_producto', 'N/A')),
             ("Producto", datos_extraidos.get('descripcion_producto', 'N/A')),
+
             ("Marca", datos_extraidos.get('marca', 'N/A')),
             ("Modelo", datos_extraidos.get('modelo', 'N/A')),
             ("Serie", datos_extraidos.get('serie', 'N/A')),
-            ("Daños", datos_extraidos.get('danos', 'N/A')),
+            ("Factura", datos_extraidos.get('numero_factura', 'N/A')),
+            ("Fecha compra", datos_extraidos.get('fecha_compra', 'N/A')),
+            ("Fecha garantía", datos_extraidos.get('fecha_garantia', 'N/A')),
+
+            ("Garantía", datos_extraidos.get('tipo_garantia', 'N/A')),
+            ("Creado por", datos_extraidos.get('hecho_por', 'N/A')),
+            ("Daños reportados", datos_extraidos.get('danos', 'N/A')),
+            ("Observaciones", datos_extraidos.get('observaciones', 'N/A')),
         ]
 
         for label, valor in datos_mostrar:

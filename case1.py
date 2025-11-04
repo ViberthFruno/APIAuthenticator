@@ -2,10 +2,11 @@
 # Ubicación: raíz del proyecto
 # Descripción: Caso 1 - Procesa PDFs de boletas de reparación y genera archivo de texto ordenado
 
-from base_case import BaseCase
 import re
 import tempfile
 from datetime import datetime
+
+from base_case import BaseCase
 
 
 def _generate_formatted_text(data):
@@ -108,7 +109,7 @@ def _generate_formatted_text(data):
     return "\n".join(lines)
 
 
-def _extract_repair_data(text, logger):
+def extract_repair_data(text, logger):
     """Extrae los campos relevantes del texto del PDF"""
     data = {}
 
@@ -120,6 +121,7 @@ def _extract_repair_data(text, logger):
         match = re.search(r'No\.\s*Boleta:\s*(\S+)', text)
         if match:
             data['numero_boleta'] = match.group(1).strip()
+            data['referencia'] = data['numero_boleta'].split('-')[0].zfill(3)
             logger.info(f"Boleta: {data['numero_boleta']}")
 
         match = re.search(r'Fecha:\s*(\d{2}/\d{2}/\d{4})', text)
@@ -448,7 +450,7 @@ class Case(BaseCase):
 
                 logger.info(f"Texto extraído ({len(pdf_text)} caracteres)")
 
-                extracted_data = _extract_repair_data(pdf_text, logger)
+                extracted_data = extract_repair_data(pdf_text, logger)
                 logger.info(f"Campos extraídos: {len(extracted_data)}")
 
                 # Verificar si se extrajo información útil (al menos 3 campos)
