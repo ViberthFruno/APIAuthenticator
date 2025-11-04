@@ -75,7 +75,7 @@ class CreatePreingresoUseCase:
 
                 if validation_errors:
                     self.logger.warning(
-                        "Preingreso validation failed",
+                        "Validación de parámetros de crear preingreso fallida",
                         errors=validation_errors
                     )
 
@@ -83,7 +83,7 @@ class CreatePreingresoUseCase:
                         success=False,
                         response=None,
                         preingreso_id=None,
-                        error_message="Errores de validación",
+                        error_message="Errores de validación en los parámetros",
                         validation_errors=validation_errors
                     )
 
@@ -106,12 +106,12 @@ class CreatePreingresoUseCase:
             # Extraer ID del preingreso creado
             preingreso_id = None
             if response.has_json_body():
-                preingreso_id = response.extract_data("id", required=False)
+                preingreso_id = response.extract_data("boleta", required=False)
                 if not preingreso_id:
-                    preingreso_id = response.extract_data("preingreso_id", required=False)
+                    preingreso_id = response.extract_data("orden_de_servicio", required=False)
 
             self.logger.info(
-                "Preingreso created successfully",
+                "✅ Preingreso creado correctamente",
                 numero_boleta=input_dto.preingreso_data.numero_boleta,
                 preingreso_id=preingreso_id,
                 response_time_ms=response.response_time_ms
@@ -156,7 +156,7 @@ class CreatePreingresoUseCase:
 
         except Exception as e:
             self.logger.exception(
-                "Unexpected error creating preingreso",
+                "Error inesperado creando el preingreso",
                 numero_boleta=input_dto.preingreso_data.numero_boleta,
                 error=str(e)
             )

@@ -322,7 +322,8 @@ class ApiResponse:
         )
 
 
-@dataclass
+# DTO inmutable final
+@dataclass(frozen=True)
 class PreingresoData:
     """
     Entity: Datos para crear un preingreso
@@ -365,7 +366,7 @@ class PreingresoData:
     pdf_content: Optional[bytes] = None
 
     def __post_init__(self):
-        """Validaciones básicas"""
+        """Validaciones básicas de los parámetros que se extrajeron del PDF"""
         if not self.numero_boleta:
             raise ValueError("numero_boleta es requerido")
 
@@ -374,7 +375,7 @@ class PreingresoData:
 
     def validate_for_api(self) -> List[str]:
         """
-        Valida que tenga todos los campos requeridos para la API
+        Validar que tenga todos los campos requeridos para la API
         
         Returns:
             Lista de errores (vacía si es válido)
@@ -445,7 +446,7 @@ class PreingresoData:
         filename = self.pdf_filename or f"boleta_{self.numero_boleta}.pdf"
 
         return (
-            "archivo_pdf",  # Nombre del campo
+            "imagen_otra",  # Nombre del campo
             (filename, self.pdf_content, "application/pdf")
         )
 

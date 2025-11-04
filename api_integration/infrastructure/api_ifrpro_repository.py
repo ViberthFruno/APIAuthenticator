@@ -124,7 +124,7 @@ class IfrProRepository(IApiIfrProRepository):
             response = await self.client.execute_request(request)
 
             self.logger.info(
-                "Preingreso created",
+                "Preingreso creado",
                 numero_boleta=data.numero_boleta,
                 status_code=response.status_code,
                 response_time_ms=response.response_time_ms
@@ -134,7 +134,7 @@ class IfrProRepository(IApiIfrProRepository):
 
         except Exception as e:
             self.logger.error(
-                "Error creating preingreso",
+                "Error creando preingreso",
                 numero_boleta=data.numero_boleta,
                 error=str(e)
             )

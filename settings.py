@@ -20,7 +20,7 @@ class Settings:
         self.API_LLAVE = os.getenv('API_LLAVE', '')
         self.API_CODIGO_SERVICIO = os.getenv('API_CODIGO_SERVICIO', '')
         self.API_PAIS = os.getenv('API_PAIS', 'CR')
-        self.API_TIMEOUT = int(os.getenv('API_TIMEOUT', '30'))
+        self.API_TIMEOUT = int(os.getenv('API_TIMEOUT', '90'))
 
         # Application Settings
         # self.API_ENV = os.getenv('API_ENV', 'production')

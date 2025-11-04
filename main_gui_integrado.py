@@ -5,8 +5,10 @@ Combina autenticación API con procesamiento automático de correos
 """
 import tracemalloc
 
-from api_integration.application.dtos import HealthCheckResult, GetPreingresoOutput
-from api_integration.application.use_cases import GetPreingresoInput, GetPreingresoUseCase, HealthCheckUseCase
+from api_integration.application.dtos import HealthCheckResult, GetPreingresoOutput, ArchivoAdjunto, DatosExtraidosPDF, \
+    CreatePreingresoInput
+from api_integration.application.use_cases import GetPreingresoInput, GetPreingresoUseCase, HealthCheckUseCase, \
+    CreatePreingresoUseCase
 from api_integration.infrastructure.retry_policy import RetryPolicy
 from case1 import extract_repair_data
 
@@ -852,11 +854,17 @@ class IntegratedGUI(LoggerMixin):
         self.log_api_message(f"📄 Archivo seleccionado: {os.path.basename(archivo_pdf)}")
 
         # Procesar PDF en un hilo separado
-        def procesar():
+        async def procesar():
             try:
+                # Crear referencia al archivo
+                archivo_adjunto = ArchivoAdjunto(
+                    nombre_archivo=os.path.basename(archivo_pdf),
+                    ruta_archivo=archivo_pdf,  # Solo la ruta
+                    tipo_mime="application/pdf"
+                )
+
                 # Leer el archivo PDF
-                with open(archivo_pdf, 'rb') as f:
-                    pdf_content = f.read()
+                pdf_content = archivo_adjunto.leer_contenido()
 
                 self.log_api_message(f"📊 Tamaño del archivo: {len(pdf_content):,} bytes")
 
@@ -868,6 +876,63 @@ class IntegratedGUI(LoggerMixin):
                     self.log_api_message("❌ No se pudieron extraer datos del PDF", "ERROR")
                     messagebox.showerror("Error", "No se pudieron extraer datos del PDF")
                     return
+
+                # Crear DTO con los datos crudos extraidos del PDF
+                datos_pdf = DatosExtraidosPDF(
+                    numero_boleta=datos_extraidos.get('numero_boleta', ''),
+                    referencia=datos_extraidos.get('referencia', ''),
+                    nombre_sucursal=datos_extraidos.get('sucursal', ''),
+                    numero_transaccion=datos_extraidos.get('numero_transaccion', ''),
+                    cliente_nombre=datos_extraidos.get('nombre_cliente', ''),
+                    cliente_telefono=datos_extraidos.get('telefono_cliente', ''),
+                    cliente_correo=datos_extraidos.get('correo_cliente', ''),
+                    serie=datos_extraidos.get('serie', ''),
+                    garantia_nombre=datos_extraidos.get('tipo_garantia', ''),
+                    fecha_compra=datos_extraidos.get('fecha_compra'),
+                    factura=datos_extraidos.get('numero_factura'),
+                    cliente_cedula=datos_extraidos.get('cedula_cliente'),
+                    cliente_direccion=datos_extraidos.get('direccion_cliente'),
+                    cliente_telefono2=datos_extraidos.get('telefono_adicional'),
+                    fecha_transaccion=datos_extraidos.get('fecha'),
+                    transaccion_gestionada_por=datos_extraidos.get('gestionada_por'),
+                    telefono_sucursal=datos_extraidos.get('telefono_sucursal'),
+                    producto_codigo=datos_extraidos.get('codigo_producto'),
+                    producto_descripcion=datos_extraidos.get('descripcion_producto'),
+                    marca_nombre=datos_extraidos.get('marca'),
+                    modelo_nombre=datos_extraidos.get('modelo'),
+                    garantia_fecha=datos_extraidos.get('fecha_garantia'),
+                    danos=datos_extraidos.get('danos'),
+                    observaciones=datos_extraidos.get('observaciones'),
+                    hecho_por=datos_extraidos.get('hecho_por')
+                )
+
+                # Crear caso de uso
+                use_case = CreatePreingresoUseCase(
+                    api_ifrpro_repository=self.repository,
+                    retry_policy=self.retry_policy
+                )
+
+                # Ejecutar caso de uso
+                result = await use_case.execute(
+                    CreatePreingresoInput(
+                        datos_pdf=datos_pdf,
+                        archivo_adjunto=archivo_adjunto
+                    )
+                )
+
+                # Procesar resultado de la creación del preingreso
+                if result.success:
+                    print(f"✅ Preingreso creado exitosamente!")
+                    print(f"   Boleta de preingreso: {result.preingreso_id}")
+                    print(f"   Status Code: {result.response.status_code}")
+                    print(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
+                else:
+                    print(f"❌ Error creando preingreso:")
+                    print(f"   Mensaje: {result.error_message}")
+                    if result.validation_errors:
+                        print(f"   Errores de validación:")
+                        for error in result.validation_errors:
+                            print(f"      - {error}")
 
                 # Mostrar datos extraídos
                 self.log_api_message("✅ Datos extraídos exitosamente:")
