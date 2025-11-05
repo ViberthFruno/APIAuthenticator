@@ -7,8 +7,8 @@ import tracemalloc
 
 from api_integration.application.dtos import HealthCheckResult, GetPreingresoOutput, ArchivoAdjunto, DatosExtraidosPDF, \
     CreatePreingresoInput
-from api_integration.application.use_cases import GetPreingresoInput, GetPreingresoUseCase, HealthCheckUseCase, \
-    CreatePreingresoUseCase
+from api_integration.application.use_cases.crear_preingreso_use_case import CreatePreingresoUseCase
+from api_integration.application.use_cases.use_cases import GetPreingresoInput, GetPreingresoUseCase, HealthCheckUseCase
 from api_integration.infrastructure.retry_policy import RetryPolicy
 from case1 import extract_repair_data
 
@@ -884,6 +884,7 @@ class IntegratedGUI(LoggerMixin):
                     nombre_sucursal=datos_extraidos.get('sucursal', ''),
                     numero_transaccion=datos_extraidos.get('numero_transaccion', ''),
                     cliente_nombre=datos_extraidos.get('nombre_cliente', ''),
+                    cliente_contacto=datos_extraidos.get('nombre_contacto', ''),
                     cliente_telefono=datos_extraidos.get('telefono_cliente', ''),
                     cliente_correo=datos_extraidos.get('correo_cliente', ''),
                     serie=datos_extraidos.get('serie', ''),
@@ -938,6 +939,7 @@ class IntegratedGUI(LoggerMixin):
                 # Mostrar datos extraídos
                 self.log_api_message("✅ Datos extraídos exitosamente:")
                 self.log_api_message(f"   • Cliente: {datos_extraidos.get('nombre_cliente', 'N/A')}")
+                self.log_api_message(f"   • Contacto: {datos_extraidos.get('nombre_contacto', 'N/A')}")
                 self.log_api_message(f"   • Teléfono: {datos_extraidos.get('telefono_cliente', 'N/A')}")
                 self.log_api_message(f"   • Correo: {datos_extraidos.get('correo_cliente', 'N/A')}")
                 self.log_api_message(f"   • Producto: {datos_extraidos.get('descripcion_producto', 'N/A')}")
@@ -1052,6 +1054,7 @@ class IntegratedGUI(LoggerMixin):
             ("Teléfono sucursal", datos_extraidos.get('telefono_sucursal', 'N/A')),
 
             ("Cliente nombre", datos_extraidos.get('nombre_cliente', 'N/A')),
+            ("Contacto", datos_extraidos.get('nombre_contacto', 'N/A')),
             ("Cliente cédula", datos_extraidos.get('cedula_cliente', 'N/A')),
             ("Cliente teléfono", datos_extraidos.get('telefono_cliente', 'N/A')),
             ("Cliente correo", datos_extraidos.get('correo_cliente', 'N/A')),

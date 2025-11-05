@@ -35,13 +35,15 @@ def _generate_formatted_text(data):
             lines.append(f"Teléfono: {data['telefono_sucursal']}")
         lines.append("")
 
-    cliente_keys = ['nombre_cliente', 'cedula_cliente', 'telefono_cliente',
+    cliente_keys = ['nombre_cliente', 'nombre_contacto', 'cedula_cliente', 'telefono_cliente',
                     'telefono_adicional', 'correo_cliente', 'direccion_cliente']
     if any(k in data for k in cliente_keys):
         lines.append("INFORMACIÓN DEL CLIENTE")
         lines.append("-" * 80)
         if 'nombre_cliente' in data:
             lines.append(f"Nombre: {data['nombre_cliente']}")
+        if 'nombre_contacto' in data:
+            lines.append(f"Nombre: {data['nombre_contacto']}")
         if 'cedula_cliente' in data:
             lines.append(f"Cédula: {data['cedula_cliente']}")
         if 'telefono_cliente' in data:
@@ -145,6 +147,11 @@ def extract_repair_data(text, logger):
             data['nombre_cliente'] = match.group(1).strip()
             logger.info(f"Cliente: {data['nombre_cliente']}")
 
+        match = re.search(r'C O N T A C T O:\s*(.+?)\s+Tel:', text)
+        if match:
+            data['nombre_contacto'] = match.group(1).strip()
+            logger.info(f"Contacto: {data['nombre_contacto']}")
+
         # Cédula del cliente (la correcta está en CED)
         match = re.search(r'CED\s*([\d\-]+)', text)
         if match:
@@ -154,7 +161,7 @@ def extract_repair_data(text, logger):
         if match:
             data['telefono_cliente'] = match.group(1).strip()
 
-        match = re.search(r'Correo:\s*([\w\.\-]+@[\w\.\-]+\.\w+)', text)
+        match = re.search(r'Correo:\s*([\w.\-]+@[\w.\-]+\.\w+)', text)
         if match:
             data['correo_cliente'] = match.group(1).strip()
 
@@ -205,7 +212,7 @@ def extract_repair_data(text, logger):
         if match:
             data['fecha_garantia'] = match.group(1).strip()
 
-        match = re.search(r'Garantia:\s*(\w+)', text)
+        match = re.search(r'Garantia:\s*(.+?)(?=\n|$)', text)
         if match:
             data['tipo_garantia'] = match.group(1).strip()
 
@@ -395,7 +402,7 @@ class Case(BaseCase):
         """Procesa el email y genera una respuesta con el archivo de texto ordenado"""
         try:
             sender = email_data.get('sender', '')
-            subject = email_data.get('subject', '')
+            # subject = email_data.get('subject', '')
             attachments = email_data.get('attachments', [])
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
@@ -535,4 +542,3 @@ class Case(BaseCase):
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
-

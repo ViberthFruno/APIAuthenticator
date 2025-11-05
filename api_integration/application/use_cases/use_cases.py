@@ -7,18 +7,16 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from api_integration.application.dtos import CreatePreingresoInput, CreatePreingresoOutput, GetPreingresoInput, \
+from api_integration.application.dtos import GetPreingresoInput, \
     GetPreingresoOutput, HealthCheckResult
 from api_integration.domain.entities import ApiResponse
 from api_integration.domain.exceptions import (
     APIException,
-    APIValidationError,
     ApplicationException
 )
 from api_integration.infrastructure.retry_policy import RetryPolicy
 from api_integration.ports.interfaces import (
-    IApiIfrProRepository,
-    IRetryPolicy
+    IApiIfrProRepository
 )
 from logger import get_logger, log_execution_time
 
@@ -26,148 +24,6 @@ logger = get_logger(__name__)
 
 
 # ===== Use Cases =====
-
-class CreatePreingresoUseCase:
-    """
-    Caso de uso: Crear preingreso en API
-    
-    Responsabilidades:
-    - Validar datos del preingreso
-    - Construir la petición
-    - Enviar a la API
-    - Procesar respuesta
-    - Manejar errores y reintentos
-    """
-
-    def __init__(
-            self,
-            api_ifrpro_repository: IApiIfrProRepository,
-            retry_policy: Optional[IRetryPolicy] = None
-    ):
-        self.repository = api_ifrpro_repository
-        self.retry_policy = retry_policy
-        self.logger = logger.bind(use_case="CreatePreingreso")
-
-    @log_execution_time
-    async def execute(
-            self,
-            input_dto: CreatePreingresoInput
-    ) -> CreatePreingresoOutput:
-        """
-        Ejecuta el caso de uso
-        
-        Args:
-            input_dto: Datos de entrada
-            
-        Returns:
-            CreatePreingresoOutput con el resultado
-        """
-        self.logger.info(
-            "Creating preingreso",
-            numero_boleta=input_dto.preingreso_data.numero_boleta,
-            cliente=input_dto.preingreso_data.nombre_cliente
-        )
-
-        try:
-            # Validar datos si se solicita
-            if input_dto.validate_before_send:
-                validation_errors = input_dto.preingreso_data.validate_for_api()
-
-                if validation_errors:
-                    self.logger.warning(
-                        "Validación de parámetros de crear preingreso fallida",
-                        errors=validation_errors
-                    )
-
-                    return CreatePreingresoOutput(
-                        success=False,
-                        response=None,
-                        preingreso_id=None,
-                        error_message="Errores de validación en los parámetros",
-                        validation_errors=validation_errors
-                    )
-
-            # Crear preingreso en la API
-            if self.retry_policy and input_dto.retry_on_failure:
-                # Con política de reintentos
-                response = await self.retry_policy.execute_with_retry(
-                    self.repository.create_preingreso,
-                    input_dto.preingreso_data
-                )
-            else:
-                # Sin reintentos
-                response = await self.repository.create_preingreso(
-                    input_dto.preingreso_data
-                )
-
-            # Validar respuesta exitosa
-            response.validate_success()
-
-            # Extraer ID del preingreso creado
-            preingreso_id = None
-            if response.has_json_body():
-                preingreso_id = response.extract_data("boleta", required=False)
-                if not preingreso_id:
-                    preingreso_id = response.extract_data("orden_de_servicio", required=False)
-
-            self.logger.info(
-                "✅ Preingreso creado correctamente",
-                numero_boleta=input_dto.preingreso_data.numero_boleta,
-                preingreso_id=preingreso_id,
-                response_time_ms=response.response_time_ms
-            )
-
-            return CreatePreingresoOutput(
-                success=True,
-                response=response,
-                preingreso_id=preingreso_id
-            )
-
-        except APIValidationError as e:
-            self.logger.error(
-                "API validation error",
-                numero_boleta=input_dto.preingreso_data.numero_boleta,
-                error=str(e),
-                code=e.code
-            )
-
-            return CreatePreingresoOutput(
-                success=False,
-                response=None,
-                preingreso_id=None,
-                error_message=str(e),
-                validation_errors=[str(e)]
-            )
-
-        except APIException as e:
-            self.logger.error(
-                "API error",
-                numero_boleta=input_dto.preingreso_data.numero_boleta,
-                error=str(e),
-                code=e.code
-            )
-
-            return CreatePreingresoOutput(
-                success=False,
-                response=None,
-                preingreso_id=None,
-                error_message=str(e)
-            )
-
-        except Exception as e:
-            self.logger.exception(
-                "Error inesperado creando el preingreso",
-                numero_boleta=input_dto.preingreso_data.numero_boleta,
-                error=str(e)
-            )
-
-            return CreatePreingresoOutput(
-                success=False,
-                response=None,
-                preingreso_id=None,
-                error_message=f"Error inesperado: {str(e)}"
-            )
-
 
 class GetPreingresoUseCase:
     """
@@ -204,7 +60,7 @@ class GetPreingresoUseCase:
 
         try:
             # Buscar en la API
-            response = await self.repository.get_preingreso(
+            response = await self.repository.consultar_boleta(
                 input_dto.numero_boleta
             )
 

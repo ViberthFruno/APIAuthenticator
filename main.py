@@ -5,10 +5,12 @@ API iFR Pro + Bot de Correo Electrónico
 """
 
 import argparse
+import asyncio
 import os
 import sys
 
 from dotenv import load_dotenv
+
 from logger import setup_logging
 from settings import Settings
 
@@ -209,7 +211,7 @@ CONNECTION_POOL_SIZE=10
             print(f"⚠️  No se pudo crear .env.example: {e}")
 
 
-def main():
+async def main():
     """Función principal"""
     parser = argparse.ArgumentParser(
         description='Sistema Integrado: API iFR Pro + Bot de Correo',
@@ -293,4 +295,4 @@ Para más información, visite: https://github.com/tu-repo
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

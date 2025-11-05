@@ -16,13 +16,14 @@ class DatosExtraidosPDF:
     referencia: str
     nombre_sucursal: str
     numero_transaccion: str
-    cliente_nombre: str
     cliente_telefono: str
     cliente_correo: str
     serie: str
     garantia_nombre: str
 
     # Opcionales:
+    cliente_nombre: Optional[str] = None  # Puede venir vacío, usar cliente_contacto
+    cliente_contacto: Optional[str] = None  # Puede venir vacío, usar cliente_nombre
     fecha_compra: Optional[str] = None  # Si es DOA no tiene fecha compra.
     factura: Optional[str] = None  # Si es DOA no tiene factura.
     cliente_cedula: Optional[str] = None
@@ -48,15 +49,25 @@ class ArchivoAdjunto:
     ruta_archivo: str  # Referencia, no el contenido
     tipo_mime: str = "application/pdf"
 
-    def leer_contenido(self) -> bytes:
+    async def leer_contenido(self) -> bytes:
         """Lee el contenido cuando sea necesario"""
         with open(self.ruta_archivo, 'rb') as f:
             return f.read()
 
-    def obtener_tamano(self) -> int:
+    async def obtener_tamano(self) -> int:
         """Obtiene el tamaño del archivo en bytes"""
         import os
         return os.path.getsize(self.ruta_archivo)
+
+
+@dataclass
+class SucursalDTO:
+    sucursal_codigo: str
+    sucursal_division_1: str
+    sucursal_division_2: str
+    sucursal_division_3: str
+    sucursal_nombre: str
+    sucursal_direccion: str
 
 
 @dataclass

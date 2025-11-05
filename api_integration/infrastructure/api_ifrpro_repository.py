@@ -25,6 +25,36 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
+# Factory para crear repositorio con dependencias
+def create_ifrpro_repository(
+        api_client: IApiClient,
+        authenticator: IApiAuthenticator,
+        credentials: ApiCredentials,
+        base_url: str,
+        rate_limiter: Optional[IRateLimiter] = None
+) -> IfrProRepository:
+    """
+    Factory para crear IfrProRepository
+
+    Args:
+        api_client: Cliente HTTP
+        authenticator: Autenticador
+        credentials: Credenciales de API
+        base_url: URL base
+        rate_limiter: Rate limiter opcional
+
+    Returns:
+        IfrProRepository configurado
+    """
+    return IfrProRepository(
+        api_client=api_client,
+        authenticator=authenticator,
+        credentials=credentials,
+        base_url=base_url,
+        rate_limiter=rate_limiter
+    )
+
+
 class IfrProRepository(IApiIfrProRepository):
     """
     Implementación del repositorio de preingresos
@@ -55,6 +85,53 @@ class IfrProRepository(IApiIfrProRepository):
             api_cuenta=credentials.cuenta
         )
 
+    async def health_check(
+            self
+    ) -> ApiResponse:
+        """
+        Prueba la conexión con la API
+
+        Returns:
+            ApiResponse
+        """
+
+        # Construir endpoint
+        endpoint = Endpoint(
+            path="/",
+            method=RequestMethod.GET,
+            base_url=self.base_url
+        )
+
+        # Crear request
+        request = ApiRequest(
+            request_id=str(uuid.uuid4()),
+            endpoint=endpoint
+        )
+
+        # Agregar autenticación
+        auth_headers = self.authenticator.generate_auth_headers(
+            request,
+            self.credentials
+        )
+
+        for key, value in auth_headers.items():
+            request.add_header(key, value)
+
+        # Rate limiting
+        if self.rate_limiter:
+            await self.rate_limiter.acquire()
+
+        try:
+            response = await self.client.health_check(self.credentials)
+            return response
+        except Exception as e:
+            self.logger.exception(
+                "Error de conexión",
+                True,
+                error=str(e)
+            )
+            raise
+
     async def create_preingreso(
             self,
             data: PreingresoData
@@ -69,8 +146,8 @@ class IfrProRepository(IApiIfrProRepository):
             ApiResponse con el resultado
         """
         self.logger.info(
-            "Creating preingreso",
-            numero_boleta=data.numero_boleta
+            "Creando preingreso",
+            boleta_tienda=data.boleta_tienda
         )
 
         # Validar datos antes de enviar
@@ -125,7 +202,7 @@ class IfrProRepository(IApiIfrProRepository):
 
             self.logger.info(
                 "Preingreso creado",
-                numero_boleta=data.numero_boleta,
+                boleta_tienda=data.boleta_tienda,
                 status_code=response.status_code,
                 response_time_ms=response.response_time_ms
             )
@@ -135,12 +212,12 @@ class IfrProRepository(IApiIfrProRepository):
         except Exception as e:
             self.logger.error(
                 "Error creando preingreso",
-                numero_boleta=data.numero_boleta,
+                boleta_tienda=data.boleta_tienda,
                 error=str(e)
             )
             raise
 
-    async def get_preingreso(
+    async def consultar_boleta(
             self,
             numero_boleta: str
     ) -> Optional[ApiResponse]:
@@ -212,19 +289,22 @@ class IfrProRepository(IApiIfrProRepository):
             )
             raise
 
-    async def health_check(
+    async def listar_sucursales(
             self
-    ) -> ApiResponse:
+    ) -> Optional[ApiResponse]:
         """
-        Prueba la conexión con la API
+        Obtiene un preingreso por número de boleta
 
         Returns:
-            ApiResponse
+            ApiResponse si existe, None si no
         """
+        self.logger.info(
+            "Listar sucursales"
+        )
 
         # Construir endpoint
         endpoint = Endpoint(
-            path="/",
+            path="/v1/cliente/sucursal",
             method=RequestMethod.GET,
             base_url=self.base_url
         )
@@ -248,43 +328,27 @@ class IfrProRepository(IApiIfrProRepository):
         if self.rate_limiter:
             await self.rate_limiter.acquire()
 
+        # Ejecutar
         try:
-            response = await self.client.health_check(self.credentials)
+            response = await self.client.execute_request(request)
+
+            # Si es 404, retornar None
+            if response.status_code == 404:
+                self.logger.info(
+                    "No se encontraron sucursales",
+                )
+                return None
+
+            self.logger.info(
+                "Si se encontraron sucursales",
+                status_code=response.status_code
+            )
+
             return response
+
         except Exception as e:
-            self.logger.exception(
-                "Error de conexión",
-                True,
+            self.logger.error(
+                "Error al listar las sucursales",
                 error=str(e)
             )
             raise
-
-
-# Factory para crear repositorio con dependencias
-def create_ifrpro_repository(
-        api_client: IApiClient,
-        authenticator: IApiAuthenticator,
-        credentials: ApiCredentials,
-        base_url: str,
-        rate_limiter: Optional[IRateLimiter] = None
-) -> IfrProRepository:
-    """
-    Factory para crear IfrProRepository
-    
-    Args:
-        api_client: Cliente HTTP
-        authenticator: Autenticador
-        credentials: Credenciales de API
-        base_url: URL base
-        rate_limiter: Rate limiter opcional
-        
-    Returns:
-        IfrProRepository configurado
-    """
-    return IfrProRepository(
-        api_client=api_client,
-        authenticator=authenticator,
-        credentials=credentials,
-        base_url=base_url,
-        rate_limiter=rate_limiter
-    )

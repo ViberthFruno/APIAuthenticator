@@ -112,7 +112,7 @@ class IApiIfrProRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_preingreso(
+    async def consultar_boleta(
             self,
             numero_boleta: str
     ) -> Optional[ApiResponse]:
@@ -122,6 +122,21 @@ class IApiIfrProRepository(ABC):
         Args:
             numero_boleta: Número de boleta a buscar
             
+        Returns:
+            Respuesta con datos del preingreso si existe, None si no
+        """
+        pass
+
+    @abstractmethod
+    async def listar_sucursales(
+            self
+    ) -> Optional[ApiResponse]:
+        """
+        Obtiene un preingreso por número de boleta
+
+        Args:
+            numero_boleta: Número de boleta a buscar
+
         Returns:
             Respuesta con datos del preingreso si existe, None si no
         """
