@@ -9,8 +9,10 @@ import hmac
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from urllib.parse import quote
+
+from api_integration.domain.exceptions import CouldNotCreateChecksumException
 
 
 class APIAuthenticator:
@@ -213,45 +215,6 @@ class APIAuthenticator:
 
         return resultado
 
-    def _get_carga_util(self, body: Optional[Union[Dict, List]], method: str) -> str:
-        """
-        Paso 1.6: Carga útil codificada
-        Retorna la suma de verificación (SHA384) del cuerpo de la solicitud
-        """
-        # Hash SHA384 de string vacío
-        empty_hash = "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"
-
-        if method == "GET":
-            return empty_hash
-
-        if not body:
-            return empty_hash
-
-        # Si body es una lista (form-data de Postman), convertir a dict
-        if isinstance(body, list):
-            clean_body = {}
-            for item in body:
-                if isinstance(item, dict):
-                    # Excluir archivos y campos deshabilitados
-                    if item.get('type') == 'file' or item.get('disabled'):
-                        continue
-                    clean_body[item.get('key', '')] = str(item.get('value', ''))
-        else:
-            # Si ya es un dict, convertir valores a string
-            clean_body = {k: str(v) for k, v in body.items()}
-
-        if not clean_body:
-            return empty_hash
-
-        # Ordenar por clave
-        clean_body = dict(sorted(clean_body.items()))
-
-        # Convertir a JSON string
-        body_str = json.dumps(clean_body, separators=(',', ':'), ensure_ascii=False)
-
-        # Calcular SHA384
-        return hashlib.sha384(body_str.encode()).hexdigest()
-
     def _get_llave_secreta_de_la_firma(self, short_date: str, region: str,
                                        service: str, llave_api: str) -> bytes:
         """
@@ -298,3 +261,80 @@ class APIAuthenticator:
         firma = hmac.new(llave_secreta, cadena_para_firmar.encode(), hashlib.sha384).digest()
 
         return base64.b64encode(firma).decode()
+
+    def _get_carga_util(self, body: Union[Dict[str, Any], None], method: str) -> str:
+        """
+        Paso 1.6: Carga útil codificada.
+        Retorna la suma de verificación (o Checksum) del cuerpo de la solicitud.
+
+        Args:
+            body: Cuerpo de la solicitud como diccionario
+            method: Método HTTP (GET, POST, etc.)
+
+        Returns:
+            Hash SHA-384 del contenido
+
+        Raises:
+            CouldNotCreateChecksumException: Si no se puede crear el checksum
+        """
+        if method.upper() == "GET" or not body:
+            # Retorna el resultado de ejecutar: hash('sha384', "")
+            # Este es el hash SHA-384 de una cadena vacía
+            return "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"
+
+        try:
+            # Convertir todos los valores a strings y aplicar encoding UTF-8 recursivamente
+            body_strings = self._convert_to_string_recursive(body)
+
+            # Ordenar el diccionario por claves en orden ascendente (de menor a mayor)
+            sorted_body = dict(sorted(body_strings.items()))
+
+            # Serializar a JSON con configuraciones específicas
+            # JSON_UNESCAPED_SLASHES: No escapar /
+            # JSON_UNESCAPED_UNICODE: No escapar caracteres Unicode
+            # JSON_UNESCAPED_LINE_TERMINATORS: No disponible directamente en Python
+            # JSON_INVALID_UTF8_IGNORE: Python maneja esto con errors='ignore' en encoding
+            json_string = json.dumps(
+                sorted_body,
+                ensure_ascii=False,  # Equivalente a JSON_UNESCAPED_UNICODE
+                separators=(',', ':'),  # Sin espacios extra
+                sort_keys=False  # Ya ordenamos manualmente
+            )
+
+            # Debug: imprimir el JSON exacto que se está hasheando
+            # print(f"JSON a hashear: {json_string}")
+
+            # Calcular hash SHA-384
+            hash_object = hashlib.sha384(json_string.encode('utf-8'))
+
+            return hash_object.hexdigest()
+
+        except Exception as e:
+            raise CouldNotCreateChecksumException('sha384', e)
+
+    def _convert_to_string_recursive(self, data: Any) -> Any:
+        """
+        Convierte todos los valores a strings recursivamente.
+        Emula el comportamiento de PHP al convertir tipos a string.
+        Python 3 maneja UTF-8 por defecto.
+
+        Args:
+            data: Estructura de datos (dict, list, o valor simple)
+
+        Returns:
+            Estructura con todos los valores convertidos a strings UTF-8
+        """
+        if isinstance(data, dict):
+            return {key: self._convert_to_string_recursive(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self._convert_to_string_recursive(item) for item in data]
+        elif isinstance(data, bool):
+            # Los booleanos en PHP se convierten a "1" o "" (string vacío)
+            # json_encode de PHP convierte true a "1" y false a ""
+            return "true" if data else "false"
+        elif data is None:
+            # NULL en PHP se convierte a string vacío
+            return ""
+        else:
+            # Convertir cualquier otro tipo a string y luego aplicar UTF-8
+            return str(data)

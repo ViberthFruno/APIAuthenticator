@@ -64,3 +64,12 @@ class APIRateLimitError(APIException):
 class ApplicationException(DomainException):
     """Excepción base para Application Layer"""
     pass
+
+
+class CouldNotCreateChecksumException(DomainException):
+    """Excepción personalizada cuando no se puede crear el checksum."""
+
+    def __init__(self, algorithm: str, original_exception: Exception):
+        self.algorithm = algorithm
+        self.original_exception = original_exception
+        super().__init__(f"Could not create {algorithm} checksum: {original_exception}")
