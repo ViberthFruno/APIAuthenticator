@@ -2,6 +2,7 @@
 API Integration Context - Domain Entities
 Entidades para manejar requests/responses de API externa
 """
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -41,8 +42,8 @@ class Endpoint:
         if not self.path.startswith('/'):
             object.__setattr__(self, 'path', f'/{self.path}')
 
-        if not self.base_url.startswith(('http://', 'https://')):
-            raise ValueError("base_url debe comenzar con http:// o https://")
+        if not self.base_url.startswith(('https://')):
+            raise ValueError("base_url debe comenzar con https://")
 
     @property
     def full_url(self) -> str:
@@ -227,26 +228,181 @@ class ApiResponse:
         """Verifica si tiene body JSON"""
         return self.body is not None
 
-    def get_error_message(self) -> Optional[str]:
-        """Extrae mensaje de error del response"""
-        if not self.has_json_body():
-            return None
+    def get_error_message(self, format_style: str = 'detailed') -> str:
+        """
+        Extrae el mensaje de error de la respuesta en múltiples formatos
 
-        # Intentar diferentes formatos comunes
-        if isinstance(self.body, dict):
-            # Formato 1: {"error": "mensaje"}
-            if "error" in self.body:
-                return str(self.body["error"])
+        Args:
+            format_style: 'detailed', 'concise', o 'code_only'
 
-            # Formato 2: {"message": "mensaje"}
-            if "message" in self.body:
-                return str(self.body["message"])
+        Returns:
+            Mensaje de error formateado
 
-            # Formato 3: {"errors": [...]}
-            if "errors" in self.body and isinstance(self.body["errors"], list):
-                return "; ".join(str(e) for e in self.body["errors"])
+        Opciones de uso:
+            # Detallado (default)
+            response.get_error_message('detailed')
+            # → "[404] titulo1 - Error detalle 1; [404] titulo2 - Error detalle 2"
 
-        return None
+            # Conciso
+            response.get_error_message('concise')
+            # → "Error detalle 1; Error detalle 2"
+
+            # Solo códigos
+            response.get_error_message('code_only')
+            # → "Error 404; Error 404"
+
+        Formatos soportados:
+        1. JSON:API errors: {"errors": [{"code": "...", "title": "...", "detail": "..."}]}
+        2. Simple message: {"error": "mensaje"} o {"message": "mensaje"}
+        3. Lista de strings: {"errors": ["error1", "error2"]}
+        4. Errores anidados en diferentes estructuras
+
+        Ejemplos:
+            # Formato JSON:API
+            {"errors": [
+                {"code": "404", "title": "titulo1", "detail": "Error detalle 1"},
+                {"code": "404", "title": "titulo2", "detail": "Error detalle 2"}
+            ]}
+            → "[404] titulo1 - Error detalle 1; [404] titulo2 - Error detalle 2"
+
+            # Formato simple
+            {"error": "Parámetros inválidos"}
+            → "Parámetros inválidos"
+
+            # Lista de strings
+            {"errors": ["Error 1", "Error 2"]}
+            → "Error 1; Error 2"
+        """
+        # Validación inicial
+        if not self.body:
+            return f"Error HTTP {self.status_code}"
+
+        # Si body no es dict, convertir a string
+        if not isinstance(self.body, dict):
+            return str(self.body)
+
+        # ========================================
+        # FORMATO 1: Campo "errors"
+        # ========================================
+        if "errors" in self.body:
+            errors = self.body["errors"]
+
+            # Caso A: Lista de objetos de error (JSON:API estándar)
+            if isinstance(errors, list) and errors:
+                error_messages = []
+
+                for error in errors:
+                    if isinstance(error, dict):
+                        # Error estructurado con code/title/detail
+                        parts = []
+
+                        if format_style == 'detailed':
+                            # Formato: [código] título - detalle
+                            if error.get('code'):
+                                parts.append(f"[{error['code']}]")
+                            if error.get('title'):
+                                parts.append(error['title'])
+                            if error.get('detail'):
+                                parts.append(f"- {error['detail']}")
+
+                            message = " ".join(parts) if parts else "Error desconocido"
+
+                        elif format_style == 'concise':
+                            # Formato: solo el detalle o título
+                            message = (
+                                    error.get('detail') or
+                                    error.get('title') or
+                                    f"Error {error.get('code', '')}" or
+                                    "Error desconocido"
+                            )
+
+                        elif format_style == 'code_only':
+                            # Formato: solo el código
+                            code = error.get('code', 'SIN_CODIGO')
+                            message = f"Error {code}"
+
+                        else:
+                            # Fallback: convertir todo a string
+                            message = str(error)
+
+                        error_messages.append(message)
+                    else:
+                        # Error simple (string, número, etc.)
+                        error_messages.append(str(error))
+
+                return "; ".join(error_messages)
+
+            # Caso B: Errors como string directo
+            elif isinstance(errors, str):
+                return errors
+
+            # Caso C: Errors como objeto único (no lista)
+            elif isinstance(errors, dict):
+                parts = []
+
+                if format_style == 'detailed':
+                    if errors.get('code'):
+                        parts.append(f"[{errors['code']}]")
+                    if errors.get('title'):
+                        parts.append(errors['title'])
+                    if errors.get('detail'):
+                        parts.append(f"- {errors['detail']}")
+                    return " ".join(parts) if parts else "Error desconocido"
+
+                elif format_style == 'concise':
+                    return (
+                            errors.get('detail') or
+                            errors.get('title') or
+                            f"Error {errors.get('code', '')}" or
+                            "Error desconocido"
+                    )
+
+                else:
+                    return str(errors)
+
+        # ========================================
+        # FORMATO 2: Campos comunes de error
+        # ========================================
+        for key in ["error", "message", "msg", "description", "error_message"]:
+            if key in self.body:
+                value = self.body[key]
+
+                # Si es dict, extraer detail/message o convertir a string
+                if isinstance(value, dict):
+                    return (
+                            value.get("detail") or
+                            value.get("message") or
+                            value.get("description") or
+                            str(value)
+                    )
+
+                # Si es string o número, retornar directamente
+                return str(value)
+
+        # ========================================
+        # FORMATO 3: Data con error anidado
+        # ========================================
+        if "data" in self.body and isinstance(self.body["data"], dict):
+            data = self.body["data"]
+
+            # Buscar error en data
+            for key in ["error", "message", "errors"]:
+                if key in data:
+                    return str(data[key])
+
+        # ========================================
+        # FORMATO 4: Status con descripción
+        # ========================================
+        if "status" in self.body and "description" in self.body:
+            return f"{self.body['status']}: {self.body['description']}"
+
+        # ========================================
+        # FALLBACK: Retornar todo el body como JSON
+        # ========================================
+        try:
+            return json.dumps(self.body, indent=2, ensure_ascii=False)
+        except Exception:
+            return str(self.body)
 
     # ===== Validation Methods =====
 
@@ -257,7 +413,7 @@ class ApiResponse:
 
             if self.is_client_error():
                 raise APIValidationError(
-                    f"Error de validación: {error_msg}",
+                    message=f"Error de validación: {error_msg}",
                     code=f"HTTP_{self.status_code}",
                     details={"status_code": self.status_code, "body": self.body}
                 )
@@ -321,6 +477,71 @@ class ApiResponse:
             f"status={self.status_code}, "
             f"time={self.response_time_ms:.0f}ms)"
         )
+
+    def get_error_details(self) -> List[Dict[str, Any]]:
+        """
+        Extrae todos los detalles de error estructurados
+
+        Returns:
+            Lista de diccionarios con información de errores
+
+        Ejemplo:
+            [
+                {"code": "404", "title": "Not Found", "detail": "..."},
+                {"code": "500", "title": "Server Error", "detail": "..."}
+            ]
+        """
+        if not self.body or not isinstance(self.body, dict):
+            return []
+
+        if "errors" not in self.body:
+            return []
+
+        errors = self.body["errors"]
+
+        # Si no es lista, convertir a lista
+        if not isinstance(errors, list):
+            errors = [errors] if isinstance(errors, dict) else []
+
+        # Filtrar solo diccionarios
+        return [e for e in errors if isinstance(e, dict)]
+
+    def get_first_error_detail(self) -> Optional[str]:
+        """
+        Retorna el detalle del primer error encontrado
+
+        Útil para mostrar solo el error más relevante
+        """
+        errors = self.get_error_details()
+        if errors:
+            first = errors[0]
+            return first.get('detail') or first.get('title') or str(first)
+        return None
+
+    def has_error_code(self, code: str) -> bool:
+        """
+        Verifica si algún error tiene un código específico
+
+        Args:
+            code: Código a buscar (ej: "404", "VALIDATION_ERROR")
+
+        Example:
+            if response.has_error_code("404"):
+                print("Recurso no encontrado")
+        """
+        errors = self.get_error_details()
+        return any(e.get('code') == code for e in errors)
+
+    def get_error_codes(self) -> List[str]:
+        """
+        Retorna lista de todos los códigos de error presentes
+
+        Returns:
+            Lista de códigos únicos
+        """
+        errors = self.get_error_details()
+        codes = [e.get('code') for e in errors if e.get('code')]
+        return list(set(codes))  # Eliminar duplicados
 
 
 # DTO inmutable final

@@ -4,13 +4,15 @@ main_gui_integrado.py - Interfaz gráfica integrada: API iFR Pro + Bot de Correo
 Combina autenticación API con procesamiento automático de correos
 """
 import tracemalloc
+from typing import Any
 
 from api_integration.application.dtos import HealthCheckResult, GetPreingresoOutput, ArchivoAdjunto, DatosExtraidosPDF, \
-    CreatePreingresoInput
+    CreatePreingresoInput, CreatePreingresoOutput
 from api_integration.application.use_cases.crear_preingreso_use_case import CreatePreingresoUseCase
 from api_integration.application.use_cases.use_cases import GetPreingresoInput, GetPreingresoUseCase, HealthCheckUseCase
 from api_integration.infrastructure.retry_policy import RetryPolicy
 from case1 import extract_repair_data
+from utils import strip_if_string, formatear_valor
 
 tracemalloc.start()
 
@@ -853,109 +855,111 @@ class IntegratedGUI(LoggerMixin):
 
         self.log_api_message(f"📄 Archivo seleccionado: {os.path.basename(archivo_pdf)}")
 
-        # Procesar PDF en un hilo separado
+        # ========== CALLBACKS ==========
+        def on_success(result: CreatePreingresoOutput):
+            """Callback cuando el procesamiento es exitoso"""
+
+            if result.success:
+                self.log_api_message("✅ Preingreso creado exitosamente!")
+                self.log_api_message(f"   Boleta usada: {result.boleta_usada}")
+                self.log_api_message(f"   Preingreso ID: {result.preingreso_id}")
+                self.log_api_message(f"   Status: {result.response.status_code}")
+                self.log_api_message(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
+
+                # Abrir formulario en el hilo principal de Tkinter
+                self.root.after(0, lambda: self.abrir_formulario_preingreso(result.response.body))
+            else:
+                error_msg = f"Error creando preingreso: {result.message}"
+                self.log_api_message(f"❌ {error_msg}")
+                if result.errors:
+                    self.log_api_message("   Errores de validación:")
+                    for error in result.errors:
+                        self.log_api_message(f"      - {error}")
+                # raise RuntimeError(error_msg)
+
+        def on_error(error):
+            """Callback cuando hay un error"""
+            self.log_api_message(f"❌ Error al procesar el preingreso: {str(error)}", "ERROR")
+            import traceback
+            self.log_api_message(traceback.format_exc())
+            # Mostrar error en el hilo principal de Tkinter
+            self.root.after(0, lambda: messagebox.showerror(
+                "Error", f"Error al procesar el preingreso:\n{str(error)}"
+            ))
+
+        # ========== FUNCIÓN ASÍNCRONA ==========
         async def procesar():
-            try:
-                # Crear referencia al archivo
-                archivo_adjunto = ArchivoAdjunto(
-                    nombre_archivo=os.path.basename(archivo_pdf),
-                    ruta_archivo=archivo_pdf,  # Solo la ruta
-                    tipo_mime="application/pdf"
+            """Procesa el PDF de forma asíncrona"""
+
+            # Crear referencia al archivo
+            archivo_adjunto = ArchivoAdjunto(
+                nombre_archivo=os.path.basename(archivo_pdf),
+                ruta_archivo=archivo_pdf,
+                tipo_mime="application/pdf"
+            )
+
+            # Leer el archivo PDF (operación asíncrona)
+            pdf_content = await archivo_adjunto.leer_contenido()
+            self.log_api_message(f"📊 Tamaño del archivo: {len(pdf_content):,} bytes")
+
+            # Extraer texto del PDF (operación síncrona)
+            self.log_api_message("🔍 Extrayendo datos del PDF...")
+            datos_extraidos = self.extraer_datos_boleta_pdf(pdf_content)
+
+            if not datos_extraidos:
+                raise ValueError("No se pudieron extraer datos del PDF")
+
+            # Crear DTO con los datos extraídos
+            datos_pdf = DatosExtraidosPDF(
+                numero_boleta=strip_if_string(datos_extraidos.get('numero_boleta', '')),
+                referencia=strip_if_string(datos_extraidos.get('referencia', '')),
+                nombre_sucursal=strip_if_string(datos_extraidos.get('sucursal', '')),
+                numero_transaccion=strip_if_string(datos_extraidos.get('numero_transaccion', '')),
+                cliente_nombre=strip_if_string(datos_extraidos.get('nombre_cliente', '')),
+                cliente_contacto=strip_if_string(datos_extraidos.get('nombre_contacto', '')),
+                cliente_telefono=strip_if_string(datos_extraidos.get('telefono_cliente', '')),
+                cliente_correo=strip_if_string(datos_extraidos.get('correo_cliente', '')),
+                serie=strip_if_string(datos_extraidos.get('serie', '')),
+                garantia_nombre=strip_if_string(datos_extraidos.get('tipo_garantia', '')),
+                fecha_compra=strip_if_string(datos_extraidos.get('fecha_compra')),
+                factura=strip_if_string(datos_extraidos.get('numero_factura')),
+                cliente_cedula=strip_if_string(datos_extraidos.get('cedula_cliente')),
+                cliente_direccion=strip_if_string(datos_extraidos.get('direccion_cliente')),
+                cliente_telefono2=strip_if_string(datos_extraidos.get('telefono_adicional')),
+                fecha_transaccion=strip_if_string(datos_extraidos.get('fecha')),
+                transaccion_gestionada_por=strip_if_string(datos_extraidos.get('gestionada_por')),
+                telefono_sucursal=strip_if_string(datos_extraidos.get('telefono_sucursal')),
+                producto_codigo=strip_if_string(datos_extraidos.get('codigo_producto')),
+                producto_descripcion=strip_if_string(datos_extraidos.get('descripcion_producto')),
+                marca_nombre=strip_if_string(datos_extraidos.get('marca')),
+                modelo_nombre=strip_if_string(datos_extraidos.get('modelo')),
+                garantia_fecha=strip_if_string(datos_extraidos.get('fecha_garantia')),
+                danos=strip_if_string(datos_extraidos.get('danos')),
+                observaciones=strip_if_string(datos_extraidos.get('observaciones')),
+                hecho_por=strip_if_string(datos_extraidos.get('hecho_por'))
+            )
+
+            # Crear caso de uso
+            use_case = CreatePreingresoUseCase(self.repository, self.retry_policy)
+
+            self.log_api_message("Enviando solicitud de crear el preingreso...")
+
+            # Ejecutar caso de uso (operación asíncrona)
+            result = await use_case.execute(
+                CreatePreingresoInput(
+                    datos_pdf=datos_pdf,
+                    archivo_adjunto=archivo_adjunto
                 )
+            )
 
-                # Leer el archivo PDF
-                pdf_content = archivo_adjunto.leer_contenido()
+            return result
 
-                self.log_api_message(f"📊 Tamaño del archivo: {len(pdf_content):,} bytes")
-
-                # Extraer texto del PDF
-                self.log_api_message("🔍 Extrayendo datos del PDF...")
-                datos_extraidos = self.extraer_datos_boleta_pdf(pdf_content)
-
-                if not datos_extraidos:
-                    self.log_api_message("❌ No se pudieron extraer datos del PDF", "ERROR")
-                    messagebox.showerror("Error", "No se pudieron extraer datos del PDF")
-                    return
-
-                # Crear DTO con los datos crudos extraidos del PDF
-                datos_pdf = DatosExtraidosPDF(
-                    numero_boleta=datos_extraidos.get('numero_boleta', ''),
-                    referencia=datos_extraidos.get('referencia', ''),
-                    nombre_sucursal=datos_extraidos.get('sucursal', ''),
-                    numero_transaccion=datos_extraidos.get('numero_transaccion', ''),
-                    cliente_nombre=datos_extraidos.get('nombre_cliente', ''),
-                    cliente_contacto=datos_extraidos.get('nombre_contacto', ''),
-                    cliente_telefono=datos_extraidos.get('telefono_cliente', ''),
-                    cliente_correo=datos_extraidos.get('correo_cliente', ''),
-                    serie=datos_extraidos.get('serie', ''),
-                    garantia_nombre=datos_extraidos.get('tipo_garantia', ''),
-                    fecha_compra=datos_extraidos.get('fecha_compra'),
-                    factura=datos_extraidos.get('numero_factura'),
-                    cliente_cedula=datos_extraidos.get('cedula_cliente'),
-                    cliente_direccion=datos_extraidos.get('direccion_cliente'),
-                    cliente_telefono2=datos_extraidos.get('telefono_adicional'),
-                    fecha_transaccion=datos_extraidos.get('fecha'),
-                    transaccion_gestionada_por=datos_extraidos.get('gestionada_por'),
-                    telefono_sucursal=datos_extraidos.get('telefono_sucursal'),
-                    producto_codigo=datos_extraidos.get('codigo_producto'),
-                    producto_descripcion=datos_extraidos.get('descripcion_producto'),
-                    marca_nombre=datos_extraidos.get('marca'),
-                    modelo_nombre=datos_extraidos.get('modelo'),
-                    garantia_fecha=datos_extraidos.get('fecha_garantia'),
-                    danos=datos_extraidos.get('danos'),
-                    observaciones=datos_extraidos.get('observaciones'),
-                    hecho_por=datos_extraidos.get('hecho_por')
-                )
-
-                # Crear caso de uso
-                use_case = CreatePreingresoUseCase(
-                    api_ifrpro_repository=self.repository,
-                    retry_policy=self.retry_policy
-                )
-
-                # Ejecutar caso de uso
-                result = await use_case.execute(
-                    CreatePreingresoInput(
-                        datos_pdf=datos_pdf,
-                        archivo_adjunto=archivo_adjunto
-                    )
-                )
-
-                # Procesar resultado de la creación del preingreso
-                if result.success:
-                    print(f"✅ Preingreso creado exitosamente!")
-                    print(f"   Boleta usada: {result.boleta_usada}")
-                    print(f"   Boleta de preingreso: {result.preingreso_id}")
-                    print(f"   Status Code: {result.response.status_code}")
-                    print(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
-                else:
-                    print(f"❌ Error creando preingreso:")
-                    print(f"   Mensaje: {result.message}")
-                    if result.errors:
-                        print(f"   Errores de validación:")
-                        for error in result.errors:
-                            print(f"      - {error}")
-
-                # Mostrar datos extraídos
-                self.log_api_message("✅ Datos extraídos exitosamente:")
-                self.log_api_message(f"   • Cliente: {datos_extraidos.get('nombre_cliente', 'N/A')}")
-                self.log_api_message(f"   • Contacto: {datos_extraidos.get('nombre_contacto', 'N/A')}")
-                self.log_api_message(f"   • Teléfono: {datos_extraidos.get('telefono_cliente', 'N/A')}")
-                self.log_api_message(f"   • Correo: {datos_extraidos.get('correo_cliente', 'N/A')}")
-                self.log_api_message(f"   • Producto: {datos_extraidos.get('descripcion_producto', 'N/A')}")
-                self.log_api_message(f"   • Marca: {datos_extraidos.get('marca', 'N/A')}")
-                self.log_api_message(f"   • Modelo: {datos_extraidos.get('modelo', 'N/A')}")
-
-                # Abrir formulario de preingreso
-                self.root.after(0, lambda: self.abrir_formulario_preingreso(datos_extraidos, archivo_pdf))
-
-            except Exception as e:
-                self.log_api_message(f"❌ Error al procesar PDF: {str(e)}", "ERROR")
-                import traceback
-                self.log_api_message(traceback.format_exc())
-                messagebox.showerror("Error", f"Error al procesar PDF:\n{str(e)}")
-
-        threading.Thread(target=procesar, daemon=True).start()
+        # ========== EJECUTAR ASÍNCRONAMENTE ==========
+        run_async_with_callback(
+            procesar(),
+            on_success=on_success,
+            on_error=on_error
+        )
 
     def extraer_datos_boleta_pdf(self, pdf_content):
         """Extrae datos de un PDF de boleta de reparación"""
@@ -989,12 +993,12 @@ class IntegratedGUI(LoggerMixin):
             self.log_api_message(f"Error extrayendo datos del PDF: {ex}", level="EXCEPTION")
             return None
 
-    def abrir_formulario_preingreso(self, datos_extraidos, pdf_path):
+    def abrir_formulario_preingreso(self, resultado_api: dict[str, Any]):
         """Abre un formulario para completar y enviar el preingreso"""
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
-        modal.title("Crear Preingreso - Completar Datos")
-        modal.geometry("1024x600")
+        modal.title("Crear Preingreso - Resultado")
+        modal.geometry("900x600")
         modal.transient(self.root)
         modal.grab_set()
 
@@ -1028,142 +1032,60 @@ class IntegratedGUI(LoggerMixin):
         # Título
         ttk.Label(
             scrollable_frame,
-            text="Complete los datos faltantes para crear el preingreso",
+            text="Preingreso creado",
             font=("Arial", 11, "bold")
         ).grid(row=0, column=0, columnspan=2, pady=(0, 15), sticky="w")
 
-        row = 1
-
-        # Variables para almacenar los datos del formulario
-        form_vars = {}
-
-        # DATOS EXTRAÍDOS (solo lectura)
-        ttk.Label(scrollable_frame, text="DATOS EXTRAÍDOS DEL PDF", font=("Arial", 10, "bold")).grid(
-            row=row, column=0, columnspan=2, sticky="w", pady=(10, 5)
-        )
-        row += 1
+        row = 0
 
         # Mostrar datos extraídos
-        datos_mostrar = [
-            ("Número de Boleta", datos_extraidos.get('numero_boleta', 'N/A')),
-            ("Sucursal referencia", datos_extraidos.get('referencia', 'N/A')),
-            ("Sucursal", datos_extraidos.get('sucursal', 'N/A')),
-            ("Número de transacción", datos_extraidos.get('numero_transaccion', 'N/A')),
-            ("Fecha de transacción", datos_extraidos.get('fecha', 'N/A')),
-            ("Transacción gestionada por", datos_extraidos.get('gestionada_por', 'N/A')),
-            ("Teléfono sucursal", datos_extraidos.get('telefono_sucursal', 'N/A')),
+        data = resultado_api["data"]
 
-            ("Cliente nombre", datos_extraidos.get('nombre_cliente', 'N/A')),
-            ("Contacto", datos_extraidos.get('nombre_contacto', 'N/A')),
-            ("Cliente cédula", datos_extraidos.get('cedula_cliente', 'N/A')),
-            ("Cliente teléfono", datos_extraidos.get('telefono_cliente', 'N/A')),
-            ("Cliente correo", datos_extraidos.get('correo_cliente', 'N/A')),
-            ("Cliente teléfono 2", datos_extraidos.get('telefono_adicional', 'N/A')),
-            ("Cliente dirección", datos_extraidos.get('direccion_cliente', 'N/A')),
+        for label, valor in data.items():
+            ttk.Label(
+                scrollable_frame,
+                text=f"{label.replace('_', ' ').title()}:"
+            ).grid(row=row, column=0, sticky="w", padx=5, pady=2)
+            ttk.Label(
+                scrollable_frame,
+                text=formatear_valor(valor),
+                foreground="blue"
+            ).grid(row=row, column=1, sticky="w", padx=5, pady=2)
 
-            ("Código producto", datos_extraidos.get('codigo_producto', 'N/A')),
-            ("Producto", datos_extraidos.get('descripcion_producto', 'N/A')),
-
-            ("Marca", datos_extraidos.get('marca', 'N/A')),
-            ("Modelo", datos_extraidos.get('modelo', 'N/A')),
-            ("Serie", datos_extraidos.get('serie', 'N/A')),
-            ("Factura", datos_extraidos.get('numero_factura', 'N/A')),
-            ("Fecha compra", datos_extraidos.get('fecha_compra', 'N/A')),
-            ("Fecha garantía", datos_extraidos.get('fecha_garantia', 'N/A')),
-
-            ("Garantía", datos_extraidos.get('tipo_garantia', 'N/A')),
-            ("Creado por", datos_extraidos.get('hecho_por', 'N/A')),
-            ("Daños reportados", datos_extraidos.get('danos', 'N/A')),
-            ("Observaciones", datos_extraidos.get('observaciones', 'N/A')),
-        ]
-
-        for label, valor in datos_mostrar:
-            ttk.Label(scrollable_frame, text=f"{label}:").grid(row=row, column=0, sticky="w", padx=5, pady=2)
-            ttk.Label(scrollable_frame, text=valor, foreground="blue").grid(row=row, column=1, sticky="w", padx=5,
-                                                                            pady=2)
             row += 1
 
-        # DATOS FALTANTES (editables)
         ttk.Separator(scrollable_frame, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky="ew", pady=10)
         row += 1
-
-        ttk.Label(scrollable_frame, text="COMPLETAR DATOS FALTANTES", font=("Arial", 10, "bold")).grid(
-            row=row, column=0, columnspan=2, sticky="w", pady=(5, 10)
-        )
-        row += 1
-
-        # Código de sucursal
-        ttk.Label(scrollable_frame, text="*Código Sucursal:").grid(row=row, column=0, sticky="w", padx=5, pady=5)
-        form_vars['codigo_sucursal'] = tk.StringVar(value="")
-        ttk.Entry(scrollable_frame, textvariable=form_vars['codigo_sucursal'], width=40).grid(
-            row=row, column=1, sticky="w", padx=5, pady=5
-        )
-        row += 1
-
-        # Nota explicativa
-        ttk.Label(
-            scrollable_frame,
-            text="⚠️ Por ahora, esta es una versión simplificada para pruebas.\n"
-                 "Complete el código de sucursal para continuar.",
-            foreground="orange",
-            wraplength=600
-        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=5, pady=10)
-        row += 1
-
-        # Botones
-        button_frame = ttk.Frame(scrollable_frame)
-        button_frame.grid(row=row, column=0, columnspan=2, pady=20)
-
-        def enviar_preingreso():
-            codigo_sucursal = form_vars['codigo_sucursal'].get().strip()
-
-            if not codigo_sucursal:
-                messagebox.showwarning("Advertencia", "Debe ingresar el código de sucursal")
-                return
-
-            self.log_api_message("=" * 60)
-            self.log_api_message("Enviando Preingreso a la API...")
-            self.log_api_message("=" * 60)
-            self.log_api_message(f"Código Sucursal: {codigo_sucursal}")
-            self.log_api_message(f"Archivo PDF: {os.path.basename(pdf_path)}")
-
-            # Por ahora solo mostrar mensaje de éxito
-            messagebox.showinfo(
-                "Información",
-                "Función en desarrollo.\n\n"
-                "Los datos han sido extraídos correctamente.\n"
-            )
-
-            self.log_api_message("✅ Datos preparados para envío (función en desarrollo)")
-            self.log_api_message("=" * 60)
-
-            modal.destroy()
-
-        ttk.Button(button_frame, text="✅ Enviar Preingreso", command=enviar_preingreso).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="❌ Cancelar", command=modal.destroy).pack(side=tk.LEFT, padx=5)
 
 
 def main():
     """Función principal"""
+    try:
+        # Crear ventana principal
+        root = tk.Tk()
 
-    # Crear ventana principal
-    root = tk.Tk()
+        # Cargar configuración
+        settings = Settings()
 
-    # Cargar configuración
-    settings = Settings()
+        # Configurar sistema de logging
+        setup_logging(
+            log_level=settings.LOG_LEVEL,
+            log_dir=settings.LOG_DIR,
+            use_json=False
+        )
 
-    # Configurar sistema de logging
-    setup_logging(
-        log_level=settings.LOG_LEVEL,
-        log_dir=settings.LOG_DIR,
-        use_json=False
-    )
+        # Inicializar interfaz gráfica
+        app = IntegratedGUI(root, settings)
 
-    # Inicializar interfaz gráfica
-    app = IntegratedGUI(root, settings)
+        # Iniciar loop de eventos
+        root.mainloop()
 
-    # Iniciar loop de eventos
-    root.mainloop()
+    except KeyboardInterrupt:
+        print("\n⚠️  Aplicación interrumpida por el usuario (Ctrl+C)")
+        sys.exit(0)
+    except Exception as e:
+        print(f"❌ Error inesperado: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

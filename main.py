@@ -5,7 +5,6 @@ API iFR Pro + Bot de Correo Electrónico
 """
 
 import argparse
-import asyncio
 import os
 import sys
 
@@ -56,6 +55,9 @@ def launch_gui():
         # Iniciar loop de eventos
         root.mainloop()
 
+    except KeyboardInterrupt:
+        print("\n⚠️  Aplicación interrumpida por el usuario (Ctrl+C)")
+        sys.exit(0)
     except ImportError as e:
         print(f"❌ Error: No se pudo cargar la interfaz gráfica")
         print(f"   Detalles: {e}")
@@ -89,7 +91,7 @@ def run_cli_mode():
 
         settings = Settings()
         config_manager = ConfigManager()
-        email_manager = EmailManager()
+        # email_manager = EmailManager()
         case_handler = CaseHandler()
 
         # Mostrar información
@@ -116,6 +118,9 @@ def run_cli_mode():
         print("   python main_integrado.py")
         print()
 
+    except KeyboardInterrupt:
+        print("\n⚠️  Aplicación interrumpida por el usuario (Ctrl+C)")
+        sys.exit(0)
     except Exception as e:
         print(f"❌ Error en modo CLI: {e}")
         sys.exit(1)
@@ -211,7 +216,7 @@ CONNECTION_POOL_SIZE=10
             print(f"⚠️  No se pudo crear .env.example: {e}")
 
 
-async def main():
+def main():
     """Función principal"""
     parser = argparse.ArgumentParser(
         description='Sistema Integrado: API iFR Pro + Bot de Correo',
@@ -295,4 +300,4 @@ Para más información, visite: https://github.com/tu-repo
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

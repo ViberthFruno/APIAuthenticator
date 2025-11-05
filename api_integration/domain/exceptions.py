@@ -56,6 +56,7 @@ class APIRateLimitError(APIException):
     """Rate limit excedido"""
     pass
 
+
 # ====================
 # APPLICATION EXCEPTIONS
 # ====================

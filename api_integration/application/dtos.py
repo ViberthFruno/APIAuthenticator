@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from api_integration.domain.entities import PreingresoData, ApiResponse
+from api_integration.domain.entities import ApiResponse
 
 
 # =====================================

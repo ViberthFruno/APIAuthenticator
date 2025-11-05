@@ -2,13 +2,11 @@
 API Integration Context - Use Cases (Application Layer)
 Casos de uso para crear un preingreso
 """
-import re
 from datetime import datetime
-from typing import Optional, Dict, Tuple
-from uuid import UUID
+from typing import Optional
 
 from api_integration.application.dtos import CreatePreingresoInput, CreatePreingresoOutput, SucursalDTO
-from api_integration.domain.entities import PreingresoData
+from api_integration.domain.builders.crear_preingreso_builder import CrearPreingresoBuilder
 from api_integration.domain.exceptions import (
     APIException,
     APIValidationError
@@ -34,83 +32,6 @@ class CreatePreingresoUseCase:
     - Manejar errores y reintentos
     """
 
-    @staticmethod
-    def _extraer_nombres_apellidos(
-            nombre_completo: str | None,
-            nombre_contacto: str | None
-    ) -> Dict[str, str]:
-        """
-        Extrae los apellidos y nombres de un nombre completo.
-
-        - Si hay 3 o más partes: las dos primeras se consideran apellidos, el resto nombres.
-        - Si hay 2 o menos partes: la primera es apellido, la segunda (si existe) es nombre.
-
-        Args:
-            nombre_completo (str | None): El nombre completo del cliente, como una sola cadena
-            nombre_contacto (str | None): El nombre de contacto
-
-        Returns:
-            Dict[str, str]: Un diccionario con claves 'apellidos' y 'nombres'.
-        """
-
-        if not nombre_completo:
-            return {
-                'nombres': nombre_contacto or 'N/A',
-                'apellidos': 'N/A'
-            }
-
-        partes = nombre_completo.split()
-        num_partes = len(partes)
-
-        if num_partes >= 3:
-            apellidos = ' '.join(partes[:2])
-            nombres = ' '.join(partes[2:])
-        else:
-            # Usar índices con valor por defecto vacío
-            apellidos = partes[0] if num_partes > 0 else ''
-            nombres = partes[1] if num_partes > 1 else ''
-
-        return {
-            'nombres': nombres,
-            'apellidos': apellidos
-        }
-
-    # Función auxiliar para normalizar claves
-    @staticmethod
-    def _normalizar_clave(nombre: str) -> str:
-        """
-        Normaliza una cadena para ser usada como clave en el mapeo.
-        Convierte a minúsculas y elimina espacios innecesarios.
-        """
-        # Convierte a minúsculas
-        nombre_normalizado = nombre.lower()
-        # Opcional: Remover espacios extras al inicio/fin y reemplazar múltiples espacios por uno solo
-        nombre_normalizado = re.sub(r'\s+', ' ', nombre_normalizado.strip())
-        # Opcional: Remover o reemplazar caracteres especiales si aplica
-        # nombre_normalizado = re.sub(r'[^\w\s]', '', nombre_normalizado)
-        return nombre_normalizado
-
-    # Definir las constantes como atributos de clase
-    TIPO_PREINGRESO_MAP: Dict[str, int] = {
-        _normalizar_clave('Normal'): 7,
-        _normalizar_clave('No'): 92,
-        _normalizar_clave('C.S.R.'): 92,
-        _normalizar_clave('C.S.R'): 92,
-        _normalizar_clave('CSR'): 92,
-        _normalizar_clave('DOA'): 8,
-        _normalizar_clave('DAP'): 9,
-    }
-
-    GARANTIA_ID_MAP: Dict[str, int] = {
-        _normalizar_clave('Normal'): 1,
-        _normalizar_clave('No'): 2,
-        _normalizar_clave('C.S.R.'): 4,
-        _normalizar_clave('C.S.R'): 4,
-        _normalizar_clave('CSR'): 4,
-        _normalizar_clave('DOA'): 1,
-        _normalizar_clave('DAP'): 1,
-    }
-
     def __init__(
             self,
             api_ifrpro_repository: IApiIfrProRepository,
@@ -121,10 +42,7 @@ class CreatePreingresoUseCase:
         self.logger = logger.bind(use_case="CreatePreingreso")
 
     @log_execution_time
-    async def execute(
-            self,
-            input_dto: CreatePreingresoInput
-    ) -> CreatePreingresoOutput:
+    async def execute(self, input_dto: CreatePreingresoInput) -> CreatePreingresoOutput:
         """
         Ejecuta el caso de uso
 
@@ -143,7 +61,7 @@ class CreatePreingresoUseCase:
 
         try:
             # Obtener la tienda
-            tienda = await self._obtener_tienda_por_referencia(input_dto.datos_pdf.referencia.strip())
+            tienda = await self._obtener_tienda_por_referencia(input_dto.datos_pdf.referencia)
             if not tienda:
                 return CreatePreingresoOutput(
                     success=False,
@@ -154,53 +72,11 @@ class CreatePreingresoUseCase:
                     boleta_usada=input_dto.datos_pdf.numero_boleta
                 )
 
-            # Obtener id de la marca
-            marca_id = UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')  # Desconocida
-
-            # Obtener id del modelo comercial
-            modelo_comercial_id = UUID('910f491b-6c99-4225-bef8-83c85a83ae44')  # Desconocido
-
-            # Obtener el tipo de preingreso y garantía (Llamas a la fn y desempaqueta directamente)
-            tipo_preingreso_id, garantia_id = self._get_garantia_tipo_preingreso("Normal")
-
-            # detalle_recepcion = nombre marca + nombre modelo + Daños + observaciones.
-            detalle_recepcion = f"Marca:{input_dto.datos_pdf.marca_nombre.strip()}. Modelo:{input_dto.datos_pdf.modelo_nombre.strip()} Daño:{input_dto.datos_pdf.danos.strip()}. Obs:{input_dto.datos_pdf.observaciones.strip()}."
-
-            # Obtener nombres y apellidos del propietario
-            propietario = self._extraer_nombres_apellidos(input_dto.datos_pdf.cliente_nombre.strip(),
-                                                          input_dto.datos_pdf.cliente_contacto.strip())
-
-            # Extraer contenido del pdf que será enviado al request
-            pdf_content = await input_dto.archivo_adjunto.leer_contenido()
-
             # Construir el DTO inmutable
-            preingreso_data = PreingresoData(
-                codigo_sucursal=tienda.sucursal_codigo,
-                tipo_preingreso_id=str(tipo_preingreso_id),
-                garantia_id=str(garantia_id),
-                nombres_propietario=propietario["nombres"],
-                apellidos_propietario=propietario["apellidos"],
-                correo_propietario=input_dto.datos_pdf.cliente_correo.strip(),
-                telefono1_propietario=input_dto.datos_pdf.cliente_telefono.strip(),
-                division_1=tienda.sucursal_division_1,  # código provincia
-                division_2=tienda.sucursal_division_2,  # código cantón
-                division_3=tienda.sucursal_division_3,  # código distrito
-                descripcion_division=tienda.sucursal_direccion,  # Dirección exacta de la tienda
-                serie=input_dto.datos_pdf.serie.strip(),
-                marca_id=marca_id,
-                modelo_comercial_id=modelo_comercial_id,
-                detalle_recepcion=detalle_recepcion,
-                referencia=input_dto.datos_pdf.numero_transaccion.strip(),
-
-                boleta_tienda=input_dto.datos_pdf.numero_boleta.strip(),
-
-                fecha_compra=input_dto.datos_pdf.fecha_compra.strip(),
-                otro_telefono_propietario=input_dto.datos_pdf.cliente_telefono2.strip(),
-                numero_factura=input_dto.datos_pdf.factura.strip(),
-
-                # Archivo adjunto
-                pdf_filename=input_dto.archivo_adjunto.nombre_archivo,
-                pdf_content=pdf_content
+            preingreso_data = await CrearPreingresoBuilder.build(
+                input_dto.datos_pdf,
+                tienda,
+                input_dto.archivo_adjunto
             )
 
             # Validar datos si se solicita
@@ -356,25 +232,12 @@ class CreatePreingresoUseCase:
                 return None
 
             else:
-                logger.warning(f"Respuesta inesperada de API: {response.status_code}")
+                self.logger.warning(f"Respuesta inesperada de API: {response.status_code}")
                 return None
 
         except (AttributeError, TypeError, KeyError):
             # Si data no tiene el formato esperado
             return None
         except Exception as e:
-            logger.error(f"Error en _buscar_en_api: {e}")
+            self.logger.error(f"Error en _buscar_en_api: {e}")
             raise
-
-    def _get_garantia_tipo_preingreso(self, nombre_garantia: str) -> Tuple[int, int]:
-        """
-        Mapea un nombre de garantía a sus IDs correspondientes de tipo de preingreso y garantía.
-
-        Returns:
-            Tuple[int, int]: Una tupla (tipo_preingreso_id, garantia_id).
-                             Por defecto, (7, 1) si no se encuentra coincidencia.
-        """
-        clave_normalizada = self._normalizar_clave(nombre_garantia)
-        tipo_preingreso_id = self.__class__.TIPO_PREINGRESO_MAP.get(clave_normalizada, 7)
-        garantia_id = self.__class__.GARANTIA_ID_MAP.get(clave_normalizada, 1)
-        return tipo_preingreso_id, garantia_id

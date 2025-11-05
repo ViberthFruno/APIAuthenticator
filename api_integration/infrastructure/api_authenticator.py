@@ -3,14 +3,14 @@
 Autenticación para API iFR Pro
 """
 
+import base64
 import hashlib
-import uuid
 import hmac
 import json
-import base64
+import uuid
 from datetime import datetime, timezone
-from urllib.parse import quote
 from typing import Dict, List, Optional, Union
+from urllib.parse import quote
 
 
 class APIAuthenticator:
@@ -298,4 +298,3 @@ class APIAuthenticator:
         firma = hmac.new(llave_secreta, cadena_para_firmar.encode(), hashlib.sha384).digest()
 
         return base64.b64encode(firma).decode()
-
