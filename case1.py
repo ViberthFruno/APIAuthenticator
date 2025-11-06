@@ -329,11 +329,6 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
         message_lines.append("")
 
     message_lines.append("Los preingresos han sido creados exitosamente en el sistema.")
-    message_lines.append("")
-    message_lines.append("Saludos cordiales,")
-    message_lines.append("Fruno - Centro de Servicio Técnico de Reparación")
-    message_lines.append("")
-    message_lines.append(f"Fecha y hora de procesamiento: {timestamp}")
 
     return "\n".join(message_lines)
 
@@ -372,11 +367,6 @@ def _generate_all_failed_message(failed_files, non_pdf_files):
     message_lines.append("  • La información del PDF sea correcta (fecha de compra, garantía, etc.)")
     message_lines.append("")
     message_lines.append("Si el problema persiste, contacte al Centro de Servicio.")
-    message_lines.append("")
-    message_lines.append("Saludos cordiales,")
-    message_lines.append("Fruno - Centro de Servicio Técnico de Reparación")
-    message_lines.append("")
-    message_lines.append(f"Fecha y hora de procesamiento: {timestamp}")
 
     return "\n".join(message_lines)
 
@@ -399,11 +389,6 @@ def _generate_no_pdf_message(non_pdf_files):
     message_lines.append("")
     message_lines.append(
         "Por favor, revise si adjuntó el archivo correcto y reenvíe el correo con el archivo PDF correspondiente.")
-    message_lines.append("")
-    message_lines.append("Saludos cordiales,")
-    message_lines.append("Fruno - Centro de Servicio Técnico de Reparación")
-    message_lines.append("")
-    message_lines.append(f"Fecha y hora de procesamiento: {timestamp}")
 
     return "\n".join(message_lines)
 
@@ -619,7 +604,7 @@ class Case(BaseCase):
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 response = {
                     'recipient': sender,
-                    'subject': f"Confirmación de Preingreso - Sin PDF - {timestamp}",
+                    'subject': f"Error: Sin Archivo PDF Adjunto - {timestamp}",
                     'body': _generate_no_pdf_message(non_pdf_files)
                 }
                 return response
@@ -660,7 +645,7 @@ class Case(BaseCase):
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 response = {
                     'recipient': sender,
-                    'subject': f"Confirmación de Preingreso - Error en Procesamiento - {timestamp}",
+                    'subject': f"Error en Procesamiento de Preingreso - {timestamp}",
                     'body': _generate_all_failed_message(failed_files, non_pdf_files)
                 }
                 return response
