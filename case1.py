@@ -16,8 +16,7 @@ from api_integration.application.dtos import (
 from api_integration.application.use_cases.crear_preingreso_use_case import CreatePreingresoUseCase
 from api_integration.infrastructure.api_ifrpro_repository import create_ifrpro_repository
 from api_integration.infrastructure.authenticator_adapter import create_api_authenticator
-from api_integration.infrastructure.retry_policy import ExponentialRetryPolicy
-from api_integration.infrastructure.http_client import create_api_client
+from api_integration.infrastructure.http_client import create_api_client, TenacityRetryPolicy
 from api_integration.domain.entities import ApiCredentials
 from config_manager import ConfigManager
 from settings import Settings
@@ -527,7 +526,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         )
 
         # Crear política de reintentos
-        retry_policy = ExponentialRetryPolicy(max_retries=2)
+        retry_policy = TenacityRetryPolicy(max_attempts=2)
 
         # Crear caso de uso
         use_case = CreatePreingresoUseCase(repository, retry_policy)
