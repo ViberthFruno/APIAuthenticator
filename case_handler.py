@@ -78,7 +78,12 @@ class CaseHandler:
             try:
                 keywords = case_obj.get_search_keywords()
                 for keyword in keywords:
-                    if keyword.lower() in subject.lower():
+                    # Búsqueda flexible: divide las palabras y busca si todas están en el subject
+                    keyword_words = keyword.lower().split()
+                    subject_lower = subject.lower()
+
+                    # Verifica si todas las palabras del keyword están presentes en el subject
+                    if all(word in subject_lower for word in keyword_words):
                         logger.info(f"Caso encontrado: {case_name} para palabra clave: {keyword}")
                         return case_name
             except Exception as e:
