@@ -61,3 +61,7 @@ class RetryPolicy:
         """
         delay = self.base_delay * (self.backoff_factor ** (attempt - 1))
         return min(delay, self.max_delay)
+
+
+class ExponentialRetryPolicy:
+    pass

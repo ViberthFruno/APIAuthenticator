@@ -352,3 +352,7 @@ class IfrProRepository(IApiIfrProRepository):
                 error=str(e)
             )
             raise
+
+
+class ApiIfrProRepository:
+    pass

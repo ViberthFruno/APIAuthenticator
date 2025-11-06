@@ -467,3 +467,7 @@ def create_api_client(
     )
 
     return client, retry_policy, rate_limiter
+
+
+class HttpClient:
+    pass

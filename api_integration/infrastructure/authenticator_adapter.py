@@ -147,3 +147,7 @@ def create_api_authenticator() -> ApiAuthenticatorAdapter:
         ApiAuthenticatorAdapter configurado
     """
     return ApiAuthenticatorAdapter()
+
+
+class AuthenticatorAdapter:
+    pass
