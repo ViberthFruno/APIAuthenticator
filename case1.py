@@ -1,12 +1,24 @@
 # Archivo: case1.py
 # Ubicación: raíz del proyecto
-# Descripción: Caso 1 - Procesa PDFs de boletas de reparación y genera archivo de texto ordenado
+# Descripción: Caso 1 - Procesa PDFs de boletas de reparación y crea preingresos en la API
 
 import re
 import tempfile
 from datetime import datetime
 
 from base_case import BaseCase
+from gui_async_helper import run_async_from_sync
+from api_integration.application.dtos import (
+    DatosExtraidosPDF,
+    CreatePreingresoInput,
+    ArchivoAdjunto
+)
+from api_integration.application.use_cases.crear_preingreso_use_case import CreatePreingresoUseCase
+from api_integration.infrastructure.api_ifrpro_repository import ApiIfrProRepository
+from api_integration.infrastructure.authenticator_adapter import AuthenticatorAdapter
+from api_integration.infrastructure.retry_policy import ExponentialRetryPolicy
+from api_integration.infrastructure.http_client import HttpClient
+from config_manager import ConfigManager
 
 
 def _generate_formatted_text(data):
@@ -271,41 +283,39 @@ def _extract_text_from_pdf(pdf_data, logger):
         return None
 
 
-def _generate_success_message(transaction_numbers, processed_files, failed_files, non_pdf_files):
-    """Genera el mensaje de éxito con los números de transacción y estado de archivos"""
+def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
+    """
+    Genera el mensaje de éxito con los preingresos creados y estado de archivos
+
+    Args:
+        preingreso_results: Lista de dicts con {filename, boleta, preingreso_id, numero_transaccion}
+        failed_files: Lista de dicts con {filename, error}
+        non_pdf_files: Lista de nombres de archivos que no son PDF
+    """
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
     message_lines = ["¡Estimado Usuario!", "",
-                     "Fruno, Centro de Servicio Técnico de Reparación, le informa que se ha creado una solicitud de reparación para:",
+                     "Fruno, Centro de Servicio Técnico de Reparación, le informa que se han procesado exitosamente las siguientes solicitudes de reparación:",
                      ""]
 
-    if transaction_numbers:
-        if len(transaction_numbers) == 1:
-            message_lines.append(f"• Unidad con No. Transacción: {transaction_numbers[0]}")
-        else:
-            message_lines.append("Las siguientes unidades:")
-            for i, trans_num in enumerate(transaction_numbers, 1):
-                message_lines.append(f"  {i}. Unidad con No. Transacción: {trans_num}")
-    else:
-        message_lines.append("• La(s) unidad(es) correspondiente(s)")
-
-    message_lines.append("")
-
-    # Mostrar archivos procesados exitosamente
-    if processed_files:
-        if len(processed_files) == 1:
-            message_lines.append(f"Archivo procesado exitosamente: {processed_files[0]}")
-        else:
-            message_lines.append("Archivos procesados exitosamente:")
-            for file in processed_files:
-                message_lines.append(f"  ✓ {file}")
-        message_lines.append("")
+    # Mostrar preingresos creados exitosamente
+    if preingreso_results:
+        for idx, result in enumerate(preingreso_results, 1):
+            message_lines.append(f"{idx}. Archivo: {result['filename']}")
+            message_lines.append(f"   ✓ Boleta: {result['boleta']}")
+            if result.get('preingreso_id'):
+                message_lines.append(f"   ✓ ID Preingreso: {result['preingreso_id']}")
+            if result.get('numero_transaccion'):
+                message_lines.append(f"   ✓ No. Transacción: {result['numero_transaccion']}")
+            message_lines.append("")
 
     # Mostrar archivos que no se pudieron procesar
     if failed_files:
         message_lines.append("⚠ Archivos que no se pudieron procesar:")
-        for file in failed_files:
-            message_lines.append(f"  ✗ {file}")
+        for failed in failed_files:
+            message_lines.append(f"  ✗ {failed['filename']}")
+            if failed.get('error'):
+                message_lines.append(f"    Motivo: {failed['error']}")
         message_lines.append("")
         message_lines.append("Por favor, revise los archivos que no se procesaron y reenvíelos si es necesario.")
         message_lines.append("")
@@ -317,8 +327,7 @@ def _generate_success_message(transaction_numbers, processed_files, failed_files
             message_lines.append(f"  • {file}")
         message_lines.append("")
 
-    message_lines.append(
-        "Adjunto encontrará el/los archivo(s) procesado(s) con la información detallada de la(s) boleta(s) de reparación.")
+    message_lines.append("Los preingresos han sido creados exitosamente en el sistema.")
     message_lines.append("")
     message_lines.append("Saludos cordiales,")
     message_lines.append("Fruno - Centro de Servicio Técnico de Reparación")
@@ -329,7 +338,13 @@ def _generate_success_message(transaction_numbers, processed_files, failed_files
 
 
 def _generate_all_failed_message(failed_files, non_pdf_files):
-    """Genera el mensaje cuando todos los PDFs fallan al procesarse"""
+    """
+    Genera el mensaje cuando todos los PDFs fallan al procesarse
+
+    Args:
+        failed_files: Lista de dicts con {filename, error}
+        non_pdf_files: Lista de nombres de archivos que no son PDF
+    """
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
     message_lines = ["Estimado Usuario,", "",
@@ -337,8 +352,10 @@ def _generate_all_failed_message(failed_files, non_pdf_files):
 
     if failed_files:
         message_lines.append("Archivos PDF que no se pudieron procesar:")
-        for file in failed_files:
-            message_lines.append(f"  • {file}")
+        for failed in failed_files:
+            message_lines.append(f"  • {failed['filename']}")
+            if failed.get('error'):
+                message_lines.append(f"    Motivo: {failed['error']}")
         message_lines.append("")
 
     if non_pdf_files:
@@ -351,6 +368,7 @@ def _generate_all_failed_message(failed_files, non_pdf_files):
     message_lines.append("  • Los archivos PDF no estén dañados o corruptos")
     message_lines.append("  • Los archivos sean boletas de reparación válidas")
     message_lines.append("  • Los archivos contengan información legible")
+    message_lines.append("  • La información del PDF sea correcta (fecha de compra, garantía, etc.)")
     message_lines.append("")
     message_lines.append("Si el problema persiste, contacte al Centro de Servicio.")
     message_lines.append("")
@@ -389,20 +407,163 @@ def _generate_no_pdf_message(non_pdf_files):
     return "\n".join(message_lines)
 
 
+def _strip_if_string(value):
+    """Retorna None si es None, sino retorna el string sin espacios"""
+    if value is None:
+        return None
+    return str(value).strip() if value else None
+
+
+def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
+    """
+    Crea un preingreso en la API a partir del contenido de un PDF
+
+    Args:
+        pdf_content: Bytes del archivo PDF
+        pdf_filename: Nombre del archivo PDF
+        logger: Logger para registrar eventos
+
+    Returns:
+        dict con {success, preingreso_id, boleta, numero_transaccion, error}
+    """
+    try:
+        # Extraer texto del PDF
+        logger.info(f"Extrayendo texto del PDF: {pdf_filename}")
+        pdf_text = _extract_text_from_pdf(pdf_content, logger)
+
+        if not pdf_text:
+            return {
+                'success': False,
+                'error': 'No se pudo extraer texto del PDF',
+                'filename': pdf_filename
+            }
+
+        # Extraer datos del PDF
+        logger.info(f"Extrayendo datos del PDF: {pdf_filename}")
+        extracted_data = extract_repair_data(pdf_text, logger)
+
+        if not extracted_data or len(extracted_data) < 3:
+            return {
+                'success': False,
+                'error': 'PDF sin información válida (menos de 3 campos extraídos)',
+                'filename': pdf_filename
+            }
+
+        # Crear archivo temporal para el PDF
+        temp_pdf = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
+        temp_pdf.write(pdf_content)
+        temp_pdf.close()
+
+        # Crear DTO con los datos extraídos
+        datos_pdf = DatosExtraidosPDF(
+            numero_boleta=_strip_if_string(extracted_data.get('numero_boleta', '')),
+            referencia=_strip_if_string(extracted_data.get('referencia', '')),
+            nombre_sucursal=_strip_if_string(extracted_data.get('sucursal', '')),
+            numero_transaccion=_strip_if_string(extracted_data.get('numero_transaccion', '')),
+            cliente_nombre=_strip_if_string(extracted_data.get('nombre_cliente', '')),
+            cliente_contacto=_strip_if_string(extracted_data.get('nombre_contacto', '')),
+            cliente_telefono=_strip_if_string(extracted_data.get('telefono_cliente', '')),
+            cliente_correo=_strip_if_string(extracted_data.get('correo_cliente', '')),
+            serie=_strip_if_string(extracted_data.get('serie', '')),
+            garantia_nombre=_strip_if_string(extracted_data.get('tipo_garantia', '')),
+            fecha_compra=_strip_if_string(extracted_data.get('fecha_compra')),
+            factura=_strip_if_string(extracted_data.get('numero_factura')),
+            cliente_cedula=_strip_if_string(extracted_data.get('cedula_cliente')),
+            cliente_direccion=_strip_if_string(extracted_data.get('direccion_cliente')),
+            cliente_telefono2=_strip_if_string(extracted_data.get('telefono_adicional')),
+            fecha_transaccion=_strip_if_string(extracted_data.get('fecha')),
+            transaccion_gestionada_por=_strip_if_string(extracted_data.get('gestionada_por')),
+            telefono_sucursal=_strip_if_string(extracted_data.get('telefono_sucursal')),
+            producto_codigo=_strip_if_string(extracted_data.get('codigo_producto')),
+            producto_descripcion=_strip_if_string(extracted_data.get('descripcion_producto')),
+            marca_nombre=_strip_if_string(extracted_data.get('marca')),
+            modelo_nombre=_strip_if_string(extracted_data.get('modelo')),
+            garantia_fecha=_strip_if_string(extracted_data.get('fecha_garantia')),
+            danos=_strip_if_string(extracted_data.get('danos')),
+            observaciones=_strip_if_string(extracted_data.get('observaciones')),
+            hecho_por=_strip_if_string(extracted_data.get('hecho_por'))
+        )
+
+        # Crear archivo adjunto
+        archivo_adjunto = ArchivoAdjunto(
+            nombre_archivo=pdf_filename,
+            ruta_archivo=temp_pdf.name,
+            tipo_mime="application/pdf"
+        )
+
+        # Crear instancias necesarias para el use case
+        config_manager = ConfigManager()
+        authenticator = AuthenticatorAdapter(config_manager)
+        http_client = HttpClient(authenticator)
+        repository = ApiIfrProRepository(http_client)
+        retry_policy = ExponentialRetryPolicy(max_retries=2)
+
+        # Crear caso de uso
+        use_case = CreatePreingresoUseCase(repository, retry_policy)
+
+        # Crear input para el use case
+        input_dto = CreatePreingresoInput(
+            datos_pdf=datos_pdf,
+            retry_on_failure=True,
+            validate_before_send=True,
+            archivo_adjunto=archivo_adjunto
+        )
+
+        logger.info(f"Creando preingreso para: {pdf_filename}")
+
+        # Ejecutar caso de uso de forma asíncrona (desde código síncrono)
+        async def ejecutar_creacion():
+            return await use_case.execute(input_dto)
+
+        result = run_async_from_sync(ejecutar_creacion())
+
+        # Limpiar archivo temporal
+        import os
+        try:
+            os.unlink(temp_pdf.name)
+        except:
+            pass
+
+        if result.success:
+            logger.info(f"✅ Preingreso creado exitosamente: {result.preingreso_id}")
+            return {
+                'success': True,
+                'preingreso_id': result.preingreso_id,
+                'boleta': result.boleta_usada,
+                'numero_transaccion': extracted_data.get('numero_transaccion'),
+                'filename': pdf_filename
+            }
+        else:
+            error_msg = result.message or "Error desconocido al crear preingreso"
+            logger.error(f"❌ Error al crear preingreso: {error_msg}")
+            return {
+                'success': False,
+                'error': error_msg,
+                'filename': pdf_filename
+            }
+
+    except Exception as e:
+        logger.exception(f"Error al crear preingreso desde PDF {pdf_filename}: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Error inesperado: {str(e)}",
+            'filename': pdf_filename
+        }
+
+
 class Case(BaseCase):
     def __init__(self):
         super().__init__(
             name="Caso 1",
-            description="Procesa PDFs de boletas de reparación y genera archivo de texto ordenado",
+            description="Procesa PDFs de boletas de reparación y crea preingresos en la API",
             config_key="caso1",
-            response_message="Adjunto encontrará el archivo procesado con la información de la boleta de reparación.",
+            response_message="Los preingresos han sido creados exitosamente en el sistema.",
         )
 
     def process_email(self, email_data, logger):
-        """Procesa el email y genera una respuesta con el archivo de texto ordenado"""
+        """Procesa el email, crea preingresos en la API y genera una respuesta"""
         try:
             sender = email_data.get('sender', '')
-            # subject = email_data.get('subject', '')
             attachments = email_data.get('attachments', [])
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
@@ -433,14 +594,11 @@ class Case(BaseCase):
                 }
                 return response
 
-            # Procesar todos los PDFs encontrados
+            # Procesar todos los PDFs encontrados y crear preingresos
             logger.info(f"Total de PDFs a procesar: {len(pdf_attachments)}")
 
-            all_attachments = []
-            transaction_numbers = []
-            boleta_numbers = []  # Nueva lista para números de boleta
-            processed_files = []
-            failed_files = []
+            preingreso_results = []  # Lista de preingresos creados exitosamente
+            failed_files = []  # Lista de archivos que fallaron
 
             for idx, pdf_attachment in enumerate(pdf_attachments, 1):
                 pdf_content = pdf_attachment.get('data')
@@ -448,58 +606,27 @@ class Case(BaseCase):
 
                 logger.info(f"Procesando PDF {idx}/{len(pdf_attachments)}: {pdf_filename}")
 
-                pdf_text = _extract_text_from_pdf(pdf_content, logger)
+                # Crear preingreso desde el PDF
+                result = _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger)
 
-                if not pdf_text:
-                    logger.error(f"No se pudo extraer texto del PDF: {pdf_filename}")
-                    failed_files.append(pdf_filename)
-                    continue
+                if result['success']:
+                    preingreso_results.append({
+                        'filename': pdf_filename,
+                        'boleta': result.get('boleta'),
+                        'preingreso_id': result.get('preingreso_id'),
+                        'numero_transaccion': result.get('numero_transaccion')
+                    })
+                    logger.info(f"✅ Preingreso creado para: {pdf_filename}")
+                else:
+                    failed_files.append({
+                        'filename': pdf_filename,
+                        'error': result.get('error', 'Error desconocido')
+                    })
+                    logger.error(f"❌ Falló el procesamiento de: {pdf_filename}")
 
-                logger.info(f"Texto extraído ({len(pdf_text)} caracteres)")
-
-                extracted_data = extract_repair_data(pdf_text, logger)
-                logger.info(f"Campos extraídos: {len(extracted_data)}")
-
-                # Verificar si se extrajo información útil (al menos 3 campos)
-                if not extracted_data or len(extracted_data) < 3:
-                    logger.error(f"PDF sin información válida: {pdf_filename}")
-                    failed_files.append(pdf_filename)
-                    continue
-
-                # Guardar número de transacción para el mensaje
-                if 'numero_transaccion' in extracted_data:
-                    transaction_numbers.append(extracted_data['numero_transaccion'])
-
-                # Guardar número de boleta para el subject
-                if 'numero_boleta' in extracted_data:
-                    boleta_numbers.append(extracted_data['numero_boleta'])
-
-                txt_content = _generate_formatted_text(extracted_data)
-
-                temp_file = tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', suffix='.txt', delete=False)
-                temp_file.write(txt_content)
-                temp_file.close()
-
-                with open(temp_file.name, 'rb') as f:
-                    file_data = f.read()
-
-                # Generar nombre de archivo con timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                boleta_num = extracted_data.get("numero_boleta", "procesada").replace("-", "_")
-                filename = f'boleta_{boleta_num}_{timestamp}.txt'
-
-                all_attachments.append({
-                    'filename': filename,
-                    'data': file_data,
-                    'path': temp_file.name
-                })
-
-                processed_files.append(pdf_filename)
-                logger.info(f"Archivo generado: {filename}")
-
-            # Validar si se procesó al menos un PDF correctamente
-            if not all_attachments:
-                logger.error("No se pudo procesar ningún PDF correctamente")
+            # Validar si se creó al menos un preingreso correctamente
+            if not preingreso_results:
+                logger.error("No se pudo crear ningún preingreso correctamente")
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 response = {
                     'recipient': sender,
@@ -508,22 +635,25 @@ class Case(BaseCase):
                 }
                 return response
 
-            # Generar mensaje de éxito con los números de transacción
+            # Generar mensaje de éxito con los preingresos creados
             body_message = _generate_success_message(
-                transaction_numbers,
-                processed_files,
+                preingreso_results,
                 failed_files,
                 non_pdf_files
             )
 
-            # Generar subject personalizado con número de boleta y timestamp
+            # Generar subject personalizado con números de boleta y timestamp
             timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            boleta_numbers = [r.get('boleta') for r in preingreso_results if r.get('boleta')]
+
             if boleta_numbers:
                 if len(boleta_numbers) == 1:
-                    subject_line = f"Confirmación de Preingreso - Boleta {boleta_numbers[0]} - {timestamp}"
+                    subject_line = f"Confirmación de Preingreso Creado - Boleta {boleta_numbers[0]} - {timestamp}"
                 else:
-                    boletas_str = ", ".join(boleta_numbers)
-                    subject_line = f"Confirmación de Preingreso - Boletas {boletas_str} - {timestamp}"
+                    boletas_str = ", ".join(boleta_numbers[:3])  # Mostrar solo las primeras 3
+                    if len(boleta_numbers) > 3:
+                        boletas_str += f" (y {len(boleta_numbers) - 3} más)"
+                    subject_line = f"Confirmación de Preingresos Creados - {boletas_str} - {timestamp}"
             else:
                 subject_line = f"Confirmación de Preingreso - {timestamp}"
 
@@ -531,10 +661,10 @@ class Case(BaseCase):
                 'recipient': sender,
                 'subject': subject_line,
                 'body': body_message,
-                'attachments': all_attachments
+                'attachments': []  # No enviamos archivos adjuntos, solo el mensaje
             }
 
-            logger.info(f"Procesamiento completado: {len(all_attachments)} archivo(s) generado(s)")
+            logger.info(f"Procesamiento completado: {len(preingreso_results)} preingreso(s) creado(s)")
             return response
 
         except Exception as e:
