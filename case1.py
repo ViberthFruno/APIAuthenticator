@@ -284,14 +284,15 @@ def _extract_text_from_pdf(pdf_data, logger):
         return None
 
 
-def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
+def _generate_success_message(preingreso_results, failed_files, non_pdf_files, unsupported_files=None):
     """
     Genera el mensaje de éxito con los preingresos creados y estado de archivos
 
     Args:
         preingreso_results: Lista de dicts con {filename, boleta, preingreso_id, numero_transaccion}
         failed_files: Lista de dicts con {filename, error}
-        non_pdf_files: Lista de nombres de archivos que no son PDF
+        non_pdf_files: Lista de nombres de archivos que no son PDF (imágenes)
+        unsupported_files: Lista de nombres de archivos en formatos no soportados
     """
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
@@ -316,14 +317,32 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
         for failed in failed_files:
             message_lines.append(f"  ✗ {failed['filename']}")
             if failed.get('error'):
-                message_lines.append(f"    Motivo: {failed['error']}")
+                error_msg = failed['error']
+                # Mejorar mensajes de error específicos
+                if 'menos de 3 campos' in error_msg or 'sin información válida' in error_msg:
+                    message_lines.append(f"    Motivo: El archivo no contiene suficiente información legible.")
+                    message_lines.append(f"    Por favor, verifique que el PDF sea una boleta válida y legible.")
+                elif 'No se pudo extraer texto' in error_msg:
+                    message_lines.append(f"    Motivo: No se pudo leer el contenido del PDF.")
+                    message_lines.append(f"    El archivo puede estar dañado o ilegible.")
+                else:
+                    message_lines.append(f"    Motivo: {error_msg}")
         message_lines.append("")
         message_lines.append("Por favor, revise los archivos que no se procesaron y reenvíelos si es necesario.")
         message_lines.append("")
 
-    # Mostrar archivos que no son PDF
+    # Mostrar archivos en formatos no soportados
+    if unsupported_files:
+        message_lines.append("❌ Archivos en formatos no soportados (no procesados):")
+        for file in unsupported_files:
+            message_lines.append(f"  • {file}")
+        message_lines.append("")
+        message_lines.append("Solo se aceptan archivos PDF o imágenes (JPG, PNG, GIF, BMP).")
+        message_lines.append("")
+
+    # Mostrar archivos que no son PDF (imágenes)
     if non_pdf_files:
-        message_lines.append("ℹ Archivos recibidos que no son PDF (no procesados):")
+        message_lines.append("ℹ Archivos recibidos (imágenes - no procesados):")
         for file in non_pdf_files:
             message_lines.append(f"  • {file}")
         message_lines.append("")
@@ -338,13 +357,14 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
     return "\n".join(message_lines)
 
 
-def _generate_all_failed_message(failed_files, non_pdf_files):
+def _generate_all_failed_message(failed_files, non_pdf_files, unsupported_files=None):
     """
     Genera el mensaje cuando todos los PDFs fallan al procesarse
 
     Args:
         failed_files: Lista de dicts con {filename, error}
-        non_pdf_files: Lista de nombres de archivos que no son PDF
+        non_pdf_files: Lista de nombres de archivos que no son PDF ni imágenes
+        unsupported_files: Lista de nombres de archivos en formatos no soportados
     """
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
@@ -352,24 +372,44 @@ def _generate_all_failed_message(failed_files, non_pdf_files):
                      "Se recibió su correo, sin embargo no fue posible procesar los archivos adjuntos.", ""]
 
     if failed_files:
-        message_lines.append("Archivos PDF que no se pudieron procesar:")
+        message_lines.append("⚠ Archivos que no se pudieron procesar:")
         for failed in failed_files:
-            message_lines.append(f"  • {failed['filename']}")
+            message_lines.append(f"  ✗ {failed['filename']}")
             if failed.get('error'):
-                message_lines.append(f"    Motivo: {failed['error']}")
+                error_msg = failed['error']
+                # Mejorar mensajes de error específicos
+                if 'menos de 3 campos' in error_msg or 'sin información válida' in error_msg:
+                    message_lines.append(f"    Motivo: El archivo no contiene suficiente información legible.")
+                    message_lines.append(f"    Por favor, verifique que el PDF sea una boleta de reparación válida")
+                    message_lines.append(f"    y que no esté dañado o ilegible.")
+                elif 'No se pudo extraer texto' in error_msg:
+                    message_lines.append(f"    Motivo: No se pudo leer el contenido del PDF.")
+                    message_lines.append(f"    El archivo puede estar dañado o en un formato no compatible.")
+                else:
+                    message_lines.append(f"    Motivo: {error_msg}")
+        message_lines.append("")
+
+    if unsupported_files:
+        message_lines.append("❌ Archivos en formatos no soportados:")
+        for file in unsupported_files:
+            message_lines.append(f"  • {file}")
+        message_lines.append("")
+        message_lines.append("Solo se aceptan archivos PDF o imágenes (JPG, PNG, GIF, BMP).")
         message_lines.append("")
 
     if non_pdf_files:
-        message_lines.append("Archivos recibidos que no son PDF:")
+        message_lines.append("ℹ Archivos recibidos (imágenes):")
         for file in non_pdf_files:
             message_lines.append(f"  • {file}")
         message_lines.append("")
+        message_lines.append("Nota: Las imágenes fueron recibidas pero actualmente solo se procesan archivos PDF.")
+        message_lines.append("")
 
     message_lines.append("Por favor, verifique que:")
-    message_lines.append("  • Los archivos PDF no estén dañados o corruptos")
-    message_lines.append("  • Los archivos sean boletas de reparación válidas")
-    message_lines.append("  • Los archivos contengan información legible")
-    message_lines.append("  • La información del PDF sea correcta (fecha de compra, garantía, etc.)")
+    message_lines.append("  • Los archivos PDF sean boletas de reparación válidas")
+    message_lines.append("  • Los archivos no estén dañados, corruptos o sean ilegibles")
+    message_lines.append("  • Los archivos contengan información clara y legible")
+    message_lines.append("  • Se adjunten archivos en formato PDF (preferido)")
     message_lines.append("")
     message_lines.append("Si el problema persiste, contacte al Centro de Servicio.")
     message_lines.append("")
@@ -381,17 +421,27 @@ def _generate_all_failed_message(failed_files, non_pdf_files):
     return "\n".join(message_lines)
 
 
-def _generate_no_pdf_message(non_pdf_files):
+def _generate_no_pdf_message(non_pdf_files, unsupported_files=None):
     """Genera el mensaje cuando no se adjunta ningún PDF"""
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
     message_lines = ["Estimado Usuario,", "",
                      "Se ha recibido su correo, sin embargo no se detectó ningún archivo PDF adjunto.", ""]
 
+    if unsupported_files:
+        message_lines.append("❌ Archivos en formatos no soportados:")
+        for file in unsupported_files:
+            message_lines.append(f"  • {file}")
+        message_lines.append("")
+        message_lines.append("Solo se aceptan archivos PDF o imágenes (JPG, PNG, GIF, BMP).")
+        message_lines.append("")
+
     if non_pdf_files:
-        message_lines.append("Archivos recibidos (no son PDF):")
+        message_lines.append("ℹ Archivos recibidos (imágenes):")
         for file in non_pdf_files:
             message_lines.append(f"  • {file}")
+        message_lines.append("")
+        message_lines.append("Nota: Las imágenes fueron recibidas pero se requiere el archivo PDF de la boleta.")
         message_lines.append("")
 
     message_lines.append(
@@ -406,6 +456,46 @@ def _generate_no_pdf_message(non_pdf_files):
     message_lines.append(f"Fecha y hora de procesamiento: {timestamp}")
 
     return "\n".join(message_lines)
+
+
+def _is_image_file(filename, content_type):
+    """
+    Determina si un archivo es una imagen soportada
+
+    Args:
+        filename: Nombre del archivo
+        content_type: Tipo MIME del archivo
+
+    Returns:
+        bool: True si es una imagen soportada, False en caso contrario
+    """
+    image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
+    image_content_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp']
+
+    filename_lower = filename.lower()
+    content_type_lower = content_type.lower()
+
+    # Verificar por extensión
+    has_image_ext = any(filename_lower.endswith(ext) for ext in image_extensions)
+
+    # Verificar por content type
+    has_image_type = any(img_type in content_type_lower for img_type in image_content_types)
+
+    return has_image_ext or has_image_type
+
+
+def _is_pdf_file(filename, content_type):
+    """
+    Determina si un archivo es un PDF
+
+    Args:
+        filename: Nombre del archivo
+        content_type: Tipo MIME del archivo
+
+    Returns:
+        bool: True si es un PDF, False en caso contrario
+    """
+    return 'pdf' in content_type.lower() or filename.lower().endswith('.pdf')
 
 
 def _strip_if_string(value):
@@ -598,20 +688,24 @@ class Case(BaseCase):
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
 
-            # Clasificar archivos adjuntos
+            # Clasificar archivos adjuntos en 3 categorías: PDF, imágenes, no soportados
             pdf_attachments = []
-            non_pdf_files = []
+            image_files = []  # Archivos de imagen (soportados pero no procesados actualmente)
+            unsupported_files = []  # Archivos en formatos no soportados
 
             for attachment in attachments:
-                content_type = attachment.get('content_type', '').lower()
+                content_type = attachment.get('content_type', '')
                 filename = attachment.get('filename', 'archivo_sin_nombre')
 
-                if 'pdf' in content_type or filename.lower().endswith('.pdf'):
+                if _is_pdf_file(filename, content_type):
                     pdf_attachments.append(attachment)
                     logger.info(f"PDF encontrado: {filename}")
+                elif _is_image_file(filename, content_type):
+                    image_files.append(filename)
+                    logger.info(f"Imagen detectada: {filename}")
                 else:
-                    non_pdf_files.append(filename)
-                    logger.warning(f"Archivo no-PDF detectado: {filename}")
+                    unsupported_files.append(filename)
+                    logger.warning(f"Archivo no soportado detectado: {filename} (tipo: {content_type})")
 
             # Validación: Si no hay PDFs adjuntos
             if not pdf_attachments:
@@ -619,8 +713,8 @@ class Case(BaseCase):
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 response = {
                     'recipient': sender,
-                    'subject': f"Confirmación de Preingreso - Sin PDF - {timestamp}",
-                    'body': _generate_no_pdf_message(non_pdf_files)
+                    'subject': f"Error: No se Detectó PDF de Preingreso - {timestamp}",
+                    'body': _generate_no_pdf_message(image_files, unsupported_files)
                 }
                 return response
 
@@ -660,8 +754,8 @@ class Case(BaseCase):
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 response = {
                     'recipient': sender,
-                    'subject': f"Confirmación de Preingreso - Error en Procesamiento - {timestamp}",
-                    'body': _generate_all_failed_message(failed_files, non_pdf_files)
+                    'subject': f"Error en Procesamiento de Preingreso - {timestamp}",
+                    'body': _generate_all_failed_message(failed_files, image_files, unsupported_files)
                 }
                 return response
 
@@ -669,7 +763,8 @@ class Case(BaseCase):
             body_message = _generate_success_message(
                 preingreso_results,
                 failed_files,
-                non_pdf_files
+                image_files,
+                unsupported_files
             )
 
             # Generar subject personalizado con números de boleta y timestamp
