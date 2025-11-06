@@ -161,7 +161,7 @@ class IfrProRepository(IApiIfrProRepository):
 
         # Construir endpoint
         endpoint = Endpoint(
-            path="/v1/reparacion/preingreso",
+            path="/v1/preingreso",
             method=RequestMethod.POST,
             base_url=self.base_url
         )

@@ -870,6 +870,7 @@ class IntegratedGUI(LoggerMixin):
                 self.root.after(0, lambda: self.abrir_formulario_preingreso(result.response.body))
             else:
                 error_msg = f"Error creando preingreso: {result.message}"
+                self.log_api_message(f"❌ {formatear_valor(result)}")
                 self.log_api_message(f"❌ {error_msg}")
                 if result.errors:
                     self.log_api_message("   Errores de validación:")

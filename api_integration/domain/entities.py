@@ -420,14 +420,15 @@ class ApiResponse:
 
             if self.is_server_error():
                 raise APIException(
-                    f"Error del servidor: {error_msg}",
+                    message=f"Error de la API: {error_msg}",
                     code=f"HTTP_{self.status_code}",
-                    details={"status_code": self.status_code}
+                    details={"status_code": self.status_code, "body": self.body}
                 )
 
             raise APIException(
-                f"Error inesperado: {error_msg}",
-                code=f"HTTP_{self.status_code}"
+                message=f"Error inesperado: {error_msg}",
+                code=f"HTTP_{self.status_code}",
+                details={"status_code": self.status_code, "body": self.body}
             )
 
     def extract_data(self, key: str, required: bool = True) -> Any:

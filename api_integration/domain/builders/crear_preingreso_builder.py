@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Dict, Tuple
 from uuid import UUID
 
+from dateutil.relativedelta import relativedelta
+
 from api_integration.application.dtos import SucursalDTO, DatosExtraidosPDF, ArchivoAdjunto
 from api_integration.domain.entities import PreingresoData
 
@@ -98,8 +100,31 @@ class CrearPreingresoBuilder:
         # Obtener id del modelo comercial
         modelo_comercial_id = UUID('910f491b-6c99-4225-bef8-83c85a83ae44')  # Desconocido
 
-        # Obtener el tipo de preingreso y garantía (Llamas a la fn y desempaqueta directamente)
-        tipo_preingreso_id, garantia_id = CrearPreingresoBuilder._get_garantia_tipo_preingreso("Normal")
+        fecha_compra = CrearPreingresoBuilder._convertir_fecha(
+            datos_pdf.fecha_compra or "01/01/1970") if not datos_pdf.fecha_compra else "01/01/1970"
+
+        # Por default están sin garantía
+        tipo_preingreso_id = 92
+        garantia_id = 2
+        msg_fecha_compra = ""
+
+        if not datos_pdf.fecha_compra:
+            # Si la fecha de compra no viene, entonces ingresa como "Sin Garantía"
+            msg_fecha_compra = "La fecha de compra no viene en el documento PDF, ingresa 'Sin Garantía'"
+
+        else:
+            # Si la fecha de compra No ha excedido un año
+            if not CrearPreingresoBuilder._es_mayor_a_un_ano(datos_pdf.fecha_compra):
+
+                # Intenta obtener los datos desde el nombre de la Garantía del PDF
+                tipo_preingreso_id, garantia_id = (
+                    CrearPreingresoBuilder._validar_garantia(
+                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre)
+                    )
+                )
+            else:
+                # Si la fecha de compra excede un año, entonces ingresa como "Sin Garantía".
+                msg_fecha_compra = f"La fecha de compra '{fecha_compra}' excede un año, ingresa 'Sin Garantía'"
 
         # detalle_recepcion = nombre marca + nombre modelo + Daños + observaciones.
         marca_nombre = CrearPreingresoBuilder._limpiar_texto(datos_pdf.marca_nombre)
@@ -107,7 +132,8 @@ class CrearPreingresoBuilder:
         danos = CrearPreingresoBuilder._limpiar_texto(datos_pdf.danos)
         observaciones = CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
 
-        detalle_recepcion = f"Marca:{marca_nombre} | Modelo:{modelo_nombre} | Daño:{danos} | Obs:{observaciones}."
+        detalle_recepcion = f"Marca:{marca_nombre} | Modelo:{modelo_nombre} | Daño:{danos} | Obs:{observaciones} | {msg_fecha_compra}".rstrip(
+            ' |') + "."
 
         # Obtener nombres y apellidos del propietario
         propietario = CrearPreingresoBuilder._extraer_nombres_apellidos(
@@ -138,7 +164,7 @@ class CrearPreingresoBuilder:
 
             boleta_tienda=datos_pdf.numero_boleta,
 
-            fecha_compra=CrearPreingresoBuilder._convertir_fecha(datos_pdf.fecha_compra),
+            fecha_compra=fecha_compra,
             otro_telefono_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_telefono2, True),
             numero_factura=CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura, True),
 
@@ -148,17 +174,18 @@ class CrearPreingresoBuilder:
         )
 
     @staticmethod
-    def _get_garantia_tipo_preingreso(nombre_garantia: str) -> Tuple[int, int]:
+    def _validar_garantia(nombre_garantia: str) -> Tuple[int, int]:
         """
         Mapea un nombre de garantía a su ID correspondiente de tipo de preingreso y garantía.
+        Si no se encuentra coincidencia, entonces por defecto devuelve los ids de 'Sin garantía'.
 
         Returns:
             Tuple[int, int]: Una tupla (tipo_preingreso_id, garantia_id).
-                             Por defecto, (7, 1) si no se encuentra coincidencia.
+                             Por defecto, (92, 2) si no se encuentra coincidencia.
         """
         clave_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_garantia)
-        tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 7)
-        garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 1)
+        tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
+        garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
         return tipo_preingreso_id, garantia_id
 
     @staticmethod
@@ -237,3 +264,27 @@ class CrearPreingresoBuilder:
         texto = texto.rstrip('.')
 
         return texto
+
+    @staticmethod
+    def _es_mayor_a_un_ano(fecha_str: str, formato_fecha: str = "%d/%m/%Y") -> bool:
+        """
+        Verifica si una fecha es mayor a un año desde hoy (considera años bisiestos).
+
+        Args:
+            fecha_str: Fecha en formato "dd/mm/yyyy"
+
+        Returns:
+            True si han pasado más de un año
+        """
+        try:
+            fecha = datetime.strptime(fecha_str, formato_fecha)
+            hoy = datetime.now()
+
+            # Calcular la fecha hace exactamente un año usando relativedelta (más preciso con años bisiestos)
+            hace_un_ano = hoy - relativedelta(years=1)
+
+            # Verificar si la fecha es anterior a hace un año
+            return fecha < hace_un_ano
+
+        except ValueError:
+            return False

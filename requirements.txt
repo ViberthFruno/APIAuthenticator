@@ -27,3 +27,5 @@ tkinter-tooltip>=2.1.0
 # Consola con colores (Windows)
 colorama>=0.4.6
 
+python-dateutil>=2.9
+

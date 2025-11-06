@@ -79,6 +79,10 @@ class CreatePreingresoUseCase:
                 input_dto.archivo_adjunto
             )
 
+            # Debug - datos enviados a la API:
+            #print("🏷️Datos que serán enviados:")
+            #print(preingreso_data.to_api_body())
+
             # Validar datos si se solicita
             if input_dto.validate_before_send:
                 validation_errors = preingreso_data.validate_for_api()
@@ -168,6 +172,7 @@ class CreatePreingresoUseCase:
                 response=None,
                 preingreso_id=None,
                 message=str(e),
+                errors=[str(e)],
                 timestamp=datetime.now(),
                 boleta_usada=input_dto.datos_pdf.numero_boleta
             )
@@ -184,6 +189,7 @@ class CreatePreingresoUseCase:
                 response=None,
                 preingreso_id=None,
                 message=f"Error inesperado: {str(e)}",
+                errors=[str(e)],
                 timestamp=datetime.now(),
                 boleta_usada=input_dto.datos_pdf.numero_boleta
             )
