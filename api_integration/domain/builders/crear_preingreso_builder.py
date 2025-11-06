@@ -102,11 +102,18 @@ class CrearPreingresoBuilder:
         tipo_preingreso_id, garantia_id = CrearPreingresoBuilder._get_garantia_tipo_preingreso("Normal")
 
         # detalle_recepcion = nombre marca + nombre modelo + Daños + observaciones.
-        detalle_recepcion = f"Marca:{datos_pdf.marca_nombre if datos_pdf.marca_nombre is not None else ""}. Modelo:{datos_pdf.modelo_nombre if datos_pdf.modelo_nombre is not None else ""} Daño:{datos_pdf.danos if datos_pdf.danos is not None else ""}. Obs:{datos_pdf.observaciones if datos_pdf.observaciones is not None else ""}."
+        marca_nombre = CrearPreingresoBuilder._limpiar_texto(datos_pdf.marca_nombre)
+        modelo_nombre = CrearPreingresoBuilder._limpiar_texto(datos_pdf.modelo_nombre)
+        danos = CrearPreingresoBuilder._limpiar_texto(datos_pdf.danos)
+        observaciones = CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
+
+        detalle_recepcion = f"Marca:{marca_nombre} | Modelo:{modelo_nombre} | Daño:{danos} | Obs:{observaciones}."
 
         # Obtener nombres y apellidos del propietario
-        propietario = CrearPreingresoBuilder._extraer_nombres_apellidos(datos_pdf.cliente_nombre,
-                                                                        datos_pdf.cliente_contacto)
+        propietario = CrearPreingresoBuilder._extraer_nombres_apellidos(
+            CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_nombre, True),
+            CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_contacto, True)
+        )
 
         # Extraer contenido del pdf que será enviado al request
         pdf_content = await archivo_adjunto.leer_contenido()
@@ -117,8 +124,8 @@ class CrearPreingresoBuilder:
             garantia_id=str(garantia_id),
             nombres_propietario=propietario["nombres"],
             apellidos_propietario=propietario["apellidos"],
-            correo_propietario=datos_pdf.cliente_correo,
-            telefono1_propietario=datos_pdf.cliente_telefono,
+            correo_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_correo),
+            telefono1_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_telefono),
             division_1=info_sucursal.sucursal_division_1,  # código provincia
             division_2=info_sucursal.sucursal_division_2,  # código cantón
             division_3=info_sucursal.sucursal_division_3,  # código distrito
@@ -127,16 +134,16 @@ class CrearPreingresoBuilder:
             marca_id=marca_id,
             modelo_comercial_id=modelo_comercial_id,
             detalle_recepcion=detalle_recepcion,
-            referencia=datos_pdf.numero_transaccion,
+            referencia=f"{datos_pdf.numero_boleta}/{datos_pdf.numero_transaccion}",
 
             boleta_tienda=datos_pdf.numero_boleta,
 
             fecha_compra=CrearPreingresoBuilder._convertir_fecha(datos_pdf.fecha_compra),
-            otro_telefono_propietario=datos_pdf.cliente_telefono2,
-            numero_factura=datos_pdf.factura,
+            otro_telefono_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_telefono2, True),
+            numero_factura=CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura, True),
 
             # Archivo adjunto
-            pdf_filename=archivo_adjunto.nombre_archivo,
+            pdf_filename=CrearPreingresoBuilder._limpiar_texto(archivo_adjunto.nombre_archivo),
             pdf_content=pdf_content
         )
 
@@ -188,3 +195,45 @@ class CrearPreingresoBuilder:
             return f"{valor}::{sufijo}"
         else:
             return valor
+
+    @staticmethod
+    def _limpiar_texto(texto: str, mantener_none: bool = False) -> str | None:
+        """
+        Limpia un texto aplicando las siguientes operaciones:
+        1. Si el texto es None y mantener_none es True, lo devuelve como None.
+               Si el texto es None y mantener_none es False, lo devuelve como una cadena vacía.
+               Si el texto es una cadena vacía, lo devuelve como una cadena vacía.
+        2. Elimina el BOM (Byte Order Mark) de UTF-8.
+        3. Reemplaza caracteres invisibles (como tabulaciones, saltos de línea, etc.) con un solo espacio.
+        4. Elimina espacios en blanco al inicio y al final del texto.
+        5. Elimina puntos finales al final del texto.
+
+        Args:
+            texto (Optional[str]): El texto a limpiar. Puede ser None.
+            mantener_none (bool): Si es True y 'texto' es None, retorna None.
+                                  Si es False (por defecto) o 'texto' no es None, limpia normalmente.
+
+        Returns:
+            Optional[str]: El texto limpio, una cadena vacía, o None si mantener_none=True y texto era None.
+        """
+
+        # Si el texto es None o una cadena vacía
+        if not texto:  # Esto evalúa a True si texto es None, "", 0, [], {}, etc.
+            if texto is None and mantener_none:
+                return None
+            return ""
+
+        # Eliminar el BOM de UTF-8
+        if texto.startswith('\ufeff'):
+            texto = texto[1:]
+
+        # Reemplazar uno o más caracteres invisibles (espacios, tabs, newlines, etc.) con un solo espacio
+        texto = re.sub(r'\s+', ' ', texto)
+
+        # 4. Eliminar espacios al inicio y final
+        texto = texto.strip()
+
+        # 5. Eliminar puntos finales
+        texto = texto.rstrip('.')
+
+        return texto
