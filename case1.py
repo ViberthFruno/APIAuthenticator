@@ -14,11 +14,13 @@ from api_integration.application.dtos import (
     ArchivoAdjunto
 )
 from api_integration.application.use_cases.crear_preingreso_use_case import CreatePreingresoUseCase
-from api_integration.infrastructure.api_ifrpro_repository import ApiIfrProRepository
-from api_integration.infrastructure.authenticator_adapter import AuthenticatorAdapter
+from api_integration.infrastructure.api_ifrpro_repository import create_ifrpro_repository
+from api_integration.infrastructure.authenticator_adapter import create_api_authenticator
 from api_integration.infrastructure.retry_policy import ExponentialRetryPolicy
-from api_integration.infrastructure.http_client import HttpClient
+from api_integration.infrastructure.http_client import create_api_client
+from api_integration.domain.entities import ApiCredentials
 from config_manager import ConfigManager
+from settings import Settings
 
 
 def _generate_formatted_text(data):
@@ -492,10 +494,39 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         )
 
         # Crear instancias necesarias para el use case
-        config_manager = ConfigManager()
-        authenticator = AuthenticatorAdapter(config_manager)
-        http_client = HttpClient(authenticator)
-        repository = ApiIfrProRepository(http_client)
+        settings = Settings()
+
+        # Configurar credenciales desde Settings
+        credentials = ApiCredentials(
+            cuenta=settings.API_CUENTA,
+            llave=settings.API_LLAVE,
+            codigo_servicio=settings.API_CODIGO_SERVICIO,
+            pais=settings.API_PAIS
+        )
+
+        # Crear authenticator
+        authenticator = create_api_authenticator()
+
+        # Crear cliente HTTP con políticas
+        api_client, _, rate_limiter = create_api_client(
+            authenticator=authenticator,
+            base_url=settings.API_BASE_URL,
+            timeout=settings.API_TIMEOUT,
+            verify_ssl=settings.ENABLE_SSL_VERIFY,
+            max_attempts=settings.MAX_RETRIES,
+            rate_limit_calls=settings.RATE_LIMIT_CALLS
+        )
+
+        # Crear repositorio
+        repository = create_ifrpro_repository(
+            api_client=api_client,
+            authenticator=authenticator,
+            credentials=credentials,
+            base_url=settings.API_BASE_URL,
+            rate_limiter=rate_limiter
+        )
+
+        # Crear política de reintentos
         retry_policy = ExponentialRetryPolicy(max_retries=2)
 
         # Crear caso de uso
