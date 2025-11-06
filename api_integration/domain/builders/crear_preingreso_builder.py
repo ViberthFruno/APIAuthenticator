@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from typing import Dict, Tuple
 from uuid import UUID
 
@@ -122,7 +123,7 @@ class CrearPreingresoBuilder:
             division_2=info_sucursal.sucursal_division_2,  # código cantón
             division_3=info_sucursal.sucursal_division_3,  # código distrito
             descripcion_division=info_sucursal.sucursal_direccion,  # Dirección exacta de la tienda
-            serie=datos_pdf.serie,
+            serie=CrearPreingresoBuilder._agregar_sufijo_si_pend(datos_pdf.serie, datos_pdf.numero_boleta),
             marca_id=marca_id,
             modelo_comercial_id=modelo_comercial_id,
             detalle_recepcion=detalle_recepcion,
@@ -130,7 +131,7 @@ class CrearPreingresoBuilder:
 
             boleta_tienda=datos_pdf.numero_boleta,
 
-            fecha_compra=datos_pdf.fecha_compra,
+            fecha_compra=CrearPreingresoBuilder._convertir_fecha(datos_pdf.fecha_compra),
             otro_telefono_propietario=datos_pdf.cliente_telefono2,
             numero_factura=datos_pdf.factura,
 
@@ -152,3 +153,38 @@ class CrearPreingresoBuilder:
         tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 7)
         garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 1)
         return tipo_preingreso_id, garantia_id
+
+    @staticmethod
+    def _convertir_fecha(fecha_ddmmyyyy: str) -> str:
+        """
+        Convierte una fecha del formato DD/MM/YYYY al formato YYYY-MM-DD.
+
+        Args:
+            fecha_ddmmyyyy (str): La fecha en formato DD/MM/YYYY.
+
+        Returns:
+            str: La fecha en formato YYYY-MM-DD.
+
+        Raises:
+            ValueError: Si la cadena de entrada no coincide con el formato esperado.
+        """
+        fecha_dt = datetime.strptime(fecha_ddmmyyyy, "%d/%m/%Y")
+        return fecha_dt.strftime("%Y-%m-%d")
+
+    @staticmethod
+    def _agregar_sufijo_si_pend(valor: str, sufijo: str) -> str:
+        """
+        Añade un sufijo a una cadena si su valor es 'PEND'.
+
+        Args:
+            valor (str): La cadena a evaluar.
+            sufijo (str): El sufijo a añadir si valor es 'PEND'.
+
+        Returns:
+            str: La cadena original con el sufijo añadido si era 'PEND',
+                 o la cadena original sin cambios en caso contrario.
+        """
+        if valor == 'PEND':
+            return f"{valor}::{sufijo}"
+        else:
+            return valor
