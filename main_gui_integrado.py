@@ -868,6 +868,7 @@ class IntegratedGUI(LoggerMixin):
 
                 if not result.response.body:
                     self.log_api_message("")
+                    self.log_api_message("⚠️ La API no devolvió un json válido", "WARNING")
                     self.log_api_message("Raw content:")
                     self.log_api_message(formatear_valor(result.response.raw_content))
                 else:
@@ -1045,7 +1046,13 @@ class IntegratedGUI(LoggerMixin):
         row = 0
 
         # Mostrar datos extraídos
-        data = resultado_api["data"]
+        if isinstance(resultado_api, dict) and "data" in resultado_api:
+            data = resultado_api["data"]
+        else:
+            self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
+            print("Error: La API no devolvió la clave 'data'.")
+            modal.destroy()
+            return
 
         for label, valor in data.items():
             ttk.Label(
