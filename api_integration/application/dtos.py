@@ -86,6 +86,8 @@ class CreatePreingresoOutput:
     success: bool
     timestamp: datetime
     preingreso_id: Optional[str]  # ID retornado por la API
+    consultar_reparacion: Optional[str]
+    consultar_guia: Optional[str]
     boleta_usada: Optional[str]
     message: Optional[str] = None
     errors: list[str] = None

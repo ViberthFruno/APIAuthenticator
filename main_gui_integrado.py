@@ -863,6 +863,8 @@ class IntegratedGUI(LoggerMixin):
                 self.log_api_message("✅ Preingreso creado exitosamente!")
                 self.log_api_message(f"   Boleta usada: {result.boleta_usada}")
                 self.log_api_message(f"   Preingreso ID: {result.preingreso_id}")
+                self.log_api_message(f"   Preingreso Guía: {result.consultar_guia}")
+                self.log_api_message(f"   Preingreso link: {result.consultar_reparacion}")
                 self.log_api_message(f"   Status: {result.response.status_code}")
                 self.log_api_message(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
 
@@ -1048,6 +1050,7 @@ class IntegratedGUI(LoggerMixin):
         # Mostrar datos extraídos
         #if isinstance(resultado_api, dict) and "data" in resultado_api:
         data = resultado_api["data"]
+        print(resultado_api)
         #else:
          #   self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
           #  print("Error: La API no devolvió la clave 'data'.")

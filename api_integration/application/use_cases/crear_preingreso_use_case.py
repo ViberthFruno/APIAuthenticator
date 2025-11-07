@@ -121,7 +121,11 @@ class CreatePreingresoUseCase:
 
             # Extraer ID del preingreso creado
             preingreso_id = None
+            consultar_reparacion = None
+            consultar_guia = None
             if response.has_json_body():
+                consultar_reparacion = response.extract_data("consultar_reparacion", required=False)
+                consultar_guia = response.extract_data("guia", required=False)
                 preingreso_id = response.extract_data("boleta", required=False)
                 if not preingreso_id:
                     preingreso_id = response.extract_data("orden_de_servicio", required=False)
@@ -137,6 +141,8 @@ class CreatePreingresoUseCase:
                 success=True,
                 response=response,
                 preingreso_id=preingreso_id,
+                consultar_reparacion=consultar_reparacion,
+                consultar_guia=consultar_guia,
                 timestamp=datetime.now(),
                 boleta_usada=input_dto.datos_pdf.numero_boleta
             )
