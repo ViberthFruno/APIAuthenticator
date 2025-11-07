@@ -257,8 +257,66 @@ def extract_repair_data(text, logger):
         return data
 
 
+def _extract_text_from_image_ocr(image_data, logger):
+    """Extrae texto de una imagen usando OCR (Tesseract)"""
+    try:
+        try:
+            from PIL import Image
+            import pytesseract
+        except ImportError as e:
+            logger.warning(f"Instalando dependencias de OCR: {e}")
+            import subprocess
+            subprocess.check_call(['pip', 'install', 'pytesseract', 'Pillow', '--break-system-packages'])
+            from PIL import Image
+            import pytesseract
+
+        import io
+
+        # Convertir bytes a imagen
+        image = Image.open(io.BytesIO(image_data))
+
+        # Extraer texto con OCR (español como idioma principal)
+        text = pytesseract.image_to_string(image, lang='spa')
+
+        return text if text.strip() else None
+
+    except Exception as e:
+        logger.exception(f"Error al extraer texto con OCR de imagen: {e}")
+        return None
+
+
+def _extract_text_from_pdf_ocr(pdf_data, logger):
+    """Extrae texto de un PDF usando OCR (para PDFs escaneados)"""
+    try:
+        try:
+            from pdf2image import convert_from_bytes
+            import pytesseract
+        except ImportError as e:
+            logger.warning(f"Instalando dependencias de OCR: {e}")
+            import subprocess
+            subprocess.check_call(['pip', 'install', 'pdf2image', 'pytesseract', '--break-system-packages'])
+            from pdf2image import convert_from_bytes
+            import pytesseract
+
+        # Convertir páginas del PDF a imágenes
+        images = convert_from_bytes(pdf_data)
+
+        text = ""
+        for i, image in enumerate(images):
+            logger.info(f"Extrayendo texto con OCR de página {i+1}/{len(images)}")
+            page_text = pytesseract.image_to_string(image, lang='spa')
+            if page_text:
+                text += page_text + "\n"
+
+        return text if text.strip() else None
+
+    except Exception as e:
+        logger.exception(f"Error al extraer texto con OCR de PDF: {e}")
+        return None
+
+
 def _extract_text_from_pdf(pdf_data, logger):
-    """Extrae texto plano del PDF usando pdfplumber"""
+    """Extrae texto plano del PDF usando pdfplumber, con fallback a OCR"""
     try:
         import io
         try:
@@ -277,6 +335,13 @@ def _extract_text_from_pdf(pdf_data, logger):
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + "\n"
+
+        # Si no se extrajo texto con pdfplumber, intentar con OCR
+        if not text.strip():
+            logger.info("No se encontró texto extraíble en el PDF, intentando con OCR...")
+            text = _extract_text_from_pdf_ocr(pdf_data, logger)
+            if text:
+                logger.info("Texto extraído exitosamente con OCR")
 
         return text if text.strip() else None
 
@@ -401,23 +466,24 @@ def _generate_409_conflict_message(subject, numero_boleta, numero_transaccion):
 
 
 def _generate_no_pdf_message(non_pdf_files):
-    """Genera el mensaje cuando no se adjunta ningún PDF"""
+    """Genera el mensaje cuando no se adjunta ningún archivo procesable"""
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
     message_lines = ["Estimado Usuario,", "",
-                     "Se ha recibido su correo, sin embargo no se detectó ningún archivo PDF adjunto.", ""]
+                     "Se ha recibido su correo, sin embargo no se detectó ningún archivo procesable adjunto.", "",
+                     "Formatos soportados: PDF, JPG, JPEG, PNG, GIF", ""]
 
     if non_pdf_files:
-        message_lines.append("Archivos recibidos (no son PDF):")
+        message_lines.append("Archivos recibidos (formato no soportado):")
         for file in non_pdf_files:
             message_lines.append(f"  • {file}")
         message_lines.append("")
 
     message_lines.append(
-        "Para procesar su solicitud de reparación, es necesario que adjunte el archivo PDF de la boleta de reparación.")
+        "Para procesar su solicitud de reparación, es necesario que adjunte el archivo de la boleta de reparación en uno de los formatos soportados.")
     message_lines.append("")
     message_lines.append(
-        "Por favor, revise si adjuntó el archivo correcto y reenvíe el correo con el archivo PDF correspondiente.")
+        "Por favor, revise si adjuntó el archivo correcto y reenvíe el correo con el archivo correspondiente.")
 
     return "\n".join(message_lines)
 
@@ -431,20 +497,28 @@ def _strip_if_string(value):
 
 def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
     """
-    Crea un preingreso en la API a partir del contenido de un PDF
+    Crea un preingreso en la API a partir del contenido de un archivo (PDF o imagen)
 
     Args:
-        pdf_content: Bytes del archivo PDF
-        pdf_filename: Nombre del archivo PDF
+        pdf_content: Bytes del archivo (PDF o imagen)
+        pdf_filename: Nombre del archivo
         logger: Logger para registrar eventos
 
     Returns:
         dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, error}
     """
     try:
-        # Extraer texto del PDF
-        logger.info(f"Extrayendo texto del PDF: {pdf_filename}")
-        pdf_text = _extract_text_from_pdf(pdf_content, logger)
+        # Determinar tipo de archivo
+        filename_lower = pdf_filename.lower()
+        is_image = filename_lower.endswith(('.jpg', '.jpeg', '.png', '.gif'))
+
+        # Extraer texto del archivo
+        if is_image:
+            logger.info(f"Extrayendo texto de imagen con OCR: {pdf_filename}")
+            pdf_text = _extract_text_from_image_ocr(pdf_content, logger)
+        else:
+            logger.info(f"Extrayendo texto del PDF: {pdf_filename}")
+            pdf_text = _extract_text_from_pdf(pdf_content, logger)
 
         if not pdf_text:
             return {
@@ -460,12 +534,27 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         if not extracted_data or len(extracted_data) < 3:
             return {
                 'success': False,
-                'error': 'PDF sin información válida (menos de 3 campos extraídos)',
+                'error': 'Archivo sin información válida (menos de 3 campos extraídos)',
                 'filename': pdf_filename
             }
 
-        # Crear archivo temporal para el PDF
-        temp_pdf = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
+        # Determinar sufijo y tipo MIME según el tipo de archivo
+        if is_image:
+            if filename_lower.endswith('.png'):
+                suffix = '.png'
+                mime_type = 'image/png'
+            elif filename_lower.endswith('.gif'):
+                suffix = '.gif'
+                mime_type = 'image/gif'
+            else:  # jpg o jpeg
+                suffix = '.jpg'
+                mime_type = 'image/jpeg'
+        else:
+            suffix = '.pdf'
+            mime_type = 'application/pdf'
+
+        # Crear archivo temporal
+        temp_pdf = tempfile.NamedTemporaryFile(mode='wb', suffix=suffix, delete=False)
         temp_pdf.write(pdf_content)
         temp_pdf.close()
 
@@ -503,7 +592,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         archivo_adjunto = ArchivoAdjunto(
             nombre_archivo=pdf_filename,
             ruta_archivo=temp_pdf.name,
-            tipo_mime="application/pdf"
+            tipo_mime=mime_type
         )
 
         # Crear instancias necesarias para el use case
@@ -631,7 +720,7 @@ class Case(BaseCase):
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
 
-            # Clasificar archivos adjuntos
+            # Clasificar archivos adjuntos (PDFs e imágenes)
             pdf_attachments = []
             non_pdf_files = []
 
@@ -639,26 +728,34 @@ class Case(BaseCase):
                 content_type = attachment.get('content_type', '').lower()
                 filename = attachment.get('filename', 'archivo_sin_nombre')
 
-                if 'pdf' in content_type or filename.lower().endswith('.pdf'):
+                # Tipos de archivo soportados
+                is_pdf = 'pdf' in content_type or filename.lower().endswith('.pdf')
+                is_image = (
+                    'image' in content_type or
+                    filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))
+                )
+
+                if is_pdf or is_image:
                     pdf_attachments.append(attachment)
-                    logger.info(f"PDF encontrado: {filename}")
+                    file_type = "PDF" if is_pdf else "Imagen"
+                    logger.info(f"{file_type} encontrado: {filename}")
                 else:
                     non_pdf_files.append(filename)
-                    logger.warning(f"Archivo no-PDF detectado: {filename}")
+                    logger.warning(f"Archivo no soportado detectado: {filename}")
 
-            # Validación: Si no hay PDFs adjuntos
+            # Validación: Si no hay archivos procesables (PDFs o imágenes)
             if not pdf_attachments:
-                logger.warning("No se encontró ningún archivo PDF adjunto")
+                logger.warning("No se encontró ningún archivo procesable (PDF o imagen)")
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 response = {
                     'recipient': sender,
-                    'subject': f"Error: Sin Archivo PDF Adjunto - {timestamp}",
+                    'subject': f"Error: Sin Archivo Adjunto Procesable - {timestamp}",
                     'body': _generate_no_pdf_message(non_pdf_files)
                 }
                 return response
 
-            # Procesar todos los PDFs encontrados y crear preingresos
-            logger.info(f"Total de PDFs a procesar: {len(pdf_attachments)}")
+            # Procesar todos los archivos encontrados y crear preingresos
+            logger.info(f"Total de archivos a procesar: {len(pdf_attachments)}")
 
             preingreso_results = []  # Lista de preingresos creados exitosamente
             failed_files = []  # Lista de archivos que fallaron
