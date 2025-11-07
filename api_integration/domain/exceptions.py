@@ -1,6 +1,4 @@
-# ====================
-# API INTEGRATION EXCEPTIONS
-# ====================
+# exceptions.py
 
 from typing import Optional, Dict, Any
 

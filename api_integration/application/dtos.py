@@ -1,13 +1,9 @@
+# dtos.py
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Dict, Any
-
 from api_integration.domain.entities import ApiResponse
-
-
-# =====================================
-# DTOs (Data Transfer Objects) - Solo datos, sin lógica
-# =====================================
 
 @dataclass
 class DatosExtraidosPDF:

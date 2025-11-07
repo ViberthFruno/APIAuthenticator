@@ -1,3 +1,5 @@
+# entities.py
+
 """
 API Integration Context - Domain Entities
 Entidades para manejar requests/responses de API externa

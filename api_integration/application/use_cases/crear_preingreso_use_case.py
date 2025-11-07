@@ -1,3 +1,5 @@
+# crear_preingreso_use_case.py
+
 """
 API Integration Context - Use Cases (Application Layer)
 Casos de uso para crear un preingreso

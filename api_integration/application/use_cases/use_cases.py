@@ -1,3 +1,5 @@
+# use_cases.py
+
 """
 API Integration Context - Use Cases (Application Layer)
 Casos de uso para interactuar con la API externa

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# api_authenticator.py
 """
 Autenticación para API iFR Pro
 """

@@ -339,18 +339,19 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     return "\n".join(message_lines)
 
 
-def _generate_all_failed_message(failed_files, non_pdf_files):
+def _generate_all_failed_message(failed_files, non_pdf_files, subject):
     """
     Genera el mensaje cuando todos los PDFs fallan al procesarse
 
     Args:
         failed_files: Lista de dicts con {filename, error}
         non_pdf_files: Lista de nombres de archivos que no son PDF
+        subject: Asunto del correo recibido
     """
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
     message_lines = ["Estimado Usuario,", "",
-                     "Se recibió su correo, sin embargo no fue posible procesar los archivos adjuntos.", ""]
+                     f"Se ha recibido su correo bajo el asunto \"{subject}\", sin embargo no se detectó ningún archivo PDF adjunto.", ""]
 
     if failed_files:
         message_lines.append("Archivos PDF que no se pudieron procesar:")
@@ -596,6 +597,7 @@ class Case(BaseCase):
         """Procesa el email, crea preingresos en la API y genera una respuesta"""
         try:
             sender = email_data.get('sender', '')
+            subject = email_data.get('subject', 'Sin asunto')
             attachments = email_data.get('attachments', [])
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
@@ -665,7 +667,7 @@ class Case(BaseCase):
                 response = {
                     'recipient': sender,
                     'subject': f"Error en Procesamiento de Preingreso - {timestamp}",
-                    'body': _generate_all_failed_message(failed_files, non_pdf_files)
+                    'body': _generate_all_failed_message(failed_files, non_pdf_files, subject)
                 }
                 return response
 
