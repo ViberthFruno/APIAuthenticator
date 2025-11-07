@@ -1,4 +1,4 @@
-#main_gui_integrado.py
+# main_gui_integrado.py
 """
 main_gui_integrado.py - Interfaz gráfica integrada: API iFR Pro + Bot de Correo
 Combina autenticación API con procesamiento automático de correos
@@ -67,6 +67,7 @@ class IntegratedGUI(LoggerMixin):
         self.repository = None
         self.retry_policy = None
         self.case_handler = None
+        self.recursos_button = None
         self.preingreso_button = None
         self.marca_button = None
         self.search_button = None
@@ -341,7 +342,15 @@ class IntegratedGUI(LoggerMixin):
             text="Consultar Marca",
             command=self.consultar_marca
         )
-        self.marca_button.pack(fill=tk.X)
+        self.marca_button.pack(fill=tk.X, pady=(0, 5))
+
+        # Botón consultar recursos
+        self.recursos_button = ttk.Button(
+            marca_frame,
+            text="Consultar Recursos",
+            command=self.consultar_recursos
+        )
+        self.recursos_button.pack(fill=tk.X)
 
     def setup_api_right_panel(self):
         """Configura el panel derecho de la pestaña API con el log"""
@@ -824,6 +833,99 @@ class IntegratedGUI(LoggerMixin):
             on_error=on_error
         )
 
+    def consultar_recursos(self):
+        """Consulta recursos iniciales y tipos de dispositivos"""
+        self.log_api_message("=" * 60)
+        self.log_api_message("📋 Consultando Recursos Iniciales")
+        self.log_api_message("=" * 60)
+
+        # Deshabilitar botón
+        self.recursos_button.config(state=tk.DISABLED, text="Consultando...")
+
+        async def consultar():
+            """Operación asíncrona"""
+            self.log_api_message("🔄 Iniciando consulta de recursos...")
+            endpoint = "/v1/preingreso/recursos_iniciales"
+            self.log_api_message(f"📡 Endpoint: {endpoint}")
+            self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
+            self.log_api_message("")
+
+            # Llamar al repositorio
+            response = await self.repository.listar_recursos_iniciales()
+
+            if response.status_code == 200:
+                # Extraer categorías
+                categorias = response.body.get("data", {}).get("categorias", [])
+
+                if categorias:
+                    # Consultar tipos de dispositivos para cada categoría
+                    self.log_api_message(f"\n🔍 Consultando tipos de dispositivos para {len(categorias)} categorías...")
+
+                    tipos_por_categoria = {}
+                    for categoria in categorias:
+                        categoria_id = categoria.get("categoria_id")
+                        if categoria_id:
+                            tipos_response = await self.repository.listar_tipos_dispositivo(categoria_id)
+                            tipos_por_categoria[categoria_id] = tipos_response
+
+                    return response, tipos_por_categoria
+
+            return response, None
+
+        def on_success(result):
+            """Callback de éxito"""
+            response, tipos_por_categoria = result
+
+            self.log_api_message(f"📥 Status Code: {response.status_code}")
+            self.log_api_message("")
+
+            if response.status_code == 200:
+                self.log_api_message("✅ Respuesta exitosa - Recursos Iniciales")
+                try:
+                    import json
+                    formatted_json = json.dumps(response.body, indent=2, ensure_ascii=False)
+                    self.log_api_message("📄 Recursos Iniciales:")
+                    self.log_api_message(formatted_json)
+
+                    # Mostrar tipos de dispositivos
+                    if tipos_por_categoria:
+                        self.log_api_message("\n" + "=" * 60)
+                        self.log_api_message("📱 Tipos de Dispositivos por Categoría")
+                        self.log_api_message("=" * 60)
+
+                        for categoria_id, tipos_response in tipos_por_categoria.items():
+                            self.log_api_message(f"\n📂 Categoría ID: {categoria_id}")
+                            self.log_api_message(f"   Status Code: {tipos_response.status_code}")
+
+                            if tipos_response.status_code == 200:
+                                formatted_tipos = json.dumps(tipos_response.body, indent=2, ensure_ascii=False)
+                                self.log_api_message(formatted_tipos)
+                            else:
+                                self.log_api_message(f"   Error: {tipos_response.body}")
+
+                except:
+                    self.log_api_message("📄 Respuesta (texto plano):")
+                    self.log_api_message(response.raw_content)
+            else:
+                self.log_api_message(f"⚠️ Error: {response.status_code}")
+                self.log_api_message(response.body if response.body else "(vacío)")
+
+            self.log_api_message("=" * 60)
+            self.recursos_button.config(state=tk.NORMAL, text="Consultar Recursos")
+
+        def on_error(error):
+            """Callback de error"""
+            self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
+            self.log_api_message("=" * 60)
+            self.recursos_button.config(state=tk.NORMAL, text="Consultar Recursos")
+
+        # Ejecutar operación async
+        run_async_with_callback(
+            consultar(),
+            on_success=on_success,
+            on_error=on_error
+        )
+
     def log_api_message(self, message, level="INFO", exc_info=True, **kwargs):
 
         """Escribe un mensaje en el log de API"""
@@ -1122,14 +1224,14 @@ class IntegratedGUI(LoggerMixin):
         row = 0
 
         # Mostrar datos extraídos
-        #if isinstance(resultado_api, dict) and "data" in resultado_api:
+        # if isinstance(resultado_api, dict) and "data" in resultado_api:
         data = resultado_api["data"]
         print(resultado_api)
-        #else:
-         #   self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
-          #  print("Error: La API no devolvió la clave 'data'.")
-          #  modal.destroy()
-           # return
+        # else:
+        #   self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
+        #  print("Error: La API no devolvió la clave 'data'.")
+        #  modal.destroy()
+        # return
 
         for label, valor in data.items():
             ttk.Label(

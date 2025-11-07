@@ -413,6 +413,136 @@ class IfrProRepository(IApiIfrProRepository):
             )
             raise
 
+    async def listar_recursos_iniciales(
+            self
+    ) -> Optional[ApiResponse]:
+        """
+        Obtiene los recursos iniciales para preingreso
+
+        Returns:
+            ApiResponse con recursos iniciales
+        """
+        self.logger.info("Listar recursos iniciales")
+
+        # Construir endpoint
+        endpoint = Endpoint(
+            path="/v1/preingreso/recursos_iniciales",
+            method=RequestMethod.GET,
+            base_url=self.base_url
+        )
+
+        # Crear request
+        request = ApiRequest(
+            request_id=str(uuid.uuid4()),
+            endpoint=endpoint
+        )
+
+        # Agregar autenticación
+        auth_headers = self.authenticator.generate_auth_headers(
+            request,
+            self.credentials
+        )
+
+        for key, value in auth_headers.items():
+            request.add_header(key, value)
+
+        # Rate limiting
+        if self.rate_limiter:
+            await self.rate_limiter.acquire()
+
+        # Ejecutar
+        try:
+            response = await self.client.execute_request(request)
+
+            if response.status_code == 404:
+                self.logger.info("No se encontraron recursos iniciales")
+                return None
+
+            self.logger.info(
+                "Recursos iniciales obtenidos",
+                status_code=response.status_code
+            )
+
+            return response
+
+        except Exception as e:
+            self.logger.error(
+                "Error al listar recursos iniciales",
+                error=str(e)
+            )
+            raise
+
+    async def listar_tipos_dispositivo(
+            self,
+            categoria_id: str
+    ) -> Optional[ApiResponse]:
+        """
+        Obtiene los tipos de dispositivos para una categoría
+
+        Args:
+            categoria_id: ID de la categoría
+
+        Returns:
+            ApiResponse con tipos de dispositivos
+        """
+        self.logger.info(
+            "Listar tipos de dispositivo",
+            categoria_id=categoria_id
+        )
+
+        # Construir endpoint
+        endpoint = Endpoint(
+            path=f"/v1/unidad/categoria/{categoria_id}/tipo_dispositivo",
+            method=RequestMethod.GET,
+            base_url=self.base_url
+        )
+
+        # Crear request
+        request = ApiRequest(
+            request_id=str(uuid.uuid4()),
+            endpoint=endpoint
+        )
+
+        # Agregar autenticación
+        auth_headers = self.authenticator.generate_auth_headers(
+            request,
+            self.credentials
+        )
+
+        for key, value in auth_headers.items():
+            request.add_header(key, value)
+
+        # Rate limiting
+        if self.rate_limiter:
+            await self.rate_limiter.acquire()
+
+        # Ejecutar
+        try:
+            response = await self.client.execute_request(request)
+
+            if response.status_code == 404:
+                self.logger.info(
+                    "No se encontraron tipos de dispositivo",
+                    categoria_id=categoria_id
+                )
+                return None
+
+            self.logger.info(
+                "Tipos de dispositivo obtenidos",
+                categoria_id=categoria_id,
+                status_code=response.status_code
+            )
+
+            return response
+
+        except Exception as e:
+            self.logger.error(
+                "Error al listar tipos de dispositivo",
+                categoria_id=categoria_id,
+                error=str(e)
+            )
+            raise
+
 
 class ApiIfrProRepository:
     pass
