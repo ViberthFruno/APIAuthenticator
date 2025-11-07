@@ -558,6 +558,8 @@ class PreingresoData:
     codigo_sucursal: str
     tipo_preingreso_id: str
     garantia_id: str
+    categoria_id: str
+    tipo_dispositivo_id: str
     nombres_propietario: str
     apellidos_propietario: str
     correo_propietario: str
@@ -592,6 +594,12 @@ class PreingresoData:
 
         if not self.garantia_id:
             raise ValueError("garantia_id es requerido")
+
+        if not self.categoria_id:
+            raise ValueError("categoria_id es requerido")
+
+        if not self.tipo_dispositivo_id:
+            raise ValueError("tipo_dispositivo_id es requerido")
 
         if not self.nombres_propietario:
             raise ValueError("nombres_propietario es requerido")
@@ -660,6 +668,8 @@ class PreingresoData:
             "marca_id": self.marca_id,
             "modelo_comercial_id": self.modelo_comercial_id,
             "garantia_id": self.garantia_id,
+            "categoria_id": self.categoria_id,
+            "tipo_dispositivo_id": self.tipo_dispositivo_id,
             "detalle_recepcion": self.detalle_recepcion,
             "referencia": self.referencia
         }
@@ -709,8 +719,8 @@ class PreingresoData:
             "modelo_fabrica_id": "",
             "operador_id": "11",  # Genérico
             "garantia_id": self.garantia_id,
-            "categoria_id": "5",  # Desconocido
-            "tipo_dispositivo_id": "7",  # Desconocido
+            "categoria_id": self.categoria_id,
+            "tipo_dispositivo_id": self.tipo_dispositivo_id,
             "motivo_recepcion_id": "72",  # Otro problema
             "detalle_recepcion": self.detalle_recepcion,
             "referencia": self.referencia

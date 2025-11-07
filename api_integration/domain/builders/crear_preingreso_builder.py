@@ -105,6 +105,9 @@ class CrearPreingresoBuilder:
 
         fecha_compra = CrearPreingresoBuilder._convertir_fecha(fecha_compra)
 
+        categoria_id = 5 # Desconocido
+        tipo_dispositivo_id = 7 # Desconocido
+
         # Por default están sin garantía
         tipo_preingreso_id = 92
         garantia_id = 2
@@ -150,6 +153,8 @@ class CrearPreingresoBuilder:
             codigo_sucursal=info_sucursal.sucursal_codigo,
             tipo_preingreso_id=str(tipo_preingreso_id),
             garantia_id=str(garantia_id),
+            categoria_id=str(categoria_id),
+            tipo_dispositivo_id=str(tipo_dispositivo_id),
             nombres_propietario=propietario["nombres"],
             apellidos_propietario=propietario["apellidos"],
             correo_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_correo),
