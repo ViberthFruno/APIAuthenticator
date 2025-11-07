@@ -378,6 +378,26 @@ def _generate_all_failed_message(failed_files, non_pdf_files, subject):
     return "\n".join(message_lines)
 
 
+def _generate_409_conflict_message(subject, numero_boleta, numero_transaccion):
+    """Genera el mensaje cuando hay un error 409 Conflict (preingreso duplicado)"""
+    timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
+
+    message_lines = ["Estimado Usuario,", ""]
+
+    # Construir el mensaje con los datos disponibles
+    boleta_info = f"número de boleta {numero_boleta}" if numero_boleta else "la boleta indicada"
+    transaccion_info = f" y número de transacción {numero_transaccion}" if numero_transaccion else ""
+
+    message_lines.append(f"Se ha recibido su correo bajo el asunto \"{subject}\", sin embargo no se pudo realizar, debido a que existe un preingreso en trámite con el {boleta_info}{transaccion_info}.")
+    message_lines.append("")
+    message_lines.append("Si el problema persiste, contacte al Centro de Servicio.")
+    message_lines.append("")
+    message_lines.append("Atentamente,")
+    message_lines.append("Fruno - Centro de Servicio Técnico de Reparación")
+
+    return "\n".join(message_lines)
+
+
 def _generate_no_pdf_message(non_pdf_files):
     """Genera el mensaje cuando no se adjunta ningún PDF"""
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
@@ -569,10 +589,17 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
             logger.error(f"❌ Error al crear preingreso: {error_msg}")
+
+            # Detectar error 409 Conflict (preingreso duplicado)
+            is_409_conflict = '[409]' in error_msg or '409 Conflict' in error_msg
+
             return {
                 'success': False,
                 'error': error_msg,
-                'filename': pdf_filename
+                'filename': pdf_filename,
+                'is_409_conflict': is_409_conflict,
+                'numero_boleta': extracted_data.get('numero_boleta') if is_409_conflict else None,
+                'numero_transaccion': extracted_data.get('numero_transaccion') if is_409_conflict else None
             }
 
     except Exception as e:
@@ -656,7 +683,10 @@ class Case(BaseCase):
                 else:
                     failed_files.append({
                         'filename': pdf_filename,
-                        'error': result.get('error', 'Error desconocido')
+                        'error': result.get('error', 'Error desconocido'),
+                        'is_409_conflict': result.get('is_409_conflict', False),
+                        'numero_boleta': result.get('numero_boleta'),
+                        'numero_transaccion': result.get('numero_transaccion')
                     })
                     logger.error(f"❌ Falló el procesamiento de: {pdf_filename}")
 
@@ -664,6 +694,27 @@ class Case(BaseCase):
             if not preingreso_results:
                 logger.error("No se pudo crear ningún preingreso correctamente")
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+                # Verificar si hay errores 409 Conflict
+                conflict_409_errors = [f for f in failed_files if f.get('is_409_conflict', False)]
+
+                if conflict_409_errors:
+                    # Si hay errores 409, usar el primero para generar el mensaje
+                    first_conflict = conflict_409_errors[0]
+                    logger.warning(f"Error 409 detectado - Preingreso duplicado para boleta: {first_conflict.get('numero_boleta')}")
+
+                    response = {
+                        'recipient': sender,
+                        'subject': f"Error: Preingreso Duplicado - {timestamp}",
+                        'body': _generate_409_conflict_message(
+                            subject,
+                            first_conflict.get('numero_boleta'),
+                            first_conflict.get('numero_transaccion')
+                        )
+                    }
+                    return response
+
+                # Si no hay errores 409, usar el mensaje de error general
                 response = {
                     'recipient': sender,
                     'subject': f"Error en Procesamiento de Preingreso - {timestamp}",
