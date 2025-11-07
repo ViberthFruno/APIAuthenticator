@@ -360,7 +360,7 @@ class CrearPreingresoBuilder:
         """
         # UUID y nombre para marca desconocida
         UUID_GENERICO = UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')
-        NOMBRE_GENERICO = 'Desconocido'
+        NOMBRE_GENERICO = 'Desconocida'
 
         if not nombre_marca_pdf:
             return (UUID_GENERICO, NOMBRE_GENERICO)
