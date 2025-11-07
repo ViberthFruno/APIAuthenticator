@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Tuple
 from uuid import UUID
 
@@ -122,9 +122,10 @@ class CrearPreingresoBuilder:
             # Si la fecha de compra No ha excedido un año
             if not CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
 
-                # Intenta obtener los datos desde el nombre de la Garantía del PDF
+                # Intenta obtener el tipo de preingreso y la garantía desde la información del PDF
                 tipo_preingreso_id, garantia_id = (
                     CrearPreingresoBuilder._validar_garantia(
+                        fecha_compra,
                         CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre),
                         CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura),
                         CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
@@ -185,6 +186,7 @@ class CrearPreingresoBuilder:
 
     @staticmethod
     def _validar_garantia(
+            fecha_compra: str,
             nombre_garantia: str,
             factura: str | None,
             observaciones: str | None
@@ -207,6 +209,9 @@ class CrearPreingresoBuilder:
 
         if 'stock' in la_factura or 'stock' in la_observacion:
             return 8, 1
+
+        if CrearPreingresoBuilder._es_dap(fecha_compra):
+            return 9, 1
 
         tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
         garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
@@ -381,7 +386,7 @@ class CrearPreingresoBuilder:
         NOMBRE_GENERICO = 'Desconocida'
 
         if not nombre_marca_pdf:
-            return (UUID_GENERICO, NOMBRE_GENERICO)
+            return UUID_GENERICO, NOMBRE_GENERICO
 
         # Normalizar el nombre de la marca del PDF para la búsqueda
         marca_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_marca_pdf)
@@ -390,4 +395,32 @@ class CrearPreingresoBuilder:
         if marca_normalizada in CrearPreingresoBuilder._MARCA_MAP:
             return CrearPreingresoBuilder._MARCA_MAP[marca_normalizada]
 
-        return (UUID_GENERICO, NOMBRE_GENERICO)
+        return UUID_GENERICO, NOMBRE_GENERICO
+
+    @staticmethod
+    def _es_dap(fecha_str: str, formato_fecha: str = "%Y-%m-%d") -> bool:
+        """
+        Determina si una fecha es menor a 7 días (DAP).
+        Incluye el día actual (hoy cuenta como día 0).
+
+        Args:
+            fecha_str: Fecha en formato string
+            formato_fecha: Formato de la fecha (por defecto: YYYY-MM-DD)
+
+        Returns:
+            True si es menor a 7 días (0-6 días), False en caso contrario o si da error
+
+        Examples:
+            >>> CrearPreingresoBuilder._es_dap("2024-11-07")  # Hoy
+            True
+            >>> CrearPreingresoBuilder._es_dap("2024-11-01")  # Hace 6 días
+            True
+            >>> CrearPreingresoBuilder._es_dap("2024-10-31")  # Hace 7 días
+            False
+        """
+        try:
+            fecha = datetime.strptime(fecha_str, formato_fecha)
+            diferencia = datetime.now() - fecha
+            return timedelta(0) <= diferencia < timedelta(days=7)
+        except ValueError:
+            return False
