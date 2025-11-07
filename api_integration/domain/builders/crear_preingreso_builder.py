@@ -94,19 +94,18 @@ class CrearPreingresoBuilder:
                     archivo_adjunto: ArchivoAdjunto) -> PreingresoData:
         """Construye la instancia final inmutable de PreingresoData"""
 
-        # Obtener id de la marca
-        marca_id = CrearPreingresoBuilder._obtener_marca(datos_pdf.marca_nombre)
+        # Obtener id y nombre canónico de la marca
+        marca_id, marca_nombre_canonico = CrearPreingresoBuilder._obtener_marca(datos_pdf.marca_nombre)
 
         # Obtener id del modelo comercial
         modelo_comercial_id = UUID('910f491b-6c99-4225-bef8-83c85a83ae44')  # Desconocido
-
 
         fecha_compra = datos_pdf.fecha_compra if datos_pdf.fecha_compra else "01/01/1970"
 
         fecha_compra = CrearPreingresoBuilder._convertir_fecha(fecha_compra)
 
-        categoria_id = 5 # Desconocido
-        tipo_dispositivo_id = 7 # Desconocido
+        categoria_id = 5  # Desconocido
+        tipo_dispositivo_id = 7  # Desconocido
 
         # Por default están sin garantía
         tipo_preingreso_id = 92
@@ -132,12 +131,12 @@ class CrearPreingresoBuilder:
                 msg_fecha_compra = f"La fecha de compra '{fecha_compra}' excede un año, ingresa 'Sin Garantía'"
 
         # detalle_recepcion = nombre marca + nombre modelo + Daños + observaciones.
-        marca_nombre = CrearPreingresoBuilder._limpiar_texto(datos_pdf.marca_nombre)
+        # Usar el nombre canónico de la marca (no el del PDF que puede venir en mayúsculas/minúsculas)
         modelo_nombre = CrearPreingresoBuilder._limpiar_texto(datos_pdf.modelo_nombre)
         danos = CrearPreingresoBuilder._limpiar_texto(datos_pdf.danos)
         observaciones = CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
 
-        detalle_recepcion = f"Marca:{marca_nombre} | Modelo:{modelo_nombre} | Daño:{danos} | Obs:{observaciones} | {msg_fecha_compra}".rstrip(
+        detalle_recepcion = f"Marca:{marca_nombre_canonico} | Modelo:{modelo_nombre} | Daño:{danos} | Obs:{observaciones} | {msg_fecha_compra}".rstrip(
             ' |') + "."
 
         # Obtener nombres y apellidos del propietario
@@ -296,10 +295,81 @@ class CrearPreingresoBuilder:
         except ValueError:
             return False
 
+    # Mapeo de marcas conocidas: clave normalizada -> (UUID, nombre_canónico)
+    _MARCA_MAP: Dict[str, Tuple[UUID, str]] = {
+        'acer': (UUID('850f6072-e272-42e5-83ff-31ce2f058178'), 'Acer'),
+        'alcatel': (UUID('ae81eeff-28b8-4a54-b10a-d622ee60634c'), 'Alcatel'),
+        'amazon': (UUID('d5f45248-8370-49cb-bc87-34053aed1e76'), 'AMAZON'),
+        'apple': (UUID('25db474e-90b3-4e4c-8a69-3d1c78ffe836'), 'Apple'),
+        'dell': (UUID('2b50b001-b4f5-44ed-8a3e-e81a84003543'), 'Dell'),
+        'dji': (UUID('097054cc-2b8a-42a1-ac19-7c83b2dfee86'), 'DJI'),
+        'epson': (UUID('e56bb0c8-b06b-4c14-889b-880ab46848f2'), 'Epson'),
+        'ezviz': (UUID('372474e1-ba9c-4000-a942-cab0265dea3e'), 'EZVIZ'),
+        'forza': (UUID('96ae0653-b21e-447d-95bb-b1adbfe1c10a'), 'FORZA'),
+        'fuji': (UUID('a9e615f6-f03d-41cb-9ff6-b7e950c9db87'), 'FUJI'),
+        'google': (UUID('689a255c-75e5-46b9-b9b6-b8855f639782'), 'Google'),
+        'gopro': (UUID('eddc053f-1b63-4270-80d3-bfbf4f3346ea'), 'GoPro'),
+        'harman': (UUID('b8264f25-7cf1-41fb-8e90-fa295bf98840'), 'Harman'),
+        'honor': (UUID('8e34a6fd-74a3-4d78-bac2-02b4634d1e8d'), 'Honor'),
+        'house of marley': (UUID('80d0ec6e-b80b-4f3b-8429-4d69e7ff0876'), 'House Of Marley'),
+        'hp': (UUID('ada6f0eb-c1dc-4402-9d40-29fc2d285937'), 'HP'),
+        'huawei': (UUID('498175ed-ef26-4132-9652-72c92e16bd96'), 'Huawei'),
+        'infinix': (UUID('59c3667b-e03a-43fc-8ae4-9cd65f778085'), 'Infinix'),
+        'jabra': (UUID('44146bc5-4004-4b5e-b4d6-075376fc5735'), 'JABRA'),
+        'jbl': (UUID('607c9785-0cd9-4b7d-9fb0-d6920a0043fe'), 'JBL'),
+        'kingston': (UUID('bfc3b084-e71c-48a6-9928-f23c8a63fa91'), 'Kingston'),
+        'klip xtreme': (UUID('119d5b6c-526d-4831-8add-78a69fd68633'), 'Klip Xtreme'),
+        'lenovo': (UUID('c86b5fef-f861-4b0f-aedf-9956492efdea'), 'Lenovo'),
+        'lg electronics': (UUID('fe112900-6b24-4b15-94fc-766ddc2c5163'), 'LG Electronics'),
+        'lg': (UUID('fe112900-6b24-4b15-94fc-766ddc2c5163'), 'LG Electronics'),
+        'linksys': (UUID('16964600-d7a2-4a34-89c3-51b22d203b2c'), 'Linksys'),
+        'logitech': (UUID('86a0db06-35a1-411c-8f82-43318cfaf03b'), 'Logitech'),
+        'marley': (UUID('48e8b2ca-6091-487c-9650-bea2cddea6f6'), 'Marley'),
+        'motorola': (UUID('762729da-aad5-4afd-8992-a6be607b36a2'), 'Motorola'),
+        'nexts': (UUID('2e58ebd9-a905-45f7-adf2-bac38667087f'), 'Nexts'),
+        'nexxt solution': (UUID('95a92712-ccee-4dc9-ac5f-27a7f56ac504'), 'NEXXT SOLUTION'),
+        'nexxt': (UUID('95a92712-ccee-4dc9-ac5f-27a7f56ac504'), 'NEXXT SOLUTION'),
+        'nokia': (UUID('c418968e-8c1e-4df8-907f-ef4a57ff3d7f'), 'Nokia'),
+        'oppo': (UUID('86912284-be1e-4121-83e4-f213cfc76689'), 'Oppo'),
+        'primus': (UUID('00cdc7bc-fc02-4692-8668-b8fe15b52f90'), 'PRIMUS'),
+        'realme': (UUID('327e29bc-645e-4bd4-8246-c221c3d37a61'), 'Realme'),
+        'samsung': (UUID('699177a3-d4bb-4569-9eed-25cc2a062e61'), 'Samsung'),
+        'starlink': (UUID('5a140b3b-2fb9-4cee-90c8-09a0f238c979'), 'Starlink'),
+        'tcl': (UUID('b0ff71bd-ac26-42db-b7f9-61cb36ca6573'), 'TCL'),
+        'tecno': (UUID('9773f251-639a-4aa7-886f-1ad55c38cf0a'), 'Tecno'),
+        'toch mobile': (UUID('17158ec4-d8c4-4872-9ec7-caffdeb2dc02'), 'Toch Mobile'),
+        'toch': (UUID('17158ec4-d8c4-4872-9ec7-caffdeb2dc02'), 'Toch Mobile'),
+        'tp-link': (UUID('82da3186-bb48-479e-819c-208cc0582165'), 'TP-link'),
+        'tplink': (UUID('82da3186-bb48-479e-819c-208cc0582165'), 'TP-link'),
+        'xiaomi': (UUID('f2a569c3-1f5f-4657-8774-d0666e5c043f'), 'Xiaomi'),
+        'zte': (UUID('9e7d3e2c-c404-414f-8dee-e28e513ce46b'), 'ZTE'),
+    }
+
     @staticmethod
-    def _obtener_marca(nombre_marca_pdf: str|None) -> UUID:
+    def _obtener_marca(nombre_marca_pdf: str | None) -> Tuple[UUID, str]:
+        """
+        Obtiene el UUID y nombre canónico de la marca basándose en el nombre extraído del PDF.
+
+        Args:
+            nombre_marca_pdf: Nombre de la marca extraído del PDF (puede venir en cualquier capitalización)
+
+        Returns:
+            Tupla (UUID, nombre_canónico) de la marca si se encuentra coincidencia,
+            (UUID genérico, "Desconocido") si no coincide
+
+        """
+        # UUID y nombre para marca desconocida
+        UUID_GENERICO = UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')
+        NOMBRE_GENERICO = 'Desconocido'
+
         if not nombre_marca_pdf:
-            return UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')
-        else:
-            # TODO: Crear logica para determinar el id de la marca...
-            return UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')
+            return (UUID_GENERICO, NOMBRE_GENERICO)
+
+        # Normalizar el nombre de la marca del PDF para la búsqueda
+        marca_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_marca_pdf)
+
+        # Buscar en el mapeo
+        if marca_normalizada in CrearPreingresoBuilder._MARCA_MAP:
+            return CrearPreingresoBuilder._MARCA_MAP[marca_normalizada]
+
+        return (UUID_GENERICO, NOMBRE_GENERICO)
