@@ -212,7 +212,9 @@ def extract_repair_data(text, logger):
             data['codigo_distribuidor'] = match.group(1).strip()
             data['distribuidor'] = match.group(2).strip()
 
-        match = re.search(r'No\.\s*Factura:\s*(\S+)', text)
+        # Captura el número de factura o texto descriptivo (ej: "032-122145", "Otro tipo de Articulos", "ARTICULO DE STOCK ALMACEN:103")
+        # El patrón captura todo hasta encontrar "Fecha de Compra:" o el final de la línea
+        match = re.search(r'No\.\s*Factura:\s*([^\n]+?)(?=\s*Fecha\s+de\s+Compra:|$)', text)
         if match:
             data['numero_factura'] = match.group(1).strip()
 
