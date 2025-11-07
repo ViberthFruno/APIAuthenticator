@@ -1,6 +1,5 @@
+#retry_policy.py
 from typing import Optional
-
-
 class RetryPolicy:
     """
     Política de reintentos para peticiones HTTP.

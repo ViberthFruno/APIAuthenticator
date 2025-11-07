@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#main_gui_integrado.py
 """
 main_gui_integrado.py - Interfaz gráfica integrada: API iFR Pro + Bot de Correo
 Combina autenticación API con procesamiento automático de correos
@@ -1046,13 +1046,13 @@ class IntegratedGUI(LoggerMixin):
         row = 0
 
         # Mostrar datos extraídos
-        if isinstance(resultado_api, dict) and "data" in resultado_api:
-            data = resultado_api["data"]
-        else:
-            self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
-            print("Error: La API no devolvió la clave 'data'.")
-            modal.destroy()
-            return
+        #if isinstance(resultado_api, dict) and "data" in resultado_api:
+        data = resultado_api["data"]
+        #else:
+         #   self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
+          #  print("Error: La API no devolvió la clave 'data'.")
+          #  modal.destroy()
+           # return
 
         for label, valor in data.items():
             ttk.Label(

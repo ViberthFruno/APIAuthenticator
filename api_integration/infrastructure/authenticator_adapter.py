@@ -1,3 +1,4 @@
+#authenticator_adapter.py
 """
 API Integration Context - Infrastructure: API Authenticator Adapter
 Adaptador para el APIAuthenticator existente para que implemente IApiAuthenticator

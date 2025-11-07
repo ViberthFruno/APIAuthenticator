@@ -540,14 +540,23 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
             pass
 
         if result.success:
-            logger.info(f"✅ Preingreso creado exitosamente: {result.preingreso_id}")
-            return {
-                'success': True,
-                'preingreso_id': result.preingreso_id,
-                'boleta': result.boleta_usada,
-                'numero_transaccion': extracted_data.get('numero_transaccion'),
-                'filename': pdf_filename
-            }
+            # Verificar si la API devolvió un JSON válido
+            if not result.response.body:
+                logger.warning("⚠️ La API no devolvió un json válido")
+                return {
+                    'success': False,
+                    'error': "La API no devolvió un json válido",
+                    'filename': pdf_filename
+                }
+            else:
+                logger.info(f"✅ Preingreso creado exitosamente: {result.preingreso_id}")
+                return {
+                    'success': True,
+                    'preingreso_id': result.preingreso_id,
+                    'boleta': result.boleta_usada,
+                    'numero_transaccion': extracted_data.get('numero_transaccion'),
+                    'filename': pdf_filename
+                }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
             logger.error(f"❌ Error al crear preingreso: {error_msg}")

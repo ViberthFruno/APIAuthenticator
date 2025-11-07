@@ -1,3 +1,4 @@
+#interfaces.py
 """
 API Integration Context - Repository Interfaces (Ports)
 Contratos para comunicación con API externa

@@ -1,3 +1,4 @@
+#gui_async_helper.py
 """
 Helper para ejecutar código async desde GUI síncrona (Tkinter)
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#main.py
 """
 main_integrado.py - Punto de entrada principal del sistema integrado
 API iFR Pro + Bot de Correo Electrónico
