@@ -100,8 +100,10 @@ class CrearPreingresoBuilder:
         # Obtener id del modelo comercial
         modelo_comercial_id = UUID('910f491b-6c99-4225-bef8-83c85a83ae44')  # Desconocido
 
-        fecha_compra = CrearPreingresoBuilder._convertir_fecha(
-            datos_pdf.fecha_compra or "01/01/1970") if not datos_pdf.fecha_compra else "01/01/1970"
+
+        fecha_compra = datos_pdf.fecha_compra if datos_pdf.fecha_compra else "01/01/1970"
+
+        fecha_compra = CrearPreingresoBuilder._convertir_fecha(fecha_compra)
 
         # Por default están sin garantía
         tipo_preingreso_id = 92
@@ -114,7 +116,7 @@ class CrearPreingresoBuilder:
 
         else:
             # Si la fecha de compra No ha excedido un año
-            if not CrearPreingresoBuilder._es_mayor_a_un_ano(datos_pdf.fecha_compra):
+            if not CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
 
                 # Intenta obtener los datos desde el nombre de la Garantía del PDF
                 tipo_preingreso_id, garantia_id = (
@@ -266,7 +268,7 @@ class CrearPreingresoBuilder:
         return texto
 
     @staticmethod
-    def _es_mayor_a_un_ano(fecha_str: str, formato_fecha: str = "%d/%m/%Y") -> bool:
+    def _es_mayor_a_un_ano(fecha_str: str, formato_fecha: str = "%Y-%m-%d") -> bool:
         """
         Verifica si una fecha es mayor a un año desde hoy (considera años bisiestos).
 

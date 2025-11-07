@@ -866,8 +866,13 @@ class IntegratedGUI(LoggerMixin):
                 self.log_api_message(f"   Status: {result.response.status_code}")
                 self.log_api_message(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
 
-                # Abrir formulario en el hilo principal de Tkinter
-                self.root.after(0, lambda: self.abrir_formulario_preingreso(result.response.body))
+                if not result.response.body:
+                    self.log_api_message("")
+                    self.log_api_message("Raw content:")
+                    self.log_api_message(formatear_valor(result.response.raw_content))
+                else:
+                    # Abrir formulario en el hilo principal de Tkinter
+                    self.root.after(0, lambda: self.abrir_formulario_preingreso(result.response.body))
             else:
                 error_msg = f"Error creando preingreso: {result.message}"
                 self.log_api_message(f"❌ {formatear_valor(result)}")

@@ -11,9 +11,9 @@ def strip_if_string(valor: Any) -> Any:
 def formatear_valor(valor):
     """Convierte valores a string legible"""
     if valor is None:
-        return "N/A"
+        return "None"
     elif isinstance(valor, bool):
-        return "Sí" if valor else "No"
+        return "True" if valor else "False"
     elif isinstance(valor, list):
         # Si es una lista de diccionarios
         if valor and isinstance(valor[0], dict):
