@@ -3,7 +3,9 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Dict, Any
+
 from api_integration.domain.entities import ApiResponse
+
 
 @dataclass
 class DatosExtraidosPDF:
@@ -81,10 +83,10 @@ class CreatePreingresoOutput:
     response: Optional[ApiResponse]
     success: bool
     timestamp: datetime
-    preingreso_id: Optional[str]  # ID retornado por la API
-    consultar_reparacion: Optional[str]
-    consultar_guia: Optional[str]
     boleta_usada: Optional[str]
+    preingreso_id: Optional[str] = None
+    consultar_reparacion: Optional[str] = None
+    consultar_guia: Optional[str] = None
     message: Optional[str] = None
     errors: list[str] = None
     tiempo_ejecucion_ms: Optional[float] = None
