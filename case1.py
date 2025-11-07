@@ -284,7 +284,7 @@ def _extract_text_from_pdf(pdf_data, logger):
         return None
 
 
-def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
+def _generate_success_message(preingreso_results, failed_files, non_pdf_files, api_base_url=None):
     """
     Genera el mensaje de éxito con los preingresos creados y estado de archivos
 
@@ -292,6 +292,7 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
         preingreso_results: Lista de dicts con {filename, boleta, preingreso_id, numero_transaccion}
         failed_files: Lista de dicts con {filename, error}
         non_pdf_files: Lista de nombres de archivos que no son PDF
+        api_base_url: URL base de la API para generar links de consulta
     """
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
@@ -308,6 +309,12 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files):
                 message_lines.append(f"   ✓ ID Preingreso: {result['preingreso_id']}")
             if result.get('numero_transaccion'):
                 message_lines.append(f"   ✓ No. Transacción: {result['numero_transaccion']}")
+
+            # Agregar link de consulta si está disponible el api_base_url
+            if api_base_url and result.get('boleta'):
+                consulta_url = f"{api_base_url}/v1/reparacion/{result['boleta']}/consultar"
+                message_lines.append(f"   🔗 Para consultar el estado de la unidad haga clic en: {consulta_url}")
+
             message_lines.append("")
 
     # Mostrar archivos que no se pudieron procesar
@@ -660,10 +667,12 @@ class Case(BaseCase):
                 return response
 
             # Generar mensaje de éxito con los preingresos creados
+            settings = Settings()
             body_message = _generate_success_message(
                 preingreso_results,
                 failed_files,
-                non_pdf_files
+                non_pdf_files,
+                api_base_url=settings.API_BASE_URL
             )
 
             # Generar subject personalizado con números de boleta y timestamp
