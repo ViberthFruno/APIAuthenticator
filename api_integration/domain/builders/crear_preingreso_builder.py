@@ -199,8 +199,6 @@ class CrearPreingresoBuilder:
             Tuple[int, int]: Una tupla (tipo_preingreso_id, garantia_id).
                              Por defecto, (92, 2) si no se encuentra coincidencia.
         """
-        clave_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_garantia)
-
         la_factura = factura if factura else ""
         la_factura = CrearPreingresoBuilder._normalizar_clave(la_factura)
 
@@ -213,8 +211,11 @@ class CrearPreingresoBuilder:
         if CrearPreingresoBuilder._es_dap(fecha_compra):
             return 9, 1
 
+        clave_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_garantia)
+
         tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
         garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
+
         return tipo_preingreso_id, garantia_id
 
     @staticmethod
