@@ -68,6 +68,7 @@ class IntegratedGUI(LoggerMixin):
         self.retry_policy = None
         self.case_handler = None
         self.preingreso_button = None
+        self.marca_button = None
         self.search_button = None
         self.api_config_button = None
         self.cc_users_button = None
@@ -329,6 +330,18 @@ class IntegratedGUI(LoggerMixin):
             command=self.abrir_preingreso_manual
         )
         self.preingreso_button.pack(fill=tk.X)
+
+        # Frame para Consultar Marca
+        marca_frame = ttk.LabelFrame(left_panel, text="Consultar Catálogo", padding="10")
+        marca_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Botón consultar marca
+        self.marca_button = ttk.Button(
+            marca_frame,
+            text="Consultar Marca",
+            command=self.consultar_marca
+        )
+        self.marca_button.pack(fill=tk.X)
 
     def setup_api_right_panel(self):
         """Configura el panel derecho de la pestaña API con el log"""
@@ -746,6 +759,67 @@ class IntegratedGUI(LoggerMixin):
         # Ejecutar operación async sin bloquear GUI
         run_async_with_callback(
             search_operation(),
+            on_success=on_success,
+            on_error=on_error
+        )
+
+    def consultar_marca(self):
+        """Consulta el catálogo de marcas desde la API"""
+        self.log_api_message("=" * 60)
+        self.log_api_message("🏷️ Consultando Catálogo de Marcas")
+        self.log_api_message("=" * 60)
+
+        # Deshabilitar botón mientras se ejecuta
+        self.marca_button.config(state=tk.DISABLED, text="Consultando...")
+
+        async def consultar():
+            """Operación asíncrona de consulta"""
+            self.log_api_message("🔄 Iniciando consulta...")
+            endpoint = "/v1/unidad/marca"
+            self.log_api_message(f"📡 Endpoint: {endpoint}")
+            self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
+            self.log_api_message("")
+
+            # Llamar al repositorio
+            response = await self.repository.listar_marcas()
+            return response
+
+        def on_success(response):
+            """Callback de éxito"""
+            self.log_api_message(f"📥 Status Code: {response.status_code}")
+            self.log_api_message("")
+
+            if response.status_code == 200:
+                self.log_api_message("✅ Respuesta exitosa")
+                try:
+                    data = response.body
+                    import json
+                    formatted_json = json.dumps(data, indent=2, ensure_ascii=False)
+                    self.log_api_message("📄 Datos recibidos:")
+                    self.log_api_message(formatted_json)
+                except:
+                    self.log_api_message("📄 Respuesta (texto plano):")
+                    self.log_api_message(response.raw_content)
+            else:
+                self.log_api_message(f"⚠️ Error: {response.status_code}")
+                self.log_api_message(response.body if response.body else "(vacío)")
+
+            self.log_api_message("=" * 60)
+
+            # Rehabilitar botón
+            self.marca_button.config(state=tk.NORMAL, text="Consultar Marca")
+
+        def on_error(error):
+            """Callback de error"""
+            self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
+            self.log_api_message("=" * 60)
+
+            # Rehabilitar botón
+            self.marca_button.config(state=tk.NORMAL, text="Consultar Marca")
+
+        # Ejecutar operación async
+        run_async_with_callback(
+            consultar(),
             on_success=on_success,
             on_error=on_error
         )

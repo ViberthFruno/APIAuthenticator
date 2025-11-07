@@ -1,4 +1,4 @@
-#api_ifrpro_repository.py
+# api_ifrpro_repository.py
 """
 API Integration Context - Infrastructure: PreingresoRepository
 Implementación del repositorio de preingresos usando la API externa
@@ -59,7 +59,7 @@ def create_ifrpro_repository(
 class IfrProRepository(IApiIfrProRepository):
     """
     Implementación del repositorio de preingresos
-    
+
     Responsabilidades:
     - Construir peticiones para la API
     - Agregar autenticación
@@ -139,10 +139,10 @@ class IfrProRepository(IApiIfrProRepository):
     ) -> ApiResponse:
         """
         Crea un preingreso en la API
-        
+
         Args:
             data: Datos del preingreso
-            
+
         Returns:
             ApiResponse con el resultado
         """
@@ -224,10 +224,10 @@ class IfrProRepository(IApiIfrProRepository):
     ) -> Optional[ApiResponse]:
         """
         Obtiene un preingreso por número de boleta
-        
+
         Args:
             numero_boleta: Número de boleta a buscar
-            
+
         Returns:
             ApiResponse si existe, None si no
         """
@@ -350,6 +350,65 @@ class IfrProRepository(IApiIfrProRepository):
         except Exception as e:
             self.logger.error(
                 "Error al listar las sucursales",
+                error=str(e)
+            )
+            raise
+
+    async def listar_marcas(
+            self
+    ) -> Optional[ApiResponse]:
+        """
+        Obtiene el catálogo de marcas
+
+        Returns:
+            ApiResponse con las marcas disponibles
+        """
+        self.logger.info("Listar marcas")
+
+        # Construir endpoint
+        endpoint = Endpoint(
+            path="/v1/unidad/marca",
+            method=RequestMethod.GET,
+            base_url=self.base_url
+        )
+
+        # Crear request
+        request = ApiRequest(
+            request_id=str(uuid.uuid4()),
+            endpoint=endpoint
+        )
+
+        # Agregar autenticación
+        auth_headers = self.authenticator.generate_auth_headers(
+            request,
+            self.credentials
+        )
+
+        for key, value in auth_headers.items():
+            request.add_header(key, value)
+
+        # Rate limiting
+        if self.rate_limiter:
+            await self.rate_limiter.acquire()
+
+        # Ejecutar
+        try:
+            response = await self.client.execute_request(request)
+
+            if response.status_code == 404:
+                self.logger.info("No se encontraron marcas")
+                return None
+
+            self.logger.info(
+                "Marcas obtenidas",
+                status_code=response.status_code
+            )
+
+            return response
+
+        except Exception as e:
+            self.logger.error(
+                "Error al listar las marcas",
                 error=str(e)
             )
             raise
