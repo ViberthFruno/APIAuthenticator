@@ -76,6 +76,7 @@ class CrearPreingresoBuilder:
         _normalizar_clave('C.S.R'): 92,
         _normalizar_clave('CSR'): 92,
         _normalizar_clave('DOA'): 8,
+        _normalizar_clave('STOCK'): 8,
         _normalizar_clave('DAP'): 9,
     }
 
@@ -86,6 +87,7 @@ class CrearPreingresoBuilder:
         _normalizar_clave('C.S.R'): 4,
         _normalizar_clave('CSR'): 4,
         _normalizar_clave('DOA'): 1,
+        _normalizar_clave('STOCK'): 1,
         _normalizar_clave('DAP'): 1,
     }
 
@@ -123,7 +125,9 @@ class CrearPreingresoBuilder:
                 # Intenta obtener los datos desde el nombre de la Garantía del PDF
                 tipo_preingreso_id, garantia_id = (
                     CrearPreingresoBuilder._validar_garantia(
-                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre)
+                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre),
+                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura),
+                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
                     )
                 )
             else:
@@ -180,7 +184,11 @@ class CrearPreingresoBuilder:
         )
 
     @staticmethod
-    def _validar_garantia(nombre_garantia: str) -> Tuple[int, int]:
+    def _validar_garantia(
+            nombre_garantia: str,
+            factura: str | None,
+            observaciones: str | None
+    ) -> Tuple[int, int]:
         """
         Mapea un nombre de garantía a su ID correspondiente de tipo de preingreso y garantía.
         Si no se encuentra coincidencia, entonces por defecto devuelve los ids de 'Sin garantía'.
@@ -190,6 +198,16 @@ class CrearPreingresoBuilder:
                              Por defecto, (92, 2) si no se encuentra coincidencia.
         """
         clave_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_garantia)
+
+        la_factura = factura if factura else ""
+        la_factura = CrearPreingresoBuilder._normalizar_clave(la_factura)
+
+        la_observacion = observaciones if observaciones else ""
+        la_observacion = CrearPreingresoBuilder._normalizar_clave(la_observacion)
+
+        if 'stock' in la_factura or 'stock' in la_observacion:
+            return 8, 1
+
         tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
         garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
         return tipo_preingreso_id, garantia_id
