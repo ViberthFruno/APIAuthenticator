@@ -6,19 +6,18 @@ import re
 import tempfile
 from datetime import datetime
 
-from base_case import BaseCase
-from gui_async_helper import run_async_from_sync
 from api_integration.application.dtos import (
     DatosExtraidosPDF,
     CreatePreingresoInput,
     ArchivoAdjunto
 )
 from api_integration.application.use_cases.crear_preingreso_use_case import CreatePreingresoUseCase
+from api_integration.domain.entities import ApiCredentials
 from api_integration.infrastructure.api_ifrpro_repository import create_ifrpro_repository
 from api_integration.infrastructure.authenticator_adapter import create_api_authenticator
 from api_integration.infrastructure.http_client import create_api_client, TenacityRetryPolicy
-from api_integration.domain.entities import ApiCredentials
-from config_manager import ConfigManager
+from base_case import BaseCase
+from gui_async_helper import run_async_from_sync
 from settings import Settings
 
 
@@ -304,16 +303,16 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     if preingreso_results:
         for idx, result in enumerate(preingreso_results, 1):
             message_lines.append(f"{idx}. Archivo: {result['filename']}")
-            message_lines.append(f"   ✓ Boleta: {result['boleta']}")
-            if result.get('preingreso_id'):
-                message_lines.append(f"   ✓ ID Preingreso: {result['preingreso_id']}")
+            message_lines.append(f"   ✓ Boleta Gollo: {result['boleta']}")
             if result.get('numero_transaccion'):
-                message_lines.append(f"   ✓ No. Transacción: {result['numero_transaccion']}")
-
-            # Agregar link de consulta si está disponible el api_base_url
-            if api_base_url and result.get('boleta'):
-                consulta_url = f"{api_base_url}/v1/reparacion/{result['boleta']}/consultar"
-                message_lines.append(f"   🔗 Para consultar el estado de la unidad haga clic en: {consulta_url}")
+                message_lines.append(f"   ✓ No. Transacción Gollo: {result['numero_transaccion']}")
+            if result.get('preingreso_id'):
+                message_lines.append(f"   ✓ Boleta Fruno: {result['preingreso_id']}")
+            if result.get('consultar_guia'):
+                message_lines.append(f"   ✓ Guía Fruno: {result['consultar_guia']}")
+            if result.get('consultar_reparacion'):
+                message_lines.append(
+                    f"   🔗 Para consultar el estado de la unidad haga clic en: {result['consultar_reparacion']}")
 
             message_lines.append("")
 
@@ -417,7 +416,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         logger: Logger para registrar eventos
 
     Returns:
-        dict con {success, preingreso_id, boleta, numero_transaccion, error}
+        dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, error}
     """
     try:
         # Extraer texto del PDF
@@ -560,8 +559,10 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                 return {
                     'success': True,
                     'preingreso_id': result.preingreso_id,
-                    'boleta': result.boleta_usada,
+                    'boleta': extracted_data.get('numero_boleta'),
                     'numero_transaccion': extracted_data.get('numero_transaccion'),
+                    'consultar_reparacion': result.consultar_reparacion,
+                    'consultar_guia': result.consultar_guia,
                     'filename': pdf_filename
                 }
         else:
@@ -644,8 +645,10 @@ class Case(BaseCase):
                     preingreso_results.append({
                         'filename': pdf_filename,
                         'boleta': result.get('boleta'),
+                        'numero_transaccion': result.get('numero_transaccion'),
                         'preingreso_id': result.get('preingreso_id'),
-                        'numero_transaccion': result.get('numero_transaccion')
+                        'consultar_reparacion': result.get('consultar_reparacion'),
+                        'consultar_guia': result.get('consultar_guia')
                     })
                     logger.info(f"✅ Preingreso creado para: {pdf_filename}")
                 else:
