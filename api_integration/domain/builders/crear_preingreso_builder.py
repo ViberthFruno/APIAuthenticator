@@ -95,7 +95,7 @@ class CrearPreingresoBuilder:
         """Construye la instancia final inmutable de PreingresoData"""
 
         # Obtener id de la marca
-        marca_id = UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')  # Desconocida
+        marca_id = CrearPreingresoBuilder._obtener_marca(datos_pdf.marca_nombre)
 
         # Obtener id del modelo comercial
         modelo_comercial_id = UUID('910f491b-6c99-4225-bef8-83c85a83ae44')  # Desconocido
@@ -295,3 +295,11 @@ class CrearPreingresoBuilder:
 
         except ValueError:
             return False
+
+    @staticmethod
+    def _obtener_marca(nombre_marca_pdf: str|None) -> UUID:
+        if not nombre_marca_pdf:
+            return UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')
+        else:
+            # TODO: Crear logica para determinar el id de la marca...
+            return UUID('77983d40-5af3-417b-aef3-bcc9efc06a4f')
