@@ -8,6 +8,8 @@ pdfplumber>=0.10.3           # Extracción PDF
 
 # Image Processing
 Pillow>=10.0.0           # Python Imaging Library (PIL Fork)
+pdf2image>=1.16.3        # Conversión de PDF a imágenes para OCR
+pytesseract>=0.3.10      # OCR (Optical Character Recognition)
 
 # ===== Logging =====
 structlog>=24.1.0           # Logging estructurado
