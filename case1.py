@@ -260,13 +260,36 @@ def extract_repair_data(text, logger):
 def _extract_text_from_pdf(pdf_data, logger):
     """
     Extrae texto plano del PDF usando un sistema híbrido:
-    1. Intenta extracción de texto nativo con pdfplumber (rápido)
-    2. Si falla, usa OCR automáticamente (más lento pero funciona con cualquier PDF)
+    1. Intenta extracción de texto nativo con pdfplumber (rápido) con timeout
+    2. Si falla o tarda mucho, usa OCR automáticamente (más lento pero funciona con cualquier PDF)
     """
     import io
+    import threading
+    import warnings
+    import sys
+    import os
+    from contextlib import contextmanager
 
-    # ===== MÉTODO 1: Extracción de texto nativo (rápido) =====
-    try:
+    # Silenciar warnings de debug de pdfplumber
+    warnings.filterwarnings('ignore')
+
+    @contextmanager
+    def suppress_stdout_stderr():
+        """Context manager para silenciar stdout y stderr temporalmente"""
+        with open(os.devnull, 'w') as devnull:
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            try:
+                sys.stdout = devnull
+                sys.stderr = devnull
+                yield
+            finally:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+
+    # ===== MÉTODO 1: Extracción de texto nativo con timeout (rápido) =====
+    def _extract_with_pdfplumber():
+        """Función auxiliar para extraer texto con pdfplumber"""
         try:
             import pdfplumber
         except ImportError:
@@ -278,21 +301,55 @@ def _extract_text_from_pdf(pdf_data, logger):
         pdf_file = io.BytesIO(pdf_data)
         text = ""
 
-        with pdfplumber.open(pdf_file) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
+        # Silenciar mensajes de debug de pdfplumber
+        with suppress_stdout_stderr():
+            # Configurar pdfplumber para ser más robusto con PDFs problemáticos
+            with pdfplumber.open(pdf_file) as pdf:
+                for page in pdf.pages:
+                    try:
+                        # Usar layout=False para evitar problemas con PDFs complejos
+                        page_text = page.extract_text(layout=False)
+                        if page_text:
+                            text += page_text + "\n"
+                    except Exception as page_error:
+                        # No usar logger dentro del contexto de suppress
+                        continue
 
-        # Si se extrajo texto exitosamente, retornar
-        if text.strip():
+        return text
+
+    try:
+        result_container = {'text': None, 'error': None}
+
+        def run_extraction():
+            """Thread para ejecutar la extracción"""
+            try:
+                result_container['text'] = _extract_with_pdfplumber()
+            except Exception as e:
+                result_container['error'] = str(e)
+
+        # Crear y ejecutar thread con timeout
+        extraction_thread = threading.Thread(target=run_extraction, daemon=True)
+        extraction_thread.start()
+
+        # Esperar máximo 30 segundos
+        timeout_seconds = 30
+        logger.info(f"Extrayendo texto con pdfplumber (timeout: {timeout_seconds}s)...")
+        extraction_thread.join(timeout=timeout_seconds)
+
+        # Verificar si el thread terminó
+        if extraction_thread.is_alive():
+            logger.warning(f"⚠ pdfplumber tardó más de {timeout_seconds}s (posible loop infinito). Pasando a OCR...")
+            # El thread quedará como daemon y será terminado cuando el programa termine
+        elif result_container['error']:
+            logger.warning(f"⚠ Error en extracción con pdfplumber: {result_container['error']}. Intentando con OCR...")
+        elif result_container['text'] and result_container['text'].strip():
             logger.info("✓ Texto extraído exitosamente con pdfplumber (texto nativo)")
-            return text
+            return result_container['text']
         else:
             logger.warning("⚠ pdfplumber no pudo extraer texto (PDF podría ser imagen). Intentando con OCR...")
 
     except Exception as e:
-        logger.warning(f"⚠ Error en extracción con pdfplumber: {e}. Intentando con OCR...")
+        logger.warning(f"⚠ Error general en extracción con pdfplumber: {e}. Intentando con OCR...")
 
     # ===== MÉTODO 2: OCR como respaldo (más lento pero robusto) =====
     try:
