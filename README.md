@@ -7,52 +7,48 @@
 pip install -r requirements.txt
 ```
 
-### Sistema de Extracción Híbrido de PDFs
+### Sistema de Extracción de PDFs Robusto y Multiplataforma
 
-Este proyecto utiliza un **sistema híbrido inteligente y robusto** para extraer texto de PDFs:
+Este proyecto utiliza **PyMuPDF + PaddleOCR** para extraer texto de PDFs:
 
-1. **Método Primario (Rápido)**: Extracción de texto nativo usando `pdfplumber`
-   - Funciona con PDFs generados digitalmente (ej: Oracle Reports, Word, etc.)
+#### 🎯 Ventajas del Sistema
+
+✅ **Sin dependencias del sistema operativo** - No requiere instalaciones externas (Tesseract, Poppler, etc.)
+✅ **Multiplataforma** - Funciona en Windows, Linux y macOS sin configuración adicional
+✅ **Robusto y preciso** - PaddleOCR es un motor OCR de última generación
+✅ **Híbrido inteligente** - Extrae texto nativo primero, luego usa OCR si es necesario
+
+#### 📋 Estrategia de Extracción
+
+1. **Paso 1 (Rápido)**: Extracción de texto nativo usando **PyMuPDF**
+   - Funciona con PDFs generados digitalmente (Oracle Reports, Word, etc.)
    - Muy rápido y eficiente
-   - No requiere dependencias del sistema
-   - **Timeout de 30 segundos**: Previene loops infinitos con PDFs complejos
-   - **Procesamiento silencioso**: Suprime mensajes de debug en consola
+   - No requiere procesamiento de imágenes
 
-2. **Método de Respaldo (Robusto)**: OCR usando `pytesseract` y `pdf2image`
-   - Se activa automáticamente si el método primario falla, tarda mucho o no encuentra texto
-   - Funciona con PDFs escaneados, imágenes, o PDFs sin texto embebido
-   - Requiere Tesseract OCR instalado en el sistema
+2. **Paso 2 (Preciso)**: OCR usando **PaddleOCR**
+   - Se activa automáticamente si el texto nativo es insuficiente
+   - Funciona con PDFs escaneados o imágenes
+   - Soporta español e inglés
+   - Detecta automáticamente la orientación del texto
+   - No requiere Tesseract ni instalaciones del sistema
 
-**Características de Seguridad:**
-- ⏱️ Timeout automático (30s) para evitar bloqueos con PDFs problemáticos
-- 🔄 Fallback inteligente: Si pdfplumber se queda enciclado, pasa automáticamente a OCR
-- 🔇 Silenciamiento de debug: Los mensajes internos de pdfplumber no aparecen en consola
-- 🛡️ Manejo robusto de errores por página individual
+#### 🔧 Características Técnicas
 
-### Instalación de Tesseract OCR (Requerido para OCR)
+- 🚀 **Alto rendimiento**: Renderiza páginas a 2x zoom (144 DPI) para mejor calidad OCR
+- 🔄 **Fallback automático**: Si el texto nativo es insuficiente, usa OCR sin intervención
+- 🛡️ **Manejo robusto de errores**: Procesa cada página independientemente
+- 🌐 **Multilenguaje**: Soporta español (primario) e inglés
+- 📊 **Logging detallado**: Información completa del proceso de extracción
 
-El sistema funciona sin Tesseract usando solo extracción nativa, pero para máxima compatibilidad se recomienda instalarlo:
+#### 📦 Instalación de Dependencias
 
-#### Ubuntu/Debian
+Todas las dependencias se instalan automáticamente con:
+
 ```bash
-sudo apt-get update
-sudo apt-get install tesseract-ocr tesseract-ocr-spa poppler-utils
+pip install -r requirements.txt
 ```
 
-#### macOS
-```bash
-brew install tesseract tesseract-lang poppler
-```
-
-#### Windows
-1. Descargar el instalador desde: https://github.com/UB-Mannheim/tesseract/wiki
-2. Instalar y agregar Tesseract al PATH del sistema
-3. Descargar paquete de idioma español si es necesario
-
-#### Verificar Instalación
-```bash
-tesseract --version
-```
+**Nota**: No se requiere ninguna instalación adicional del sistema operativo
 
 ### Ejecución
 

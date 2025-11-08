@@ -4,14 +4,12 @@
 urllib3>=2.0.0           # HTTP library with thread-safe connection pooling
 python-dotenv>=1.0.0         # Variables de entorno
 
-pdfplumber>=0.10.3           # Extracción PDF
-
-# Image Processing & OCR
+# PDF Processing & OCR
+pymupdf>=1.23.0          # PyMuPDF (fitz) - Extracción PDF robusta y multiplataforma
+paddleocr>=2.7.0         # OCR robusto basado en PaddlePaddle (sin dependencias del sistema)
+paddlepaddle>=2.5.0      # Framework de deep learning de PaddleOCR
 Pillow>=10.0.0           # Python Imaging Library (PIL Fork)
-pdf2image>=1.16.3        # Conversión de PDF a imágenes para OCR
-pytesseract>=0.3.10      # OCR (Optical Character Recognition) - Tesseract
-easyocr>=1.7.0           # OCR robusto basado en deep learning (alternativa a Tesseract)
-numpy>=1.24.0            # Requerido por EasyOCR y procesamiento de imágenes
+numpy>=1.24.0            # Requerido por PaddleOCR y procesamiento de imágenes
 
 # ===== Logging =====
 structlog>=24.1.0           # Logging estructurado
