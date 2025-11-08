@@ -6,10 +6,12 @@ python-dotenv>=1.0.0         # Variables de entorno
 
 pdfplumber>=0.10.3           # Extracción PDF
 
-# Image Processing
+# Image Processing & OCR
 Pillow>=10.0.0           # Python Imaging Library (PIL Fork)
 pdf2image>=1.16.3        # Conversión de PDF a imágenes para OCR
-pytesseract>=0.3.10      # OCR (Optical Character Recognition)
+pytesseract>=0.3.10      # OCR (Optical Character Recognition) - Tesseract
+easyocr>=1.7.0           # OCR robusto basado en deep learning (alternativa a Tesseract)
+numpy>=1.24.0            # Requerido por EasyOCR y procesamiento de imágenes
 
 # ===== Logging =====
 structlog>=24.1.0           # Logging estructurado

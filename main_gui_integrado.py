@@ -1147,28 +1147,16 @@ class IntegratedGUI(LoggerMixin):
         )
 
     def extraer_datos_boleta_pdf(self, pdf_content):
-        """Extrae datos de un PDF de boleta de reparación"""
+        """Extrae datos de un PDF de boleta de reparación usando OCR robusto"""
         try:
-            import io
-            import re
-            try:
-                import pdfplumber
-            except ImportError:
-                self.log_api_message("Instalando pdfplumber...", level="EXCEPTION")
-                import subprocess
-                subprocess.check_call(['pip', 'install', 'pdfplumber', '--break-system-packages'])
-                import pdfplumber
+            # Importar la función de extracción mejorada desde case1
+            from case1 import _extract_text_from_pdf
 
-            # Extraer texto del PDF
-            pdf_file = io.BytesIO(pdf_content)
-            text = ""
-            with pdfplumber.open(pdf_file) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
+            # Extraer texto del PDF usando el sistema OCR robusto
+            text = _extract_text_from_pdf(pdf_content, self.logger)
 
-            if not text.strip():
+            if not text or not text.strip():
+                self.log_api_message("No se pudo extraer texto del PDF", level="ERROR")
                 return None
 
             # Extraer datos usando regex
@@ -1176,6 +1164,8 @@ class IntegratedGUI(LoggerMixin):
 
         except Exception as ex:
             self.log_api_message(f"Error extrayendo datos del PDF: {ex}", level="EXCEPTION")
+            import traceback
+            self.log_api_message(traceback.format_exc(), level="ERROR")
             return None
 
     def abrir_formulario_preingreso(self, resultado_api: dict[str, Any]):
