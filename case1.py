@@ -123,137 +123,328 @@ def _generate_formatted_text(data):
     return "\n".join(lines)
 
 
+def _preprocess_ocr_text(text):
+    """
+    Preprocesa el texto extraído por OCR para mejorar la extracción de datos
+
+    Args:
+        text: Texto extraído por OCR
+
+    Returns:
+        Texto preprocesado
+    """
+    if not text:
+        return text
+
+    # Normalizar espacios múltiples a uno solo
+    text = re.sub(r'\s+', ' ', text)
+
+    # Normalizar saltos de línea múltiples
+    text = re.sub(r'\n\s*\n', '\n', text)
+
+    # Corregir errores comunes de OCR
+    # (0 → O en contextos de letras, O → 0 en contextos de números)
+    # Esto es delicado, por ahora solo normalizamos espacios
+
+    return text
+
+
 def extract_repair_data(text, logger):
     """Extrae los campos relevantes del texto del PDF"""
     data = {}
+    campos_encontrados = []
+    campos_faltantes = []
 
     try:
-        match = re.search(r'No\.Transaccion:\s*(\S+)', text)
+        # Preprocesar el texto
+        text = _preprocess_ocr_text(text)
+
+        logger.info("=" * 60)
+        logger.info("INICIANDO EXTRACCIÓN DE DATOS")
+        logger.info(f"Longitud del texto: {len(text)} caracteres")
+        logger.info("=" * 60)
+        # Número de Transacción (más flexible con espacios)
+        match = re.search(r'No\.?\s*Transacci[oó]n:?\s*(\S+)', text, re.IGNORECASE)
         if match:
             data['numero_transaccion'] = match.group(1).strip()
+            campos_encontrados.append('numero_transaccion')
+            logger.info(f"✓ numero_transaccion: {data['numero_transaccion']}")
+        else:
+            campos_faltantes.append('numero_transaccion')
+            logger.warning("✗ numero_transaccion: No encontrado")
 
-        match = re.search(r'No\.\s*Boleta:\s*(\S+)', text)
+        # Número de Boleta (más flexible, crítico)
+        match = re.search(r'No\.?\s*Boleta:?\s*(\S+)', text, re.IGNORECASE)
         if match:
             data['numero_boleta'] = match.group(1).strip()
             data['referencia'] = data['numero_boleta'].split('-')[0].zfill(3)
-            logger.info(f"Boleta: {data['numero_boleta']}")
+            campos_encontrados.append('numero_boleta')
+            logger.info(f"✓ numero_boleta: {data['numero_boleta']}")
+            logger.info(f"  referencia: {data['referencia']}")
+        else:
+            campos_faltantes.append('numero_boleta')
+            logger.warning("✗ numero_boleta: No encontrado")
 
-        match = re.search(r'Fecha:\s*(\d{2}/\d{2}/\d{4})', text)
+        # Fecha (más flexible)
+        match = re.search(r'Fecha:?\s*(\d{2}[/-]\d{2}[/-]\d{4})', text, re.IGNORECASE)
         if match:
-            data['fecha'] = match.group(1).strip()
+            data['fecha'] = match.group(1).strip().replace('/', '/')
+            campos_encontrados.append('fecha')
+            logger.info(f"✓ fecha: {data['fecha']}")
+        else:
+            campos_faltantes.append('fecha')
+            logger.warning("✗ fecha: No encontrado")
 
-        match = re.search(r'Gestionada por:\s*(.+?)(?:\n|$)', text)
+        # Gestionada por (más flexible)
+        match = re.search(r'Gestionada\s+por:?\s*(.+?)(?:\n|$)', text, re.IGNORECASE)
         if match:
             data['gestionada_por'] = match.group(1).strip()
+            campos_encontrados.append('gestionada_por')
+            logger.info(f"✓ gestionada_por: {data['gestionada_por']}")
+        else:
+            campos_faltantes.append('gestionada_por')
+            logger.warning("✗ gestionada_por: No encontrado")
 
-        match = re.search(r'(\d{3}\s+[\w\-]+)', text)
+        # Sucursal (más flexible con código y nombre)
+        match = re.search(r'(\d{3}\s+[\w\-\sÁ-ú]+?)(?=\s*Tel[eé]fono|$)', text, re.IGNORECASE)
         if match:
             data['sucursal'] = match.group(1).strip()
+            campos_encontrados.append('sucursal')
+            logger.info(f"✓ sucursal: {data['sucursal']}")
+        else:
+            campos_faltantes.append('sucursal')
+            logger.warning("✗ sucursal: No encontrado")
 
-        match = re.search(r'Telefonos:\s*(\d+)', text)
+        # Teléfono sucursal (múltiples patrones)
+        match = re.search(r'Tel[eé]fono[s]?:?\s*(\d+)', text, re.IGNORECASE)
         if match:
             data['telefono_sucursal'] = match.group(1).strip()
+            campos_encontrados.append('telefono_sucursal')
+            logger.info(f"✓ telefono_sucursal: {data['telefono_sucursal']}")
+        else:
+            campos_faltantes.append('telefono_sucursal')
+            logger.warning("✗ telefono_sucursal: No encontrado")
 
-        match = re.search(r'C L I E N T E:\s*(.+?)\s+Tel:', text)
+        # Nombre del Cliente (más flexible con espacios y caracteres)
+        match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E:?\s*(.+?)\s+Tel', text, re.IGNORECASE)
         if match:
             data['nombre_cliente'] = match.group(1).strip()
-            logger.info(f"Cliente: {data['nombre_cliente']}")
+            campos_encontrados.append('nombre_cliente')
+            logger.info(f"✓ nombre_cliente: {data['nombre_cliente']}")
+        else:
+            campos_faltantes.append('nombre_cliente')
+            logger.warning("✗ nombre_cliente: No encontrado")
 
-        match = re.search(r'C O N T A C T O:\s*(.+?)\s+Tel:', text)
+        # Nombre del Contacto (más flexible)
+        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O:?\s*(.+?)\s+Tel', text, re.IGNORECASE)
         if match:
             data['nombre_contacto'] = match.group(1).strip()
-            logger.info(f"Contacto: {data['nombre_contacto']}")
+            campos_encontrados.append('nombre_contacto')
+            logger.info(f"✓ nombre_contacto: {data['nombre_contacto']}")
+        else:
+            campos_faltantes.append('nombre_contacto')
+            logger.warning("✗ nombre_contacto: No encontrado")
 
-        # Cédula del cliente (la correcta está en CED)
-        match = re.search(r'CED\s*([\d\-]+)', text)
+        # Cédula del cliente (más flexible)
+        match = re.search(r'CED[UuÚú]?LA?:?\s*([\d\-]+)', text, re.IGNORECASE)
+        if not match:
+            match = re.search(r'CED\s*([\d\-]+)', text, re.IGNORECASE)
         if match:
             data['cedula_cliente'] = match.group(1).strip()
+            campos_encontrados.append('cedula_cliente')
+            logger.info(f"✓ cedula_cliente: {data['cedula_cliente']}")
+        else:
+            campos_faltantes.append('cedula_cliente')
+            logger.warning("✗ cedula_cliente: No encontrado")
 
-        match = re.search(r'C L I E N T E:.*?Tel:\s*(\d+)', text)
+        # Teléfono del cliente (más flexible)
+        match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E:.*?Tel:?\s*(\d+)', text, re.IGNORECASE)
         if match:
             data['telefono_cliente'] = match.group(1).strip()
+            campos_encontrados.append('telefono_cliente')
+            logger.info(f"✓ telefono_cliente: {data['telefono_cliente']}")
+        else:
+            campos_faltantes.append('telefono_cliente')
+            logger.warning("✗ telefono_cliente: No encontrado")
 
-        match = re.search(r'Correo:\s*([\w.\-]+@[\w.\-]+\.\w+)', text)
+        # Correo del cliente (más flexible)
+        match = re.search(r'Correo:?\s*([\w.\-]+@[\w.\-]+\.\w+)', text, re.IGNORECASE)
         if match:
             data['correo_cliente'] = match.group(1).strip()
+            campos_encontrados.append('correo_cliente')
+            logger.info(f"✓ correo_cliente: {data['correo_cliente']}")
+        else:
+            campos_faltantes.append('correo_cliente')
+            logger.warning("✗ correo_cliente: No encontrado")
 
-        match = re.search(r'NUMERO ADICIONAL\s*(\d+)', text)
+        # Teléfono adicional (más flexible)
+        match = re.search(r'N[UuÚú]?MERO\s+ADICIONAL:?\s*(\d+)', text, re.IGNORECASE)
         if match:
             data['telefono_adicional'] = match.group(1).strip()
+            campos_encontrados.append('telefono_adicional')
+            logger.info(f"✓ telefono_adicional: {data['telefono_adicional']}")
+        else:
+            campos_faltantes.append('telefono_adicional')
 
-        match = re.search(r'Direcc:\s*(.+?)(?=\n.*?No\. Factura|\nNo\. Factura)', text, re.DOTALL)
+        # Dirección (más flexible)
+        match = re.search(r'Direcc[ióon]{1,3}:?\s*(.+?)(?=\n.*?No\.?\s*Factura|\nNo\.?\s*Factura)', text,
+                          re.DOTALL | re.IGNORECASE)
         if match:
             direccion = match.group(1).strip()
             direccion = ' '.join(direccion.split())
             data['direccion_cliente'] = direccion
+            campos_encontrados.append('direccion_cliente')
+            logger.info(f"✓ direccion_cliente: {data['direccion_cliente'][:50]}...")
+        else:
+            campos_faltantes.append('direccion_cliente')
 
-        match = re.search(r'Código:\s*(\d+)', text)
+        # Código del producto (más flexible)
+        match = re.search(r'C[óo]digo:?\s*(\d+)', text, re.IGNORECASE)
         if match:
             data['codigo_producto'] = match.group(1).strip()
+            campos_encontrados.append('codigo_producto')
+            logger.info(f"✓ codigo_producto: {data['codigo_producto']}")
+        else:
+            campos_faltantes.append('codigo_producto')
 
-        match = re.search(r'Código:\s*\d+\s+([A-Z\s]+?)\s+Serie:', text)
+        # Descripción del producto (más flexible)
+        match = re.search(r'C[óo]digo:?\s*\d+\s+([A-ZÁ-Ú\s]+?)\s+Serie', text, re.IGNORECASE)
         if match:
             data['descripcion_producto'] = match.group(1).strip()
+            campos_encontrados.append('descripcion_producto')
+            logger.info(f"✓ descripcion_producto: {data['descripcion_producto']}")
+        else:
+            campos_faltantes.append('descripcion_producto')
 
-        match = re.search(r'Serie:\s*(\S+)', text)
+        # Serie (más flexible)
+        match = re.search(r'Serie:?\s*(\S+)', text, re.IGNORECASE)
         if match:
             data['serie'] = match.group(1).strip()
+            campos_encontrados.append('serie')
+            logger.info(f"✓ serie: {data['serie']}")
+        else:
+            campos_faltantes.append('serie')
 
-        match = re.search(r'Marca:\s*(\S+)', text)
+        # Marca (más flexible)
+        match = re.search(r'Marca:?\s*(\S+)', text, re.IGNORECASE)
         if match:
             data['marca'] = match.group(1).strip()
+            campos_encontrados.append('marca')
+            logger.info(f"✓ marca: {data['marca']}")
+        else:
+            campos_faltantes.append('marca')
+            logger.warning("✗ marca: No encontrado")
 
-        match = re.search(r'Modelo:\s*(.+?)(?=\n|$)', text)
+        # Modelo (más flexible)
+        match = re.search(r'Modelo:?\s*(.+?)(?=\n|$)', text, re.IGNORECASE)
         if match:
             data['modelo'] = match.group(1).strip()
+            campos_encontrados.append('modelo')
+            logger.info(f"✓ modelo: {data['modelo']}")
+        else:
+            campos_faltantes.append('modelo')
+            logger.warning("✗ modelo: No encontrado")
 
-        match = re.search(r'Distrib:\s*(\d+)\s+(.+?)(?=\n|$)', text)
+        # Distribuidor (más flexible)
+        match = re.search(r'Distrib:?\s*(\d+)\s+(.+?)(?=\n|$)', text, re.IGNORECASE)
         if match:
             data['codigo_distribuidor'] = match.group(1).strip()
             data['distribuidor'] = match.group(2).strip()
+            campos_encontrados.append('distribuidor')
+            logger.info(f"✓ distribuidor: {data['distribuidor']}")
+        else:
+            campos_faltantes.append('distribuidor')
 
-        # Captura el número de factura o texto descriptivo (ej: "032-122145", "Otro tipo de Articulos", "ARTICULO DE STOCK ALMACEN:103")
-        # El patrón captura todo hasta encontrar "Fecha de Compra:" o el final de la línea
-        match = re.search(r'No\.\s*Factura:\s*([^\n]+?)(?=\s*Fecha\s+de\s+Compra:|$)', text)
+        # Número de Factura (más flexible con múltiples patrones)
+        match = re.search(r'No\.?\s*Factura:?\s*([^\n]+?)(?=\s*Fecha\s+de\s+Compra|$)', text, re.IGNORECASE)
         if match:
             data['numero_factura'] = match.group(1).strip()
+            campos_encontrados.append('numero_factura')
+            logger.info(f"✓ numero_factura: {data['numero_factura']}")
+        else:
+            campos_faltantes.append('numero_factura')
 
-        match = re.search(r'Fecha de Compra:\s*(\d{2}/\d{2}/\d{4})', text)
+        # Fecha de Compra (más flexible)
+        match = re.search(r'Fecha\s+de\s+Compra:?\s*(\d{2}[/-]\d{2}[/-]\d{4})', text, re.IGNORECASE)
         if match:
-            data['fecha_compra'] = match.group(1).strip()
+            data['fecha_compra'] = match.group(1).strip().replace('-', '/')
+            campos_encontrados.append('fecha_compra')
+            logger.info(f"✓ fecha_compra: {data['fecha_compra']}")
+        else:
+            campos_faltantes.append('fecha_compra')
 
-        match = re.search(r'Fechas-->Garantia\s+(\d{2}/\d{2}/\d{4})', text)
+        # Fecha de Garantía (más flexible)
+        match = re.search(r'Fechas?-->?Garant[íi]a:?\s+(\d{2}[/-]\d{2}[/-]\d{4})', text, re.IGNORECASE)
         if match:
-            data['fecha_garantia'] = match.group(1).strip()
+            data['fecha_garantia'] = match.group(1).strip().replace('-', '/')
+            campos_encontrados.append('fecha_garantia')
+            logger.info(f"✓ fecha_garantia: {data['fecha_garantia']}")
+        else:
+            campos_faltantes.append('fecha_garantia')
 
-        match = re.search(r'Garantia:\s*(.+?)(?=\n|$)', text)
+        # Tipo de Garantía (más flexible)
+        match = re.search(r'Garant[íi]a:?\s*(.+?)(?=\n|$)', text, re.IGNORECASE)
         if match:
             data['tipo_garantia'] = match.group(1).strip()
+            campos_encontrados.append('tipo_garantia')
+            logger.info(f"✓ tipo_garantia: {data['tipo_garantia']}")
+        else:
+            campos_faltantes.append('tipo_garantia')
 
-        match = re.search(r'Hecho por:\s*(.+?)\s+_', text)
+        # Hecho por (más flexible)
+        match = re.search(r'Hecho\s+por:?\s*(.+?)\s+_', text, re.IGNORECASE)
         if match:
             nombre_completo = match.group(1).strip()
             nombre_completo = ' '.join(nombre_completo.split())
             data['hecho_por'] = nombre_completo
+            campos_encontrados.append('hecho_por')
+            logger.info(f"✓ hecho_por: {data['hecho_por']}")
+        else:
+            campos_faltantes.append('hecho_por')
 
-        match = re.search(r'D A Ñ O S:\s*(.+?)(?=\n={5,}|\n-{5,}|$)', text, re.DOTALL)
+        # Daños (más flexible)
+        match = re.search(r'D\s*A\s*[ÑN]\s*O\s*S:?\s*(.+?)(?=\n={5,}|\n-{5,}|$)', text, re.DOTALL | re.IGNORECASE)
         if match:
             danos = match.group(1).strip()
             danos = ' '.join(danos.split())
             data['danos'] = danos
-            logger.info(f"Daños: {data['danos']}")
+            campos_encontrados.append('danos')
+            logger.info(f"✓ danos: {data['danos'][:50]}...")
+        else:
+            campos_faltantes.append('danos')
+            logger.warning("✗ danos: No encontrado")
 
-        match = re.search(r'O B S E R V A C I O N E S:\s*(.+?)(?=\nNUMERO ADICIONAL|\nD A Ñ O S:)', text, re.DOTALL)
+        # Observaciones (más flexible)
+        match = re.search(
+            r'O\s*B\s*S\s*E\s*R\s*V\s*A\s*C\s*I\s*O\s*N\s*E\s*S:?\s*(.+?)(?=\nN[UuÚú]?MERO ADICIONAL|\nD\s*A\s*[ÑN]\s*O\s*S)',
+            text, re.DOTALL | re.IGNORECASE)
         if match:
             obs = match.group(1).strip()
             obs = ' '.join(obs.split())
             data['observaciones'] = obs
+            campos_encontrados.append('observaciones')
+            logger.info(f"✓ observaciones: {data['observaciones'][:50]}...")
+        else:
+            campos_faltantes.append('observaciones')
 
-        logger.info(f"Total campos extraídos: {len(data)}")
+        # Resumen de extracción
+        logger.info("=" * 60)
+        logger.info(f"RESUMEN DE EXTRACCIÓN:")
+        logger.info(f"  ✓ Campos encontrados: {len(campos_encontrados)}")
+        logger.info(f"  ✗ Campos faltantes: {len(campos_faltantes)}")
+
+        if campos_faltantes:
+            logger.warning(f"  Campos no encontrados: {', '.join(campos_faltantes[:10])}")
+            if len(campos_faltantes) > 10:
+                logger.warning(f"  ... y {len(campos_faltantes) - 10} más")
+
+        logger.info("=" * 60)
+
         return data
 
     except Exception as e:
         logger.exception(f"Error en extracción de datos: {e}")
+        logger.info(f"Campos extraídos antes del error: {len(data)}")
         return data
 
 
@@ -300,6 +491,7 @@ def _extract_text_from_pdf(pdf_data, logger):
 
         pdf_file = io.BytesIO(pdf_data)
         text = ""
+        pages_processed = 0
 
         # Silenciar mensajes de debug de pdfplumber
         with suppress_stdout_stderr():
@@ -311,10 +503,12 @@ def _extract_text_from_pdf(pdf_data, logger):
                         page_text = page.extract_text(layout=False)
                         if page_text:
                             text += page_text + "\n"
+                            pages_processed += 1
                     except Exception as page_error:
                         # No usar logger dentro del contexto de suppress
                         continue
 
+        logger.info(f"pdfplumber procesó {pages_processed} página(s), extrajo {len(text)} caracteres")
         return text
 
     try:
@@ -370,14 +564,18 @@ def _extract_text_from_pdf(pdf_data, logger):
 
         # Extraer texto de cada página usando OCR
         ocr_text = ""
+        pages_with_text = 0
         for i, image in enumerate(images, 1):
             logger.info(f"  Procesando página {i}/{len(images)} con OCR...")
             page_text = pytesseract.image_to_string(image, lang='spa')
-            if page_text:
+            if page_text and page_text.strip():
                 ocr_text += page_text + "\n"
+                pages_with_text += 1
+                logger.info(f"    Página {i}: {len(page_text)} caracteres extraídos")
 
         if ocr_text.strip():
-            logger.info(f"✓ Texto extraído exitosamente con OCR ({len(images)} páginas procesadas)")
+            logger.info(f"✓ Texto extraído exitosamente con OCR")
+            logger.info(f"  Total: {len(ocr_text)} caracteres, {pages_with_text}/{len(images)} páginas con texto")
             return ocr_text
         else:
             logger.error("✗ OCR no pudo extraer texto del PDF")
@@ -460,7 +658,8 @@ def _generate_all_failed_message(failed_files, non_pdf_files, subject):
     timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
 
     message_lines = ["Estimado Usuario,", "",
-                     f"Se ha recibido su correo bajo el asunto \"{subject}\", sin embargo no se detectó ningún archivo PDF adjunto.", ""]
+                     f"Se ha recibido su correo bajo el asunto \"{subject}\", sin embargo no se detectó ningún archivo PDF adjunto.",
+                     ""]
 
     if failed_files:
         message_lines.append("Archivos PDF que no se pudieron procesar:")
@@ -497,7 +696,8 @@ def _generate_409_conflict_message(subject, numero_boleta, numero_transaccion):
     boleta_info = f"número de boleta {numero_boleta}" if numero_boleta else "la boleta indicada"
     transaccion_info = f" y número de transacción {numero_transaccion}" if numero_transaccion else ""
 
-    message_lines.append(f"Se ha recibido su correo bajo el asunto \"{subject}\", sin embargo no se pudo realizar, debido a que existe un preingreso en trámite con el {boleta_info}{transaccion_info}.")
+    message_lines.append(
+        f"Se ha recibido su correo bajo el asunto \"{subject}\", sin embargo no se pudo realizar, debido a que existe un preingreso en trámite con el {boleta_info}{transaccion_info}.")
     message_lines.append("")
     message_lines.append("Si el problema persiste, contacte al Centro de Servicio.")
     message_lines.append("")
@@ -560,14 +760,35 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                 'filename': pdf_filename
             }
 
+        # Guardar texto extraído para debugging
+        try:
+            debug_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+            debug_file.write(f"=== TEXTO EXTRAÍDO DE: {pdf_filename} ===\n\n")
+            debug_file.write(pdf_text)
+            debug_file.close()
+            logger.info(f"📝 Texto extraído guardado en: {debug_file.name}")
+        except Exception as e:
+            logger.warning(f"No se pudo guardar el texto para debugging: {e}")
+
         # Extraer datos del PDF
         logger.info(f"Extrayendo datos del PDF: {pdf_filename}")
         extracted_data = extract_repair_data(pdf_text, logger)
 
-        if not extracted_data or len(extracted_data) < 3:
+        # Validación mejorada: solo verificar que haya datos mínimos
+        if not extracted_data:
             return {
                 'success': False,
-                'error': 'PDF sin información válida (menos de 3 campos extraídos)',
+                'error': 'No se pudieron extraer datos del PDF (diccionario vacío)',
+                'filename': pdf_filename
+            }
+
+        # Verificar que al menos se haya extraído el número de boleta
+        if not extracted_data.get('numero_boleta'):
+            logger.error(f"❌ No se encontró el número de boleta (campo crítico)")
+            logger.error(f"   Campos extraídos: {list(extracted_data.keys())}")
+            return {
+                'success': False,
+                'error': f'No se encontró el número de boleta. Campos extraídos: {len(extracted_data)}',
                 'filename': pdf_filename
             }
 
@@ -810,7 +1031,8 @@ class Case(BaseCase):
                 if conflict_409_errors:
                     # Si hay errores 409, usar el primero para generar el mensaje
                     first_conflict = conflict_409_errors[0]
-                    logger.warning(f"Error 409 detectado - Preingreso duplicado para boleta: {first_conflict.get('numero_boleta')}")
+                    logger.warning(
+                        f"Error 409 detectado - Preingreso duplicado para boleta: {first_conflict.get('numero_boleta')}")
 
                     response = {
                         'recipient': sender,
