@@ -1147,36 +1147,161 @@ class IntegratedGUI(LoggerMixin):
         )
 
     def extraer_datos_boleta_pdf(self, pdf_content):
-        """Extrae datos de un PDF de boleta de reparación"""
-        try:
-            import io
-            import re
+        """
+        Extrae datos de un PDF de boleta de reparación usando sistema híbrido:
+        1. Intenta extracción de texto nativo con pdfplumber (rápido) con timeout
+        2. Si falla o tarda mucho, usa OCR automáticamente
+        """
+        import io
+        import threading
+        import warnings
+        import sys
+        import os
+        from contextlib import contextmanager
+
+        # Silenciar warnings de debug
+        warnings.filterwarnings('ignore')
+
+        @contextmanager
+        def suppress_stdout_stderr():
+            """Context manager para silenciar stdout y stderr temporalmente"""
+            with open(os.devnull, 'w') as devnull:
+                old_stdout = sys.stdout
+                old_stderr = sys.stderr
+                try:
+                    sys.stdout = devnull
+                    sys.stderr = devnull
+                    yield
+                finally:
+                    sys.stdout = old_stdout
+                    sys.stderr = old_stderr
+
+        # ===== MÉTODO 1: Extracción de texto nativo con timeout =====
+        def _extract_with_pdfplumber():
+            """Función auxiliar para extraer texto con pdfplumber"""
             try:
                 import pdfplumber
             except ImportError:
-                self.log_api_message("Instalando pdfplumber...", level="EXCEPTION")
+                self.log_api_message("Instalando pdfplumber...", level="WARNING")
                 import subprocess
                 subprocess.check_call(['pip', 'install', 'pdfplumber', '--break-system-packages'])
                 import pdfplumber
 
-            # Extraer texto del PDF
             pdf_file = io.BytesIO(pdf_content)
             text = ""
-            with pdfplumber.open(pdf_file) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
 
-            if not text.strip():
+            # Silenciar mensajes de debug de pdfplumber
+            with suppress_stdout_stderr():
+                with pdfplumber.open(pdf_file) as pdf:
+                    for page in pdf.pages:
+                        try:
+                            # Usar layout=False para evitar problemas con PDFs complejos
+                            page_text = page.extract_text(layout=False)
+                            if page_text:
+                                text += page_text + "\n"
+                        except Exception:
+                            continue
+
+            return text
+
+        try:
+            result_container = {'text': None, 'error': None}
+
+            def run_extraction():
+                """Thread para ejecutar la extracción"""
+                try:
+                    result_container['text'] = _extract_with_pdfplumber()
+                except Exception as e:
+                    result_container['error'] = str(e)
+
+            # Crear y ejecutar thread con timeout
+            extraction_thread = threading.Thread(target=run_extraction, daemon=True)
+            extraction_thread.start()
+
+            # Esperar máximo 30 segundos
+            timeout_seconds = 30
+            self.log_api_message(f"🔍 Extrayendo texto con pdfplumber (timeout: {timeout_seconds}s)...")
+            extraction_thread.join(timeout=timeout_seconds)
+
+            text = None
+            # Verificar si el thread terminó
+            if extraction_thread.is_alive():
+                self.log_api_message(f"⚠ pdfplumber tardó más de {timeout_seconds}s (posible loop infinito). Pasando a OCR...", level="WARNING")
+            elif result_container['error']:
+                self.log_api_message(f"⚠ Error en pdfplumber: {result_container['error']}. Intentando con OCR...", level="WARNING")
+            elif result_container['text'] and result_container['text'].strip():
+                self.log_api_message("✓ Texto extraído exitosamente con pdfplumber")
+                text = result_container['text']
+            else:
+                self.log_api_message("⚠ pdfplumber no pudo extraer texto. Intentando con OCR...", level="WARNING")
+
+        except Exception as e:
+            self.log_api_message(f"⚠ Error general en pdfplumber: {e}. Intentando con OCR...", level="WARNING")
+            text = None
+
+        # ===== MÉTODO 2: OCR como respaldo =====
+        if not text or not text.strip():
+            try:
+                try:
+                    from pdf2image import convert_from_bytes
+                    import pytesseract
+                except ImportError:
+                    self.log_api_message("Instalando dependencias de OCR...", level="WARNING")
+                    import subprocess
+                    subprocess.check_call(['pip', 'install', 'pdf2image', 'pytesseract', '--break-system-packages'])
+                    from pdf2image import convert_from_bytes
+                    import pytesseract
+
+                self.log_api_message("📸 Procesando PDF con OCR (puede tomar unos segundos)...")
+
+                # Convertir PDF a imágenes
+                images = convert_from_bytes(pdf_content, dpi=300)
+
+                # Extraer texto de cada página usando OCR
+                ocr_text = ""
+                for i, image in enumerate(images, 1):
+                    self.log_api_message(f"  Procesando página {i}/{len(images)} con OCR...")
+                    page_text = pytesseract.image_to_string(image, lang='spa')
+                    if page_text:
+                        ocr_text += page_text + "\n"
+
+                if ocr_text.strip():
+                    self.log_api_message(f"✓ Texto extraído exitosamente con OCR ({len(images)} páginas)")
+                    text = ocr_text
+                else:
+                    self.log_api_message("✗ OCR no pudo extraer texto del PDF", level="ERROR")
+                    return None
+
+            except Exception as e:
+                self.log_api_message(f"✗ Error con OCR: {e}", level="EXCEPTION")
+                self.log_api_message("Nota: OCR requiere tesseract-ocr instalado en el sistema", level="ERROR")
                 return None
 
-            # Extraer datos usando regex
-            return extract_repair_data(text, self.logger)
-
-        except Exception as ex:
-            self.log_api_message(f"Error extrayendo datos del PDF: {ex}", level="EXCEPTION")
+        # ===== EXTRACCIÓN DE DATOS CON LOGGING DETALLADO =====
+        if not text or not text.strip():
+            self.log_api_message("✗ No se pudo extraer texto del PDF", level="ERROR")
             return None
+
+        # Mostrar primeros 500 caracteres del texto extraído para diagnóstico
+        preview = text[:500].replace('\n', ' ')
+        self.log_api_message(f"📄 Texto extraído (preview): {preview}...")
+
+        # Extraer datos usando regex
+        datos = extract_repair_data(text, self.logger)
+
+        if datos:
+            campos_encontrados = sum(1 for v in datos.values() if v)
+            self.log_api_message(f"✓ Datos extraídos: {campos_encontrados} campos encontrados")
+        else:
+            self.log_api_message("✗ No se pudieron extraer datos con los patrones regex", level="WARNING")
+            self.log_api_message(f"💡 Texto completo extraído ({len(text)} caracteres):", level="WARNING")
+            # Guardar el texto completo en un archivo temporal para análisis
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8') as f:
+                f.write(text)
+                self.log_api_message(f"📝 Texto guardado en: {f.name}", level="WARNING")
+
+        return datos
 
     def abrir_formulario_preingreso(self, resultado_api: dict[str, Any]):
         """Abre un formulario para completar y enviar el preingreso"""
