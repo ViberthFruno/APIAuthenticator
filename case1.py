@@ -450,10 +450,14 @@ def extract_repair_data(text, logger):
 
 def _extract_text_from_pdf(pdf_data, logger):
     """
-    Extrae texto plano del PDF usando OCR robusto con múltiples métodos:
-    1. Pytesseract con configuración optimizada (primario)
-    2. EasyOCR como respaldo (más robusto y preciso)
-    3. pdfplumber como última alternativa (solo para PDFs nativos)
+    Extrae texto del PDF usando PyMuPDF + PaddleOCR (robusto y multiplataforma)
+
+    Este método funciona en Windows, Linux y macOS sin requerir instalaciones
+    del sistema operativo (no necesita Tesseract, Poppler, etc.)
+
+    Estrategia:
+    1. Intenta extraer texto nativo del PDF con PyMuPDF (rápido)
+    2. Si no hay texto, usa PaddleOCR en las imágenes renderizadas (preciso)
     """
     import io
     import warnings
@@ -461,209 +465,153 @@ def _extract_text_from_pdf(pdf_data, logger):
     # Silenciar warnings
     warnings.filterwarnings('ignore')
 
-    # ===== MÉTODO 1: OCR con Pytesseract (optimizado) =====
     try:
-        logger.info("=" * 60)
-        logger.info("MÉTODO 1: Extrayendo con Pytesseract OCR")
-        logger.info("=" * 60)
-
+        # Importar dependencias
         try:
-            from pdf2image import convert_from_bytes
-            import pytesseract
-            from PIL import Image, ImageEnhance, ImageFilter
-        except ImportError:
-            logger.warning("Instalando dependencias de OCR (pdf2image, pytesseract)...")
-            import subprocess
-            subprocess.check_call(['pip', 'install', 'pdf2image', 'pytesseract', 'Pillow', '--break-system-packages'])
-            from pdf2image import convert_from_bytes
-            import pytesseract
-            from PIL import Image, ImageEnhance, ImageFilter
-
-        logger.info("Convirtiendo PDF a imágenes (DPI: 300)...")
-
-        # Convertir PDF a imágenes con alta resolución
-        images = convert_from_bytes(pdf_data, dpi=300, fmt='png')
-        logger.info(f"PDF convertido a {len(images)} imagen(es)")
-
-        # Configuración optimizada de Tesseract para español
-        tesseract_config = r'--oem 3 --psm 6 -l spa'
-
-        # Extraer texto de cada página con preprocesamiento de imagen
-        ocr_text = ""
-        pages_with_text = 0
-
-        for i, image in enumerate(images, 1):
-            logger.info(f"Procesando página {i}/{len(images)}...")
-
-            try:
-                # Preprocesamiento de imagen para mejorar OCR
-                # 1. Convertir a escala de grises
-                image = image.convert('L')
-
-                # 2. Aumentar contraste
-                enhancer = ImageEnhance.Contrast(image)
-                image = enhancer.enhance(2.0)
-
-                # 3. Aumentar nitidez
-                image = image.filter(ImageFilter.SHARPEN)
-
-                # 4. Aplicar threshold para binarización
-                # Esto ayuda a separar texto del fondo
-                threshold = 150
-                image = image.point(lambda p: p > threshold and 255)
-
-                # Extraer texto con configuración optimizada
-                page_text = pytesseract.image_to_string(image, config=tesseract_config)
-
-                if page_text and page_text.strip():
-                    ocr_text += page_text + "\n"
-                    pages_with_text += 1
-                    logger.info(f"  ✓ Página {i}: {len(page_text)} caracteres extraídos")
-                else:
-                    logger.warning(f"  ⚠ Página {i}: No se extrajo texto")
-
-            except Exception as page_error:
-                logger.warning(f"  ✗ Error en página {i}: {page_error}")
-                continue
-
-        if ocr_text.strip():
-            logger.info("=" * 60)
-            logger.info(f"✅ ÉXITO con Pytesseract OCR")
-            logger.info(f"Total: {len(ocr_text)} caracteres")
-            logger.info(f"Páginas procesadas: {pages_with_text}/{len(images)}")
-            logger.info("=" * 60)
-            return ocr_text
-        else:
-            logger.warning("⚠ Pytesseract no extrajo texto. Intentando con EasyOCR...")
-
-    except Exception as e:
-        logger.warning(f"⚠ Error con Pytesseract: {e}")
-        logger.info("Intentando con método alternativo (EasyOCR)...")
-
-    # ===== MÉTODO 2: EasyOCR (más robusto, basado en deep learning) =====
-    try:
-        logger.info("=" * 60)
-        logger.info("MÉTODO 2: Extrayendo con EasyOCR")
-        logger.info("=" * 60)
-
-        try:
-            import easyocr
-            from pdf2image import convert_from_bytes
+            import fitz  # PyMuPDF
+            from paddleocr import PaddleOCR
+            from PIL import Image
             import numpy as np
-        except ImportError:
-            logger.warning("Instalando EasyOCR...")
+        except ImportError as import_err:
+            logger.warning(f"Instalando dependencias de OCR (PyMuPDF, PaddleOCR)...")
+            logger.warning(f"Error de importación: {import_err}")
             import subprocess
-            subprocess.check_call(['pip', 'install', 'easyocr', '--break-system-packages'])
-            import easyocr
-            from pdf2image import convert_from_bytes
-            import numpy as np
+            import sys
 
-        logger.info("Inicializando EasyOCR (esto puede tomar unos segundos la primera vez)...")
-
-        # Inicializar lector de EasyOCR para español
-        reader = easyocr.Reader(['es', 'en'], gpu=False, verbose=False)
-
-        logger.info("Convirtiendo PDF a imágenes...")
-        images = convert_from_bytes(pdf_data, dpi=300)
-        logger.info(f"PDF convertido a {len(images)} imagen(es)")
-
-        # Extraer texto de cada página
-        ocr_text = ""
-        pages_with_text = 0
-
-        for i, image in enumerate(images, 1):
-            logger.info(f"Procesando página {i}/{len(images)} con EasyOCR...")
-
-            try:
-                # Convertir PIL Image a numpy array para EasyOCR
-                image_np = np.array(image)
-
-                # Extraer texto usando EasyOCR
-                # detail=0 devuelve solo el texto, sin coordenadas ni confianza
-                result = reader.readtext(image_np, detail=0, paragraph=True)
-
-                # Unir los resultados
-                page_text = '\n'.join(result)
-
-                if page_text and page_text.strip():
-                    ocr_text += page_text + "\n"
-                    pages_with_text += 1
-                    logger.info(f"  ✓ Página {i}: {len(page_text)} caracteres extraídos")
-                else:
-                    logger.warning(f"  ⚠ Página {i}: No se extrajo texto")
-
-            except Exception as page_error:
-                logger.warning(f"  ✗ Error en página {i}: {page_error}")
-                continue
-
-        if ocr_text.strip():
-            logger.info("=" * 60)
-            logger.info(f"✅ ÉXITO con EasyOCR")
-            logger.info(f"Total: {len(ocr_text)} caracteres")
-            logger.info(f"Páginas procesadas: {pages_with_text}/{len(images)}")
-            logger.info("=" * 60)
-            return ocr_text
-        else:
-            logger.warning("⚠ EasyOCR no extrajo texto. Intentando con pdfplumber...")
-
-    except Exception as e:
-        logger.warning(f"⚠ Error con EasyOCR: {e}")
-        logger.info("Intentando con método alternativo (pdfplumber)...")
-
-    # ===== MÉTODO 3: pdfplumber (solo para PDFs con texto nativo) =====
-    try:
-        logger.info("=" * 60)
-        logger.info("MÉTODO 3: Extrayendo con pdfplumber")
-        logger.info("=" * 60)
-
-        try:
-            import pdfplumber
-        except ImportError:
-            logger.warning("Instalando pdfplumber...")
-            import subprocess
-            subprocess.check_call(['pip', 'install', 'pdfplumber', '--break-system-packages'])
-            import pdfplumber
-
-        pdf_file = io.BytesIO(pdf_data)
-        text = ""
-        pages_processed = 0
-
-        with pdfplumber.open(pdf_file) as pdf:
-            for page in pdf.pages:
+            # Instalar paquetes necesarios
+            packages = ['pymupdf', 'paddlepaddle', 'paddleocr', 'Pillow', 'numpy']
+            for package in packages:
                 try:
-                    page_text = page.extract_text(layout=False)
-                    if page_text:
-                        text += page_text + "\n"
-                        pages_processed += 1
-                except Exception:
-                    continue
+                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', package, '--break-system-packages'])
+                except:
+                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
 
-        logger.info(f"pdfplumber procesó {pages_processed} página(s), extrajo {len(text)} caracteres")
+            # Importar nuevamente después de la instalación
+            import fitz
+            from paddleocr import PaddleOCR
+            from PIL import Image
+            import numpy as np
 
-        if text.strip():
+        logger.info("=" * 60)
+        logger.info("🚀 EXTRACCIÓN DE TEXTO DEL PDF")
+        logger.info("=" * 60)
+
+        # Abrir PDF con PyMuPDF
+        pdf_stream = io.BytesIO(pdf_data)
+        pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
+        total_pages = pdf_document.page_count
+
+        logger.info(f"📄 PDF cargado: {total_pages} página(s)")
+
+        # ===== PASO 1: Intentar extraer texto nativo =====
+        logger.info("🔍 PASO 1: Intentando extracción de texto nativo...")
+        native_text = ""
+        pages_with_native_text = 0
+
+        for page_num in range(total_pages):
+            page = pdf_document[page_num]
+            page_text = page.get_text("text")
+
+            if page_text and len(page_text.strip()) > 50:  # Al menos 50 caracteres
+                native_text += page_text + "\n"
+                pages_with_native_text += 1
+
+        # Si encontramos suficiente texto nativo, usarlo
+        if pages_with_native_text >= total_pages * 0.8:  # Al menos 80% de las páginas
+            logger.info(f"✅ ÉXITO con texto nativo")
+            logger.info(f"   📊 Páginas con texto: {pages_with_native_text}/{total_pages}")
+            logger.info(f"   📝 Total caracteres: {len(native_text):,}")
             logger.info("=" * 60)
-            logger.info(f"✅ ÉXITO con pdfplumber")
+            pdf_document.close()
+            return native_text
+
+        logger.info(f"⚠️  Texto nativo insuficiente ({pages_with_native_text}/{total_pages} páginas)")
+        logger.info("🔄 PASO 2: Usando OCR en imágenes renderizadas...")
+
+        # ===== PASO 2: Usar PaddleOCR en imágenes renderizadas =====
+        # Inicializar PaddleOCR (español e inglés)
+        logger.info("🤖 Inicializando PaddleOCR (puede tardar en la primera ejecución)...")
+        ocr = PaddleOCR(
+            use_angle_cls=True,  # Detectar orientación del texto
+            lang='es',           # Idioma principal: español
+            use_gpu=False,       # No usar GPU (compatibilidad)
+            show_log=False       # No mostrar logs internos
+        )
+
+        ocr_text = ""
+        pages_with_ocr_text = 0
+
+        for page_num in range(total_pages):
+            logger.info(f"   📃 Procesando página {page_num + 1}/{total_pages}...")
+
+            try:
+                page = pdf_document[page_num]
+
+                # Renderizar página a imagen (alta resolución para mejor OCR)
+                zoom = 2.0  # 2x zoom = 144 DPI (mejor calidad OCR)
+                mat = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+
+                # Convertir a PIL Image
+                img_data = pix.tobytes("png")
+                img = Image.open(io.BytesIO(img_data))
+
+                # Convertir a numpy array para PaddleOCR
+                img_array = np.array(img)
+
+                # Ejecutar OCR
+                result = ocr.ocr(img_array, cls=True)
+
+                # Extraer texto de los resultados
+                if result and result[0]:
+                    page_texts = []
+                    for line in result[0]:
+                        if line and len(line) >= 2:
+                            # line[1] contiene (texto, confianza)
+                            text_content = line[1][0] if isinstance(line[1], (list, tuple)) else line[1]
+                            page_texts.append(str(text_content))
+
+                    page_text = '\n'.join(page_texts)
+
+                    if page_text and page_text.strip():
+                        ocr_text += page_text + "\n\n"
+                        pages_with_ocr_text += 1
+                        logger.info(f"      ✓ Extraídos {len(page_text)} caracteres")
+                    else:
+                        logger.warning(f"      ⚠️  No se extrajo texto")
+                else:
+                    logger.warning(f"      ⚠️  OCR no detectó texto")
+
+            except Exception as page_error:
+                logger.warning(f"      ✗ Error en página {page_num + 1}: {page_error}")
+                continue
+
+        pdf_document.close()
+
+        # Verificar si se extrajo texto
+        if ocr_text.strip():
             logger.info("=" * 60)
-            return text
+            logger.info(f"✅ ÉXITO con PaddleOCR")
+            logger.info(f"   📊 Páginas procesadas: {pages_with_ocr_text}/{total_pages}")
+            logger.info(f"   📝 Total caracteres: {len(ocr_text):,}")
+            logger.info("=" * 60)
+            return ocr_text
+        else:
+            logger.error("✗ No se pudo extraer texto con OCR")
+            return None
 
     except Exception as e:
-        logger.error(f"✗ Error con pdfplumber: {e}")
-
-    # Si todos los métodos fallaron
-    logger.error("=" * 60)
-    logger.error("✗ TODOS LOS MÉTODOS DE EXTRACCIÓN FALLARON")
-    logger.error("=" * 60)
-    logger.error("Asegúrese de tener instalado:")
-    logger.error("  • Tesseract OCR:")
-    logger.error("    - Ubuntu/Debian: sudo apt-get install tesseract-ocr tesseract-ocr-spa poppler-utils")
-    logger.error("    - macOS: brew install tesseract tesseract-lang poppler")
-    logger.error("    - Windows: https://github.com/UB-Mannheim/tesseract/wiki")
-    logger.error("  • Poppler (para pdf2image):")
-    logger.error("    - Ubuntu/Debian: sudo apt-get install poppler-utils")
-    logger.error("    - macOS: brew install poppler")
-    logger.error("    - Windows: https://github.com/oschwartz10612/poppler-windows/releases")
-
-    return None
+        logger.error("=" * 60)
+        logger.error(f"✗ ERROR EN EXTRACCIÓN DE TEXTO")
+        logger.error("=" * 60)
+        logger.error(f"Error: {str(e)}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        logger.error("=" * 60)
+        logger.error("💡 Solución: Instale las dependencias con:")
+        logger.error("   pip install pymupdf paddlepaddle paddleocr --break-system-packages")
+        logger.error("=" * 60)
+        return None
 
 
 def _generate_success_message(preingreso_results, failed_files, non_pdf_files, api_base_url=None):
