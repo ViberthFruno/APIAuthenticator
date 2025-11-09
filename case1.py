@@ -181,21 +181,70 @@ def extract_repair_data(text, logger):
             data['telefono_cliente'] = match.group(1).strip()
 
         # Correo electrónico (CRÍTICO - muy flexible para OCR)
-        # Primero intentar con formato normal
+        correo_encontrado = None
+
+        # Patrón 1: Buscar después de la palabra "Correo" con espacios flexibles
         match = re.search(r'Correo\s*:?\s*([\w\.\-_]+\s*@\s*[\w\.\-]+\s*\.\s*\w+)', text, re.IGNORECASE)
         if match:
-            correo = match.group(1).strip()
-            correo = re.sub(r'\s+', '', correo)  # Eliminar espacios
-            data['correo_cliente'] = correo
-            logger.info(f"Correo extraído: {correo}")
-        else:
-            # Búsqueda más agresiva para OCR mal formateado
-            match = re.search(r'([\w\.\-_]+@[\w\.\-]+\.\w+)', text, re.IGNORECASE)
+            correo_encontrado = match.group(1).strip()
+            logger.info(f"Correo encontrado (patrón 1 - después de 'Correo:'): {correo_encontrado}")
+
+        # Patrón 2: Buscar en la sección del cliente/contacto (más específico)
+        if not correo_encontrado:
+            # Buscar en un contexto de 200 caracteres después de "CLIENTE" o "CONTACTO"
+            cliente_section = re.search(r'(?:CLIENTE|CONTACTO).{0,200}', text, re.IGNORECASE | re.DOTALL)
+            if cliente_section:
+                section_text = cliente_section.group(0)
+                match = re.search(r'([\w\.\-_]+@[\w\.\-]+\.\w+)', section_text, re.IGNORECASE)
+                if match:
+                    correo_encontrado = match.group(1).strip()
+                    logger.info(f"Correo encontrado (patrón 2 - en sección cliente): {correo_encontrado}")
+
+        # Patrón 3: Búsqueda agresiva en todo el documento (formato email válido)
+        if not correo_encontrado:
+            # Buscar cualquier cosa que parezca un email (incluye typos comunes)
+            match = re.search(r'\b([\w\.\-_]+@[\w\.\-]+\.\w{2,})\b', text, re.IGNORECASE)
             if match:
-                correo = match.group(1).strip()
-                correo = re.sub(r'\s+', '', correo)
-                data['correo_cliente'] = correo
-                logger.info(f"Correo extraído (alternativo): {correo}")
+                correo_encontrado = match.group(1).strip()
+                logger.info(f"Correo encontrado (patrón 3 - búsqueda global): {correo_encontrado}")
+
+        # Patrón 3.5: Buscar correos con typos comunes (gmal, hotmial, etc)
+        if not correo_encontrado:
+            match = re.search(r'\b([\w\.\-_]+@(?:gmal|g mail|hotmial|outloo|yaho)\.com)\b', text, re.IGNORECASE)
+            if match:
+                correo_encontrado = match.group(1).strip()
+                # Corregir typos automáticamente
+                correo_encontrado = correo_encontrado.replace('gmal', 'gmail')
+                correo_encontrado = correo_encontrado.replace('g mail', 'gmail')
+                correo_encontrado = correo_encontrado.replace('hotmial', 'hotmail')
+                correo_encontrado = correo_encontrado.replace('outloo', 'outlook')
+                correo_encontrado = correo_encontrado.replace('yaho', 'yahoo')
+                logger.info(f"Correo encontrado con typo corregido (patrón 3.5): {correo_encontrado}")
+
+        # Patrón 4: Búsqueda con espacios internos (para OCR mal formateado)
+        if not correo_encontrado:
+            match = re.search(r'([\w\.\-_]+\s*@\s*[\w\.\-]+\s*\.\s*\w+)', text, re.IGNORECASE)
+            if match:
+                correo_encontrado = match.group(1).strip()
+                logger.info(f"Correo encontrado (patrón 4 - con espacios): {correo_encontrado}")
+
+        # Limpiar y validar el correo encontrado
+        if correo_encontrado:
+            # Eliminar todos los espacios internos
+            correo_encontrado = re.sub(r'\s+', '', correo_encontrado)
+
+            # Validar que el correo tenga formato básico válido
+            if '@' in correo_encontrado and '.' in correo_encontrado.split('@')[1]:
+                data['correo_cliente'] = correo_encontrado
+                logger.info(f"✅ Correo extraído y validado: {correo_encontrado}")
+            else:
+                logger.warning(f"⚠️ Correo con formato inválido: {correo_encontrado}")
+                # Si el formato es inválido, usar correo por defecto
+                data['correo_cliente'] = "sin-correo@gollo.com"
+        else:
+            logger.warning("⚠️ No se pudo extraer el correo del cliente - usando correo por defecto")
+            # Asignar correo por defecto cuando no se encuentra ninguno
+            data['correo_cliente'] = "sin-correo@gollo.com"
 
         # Dirección (más flexible)
         match = re.search(r'Direcc\s*:?\s*(.+?)(?=\s*No\.\s*Factura|\s*Factura)', text, re.IGNORECASE)
