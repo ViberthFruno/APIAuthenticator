@@ -1,4 +1,4 @@
-#logger.py
+# logger.py
 """
 Sistema de Logging centralizado
 Usa structlog para logs estructurados con contexto

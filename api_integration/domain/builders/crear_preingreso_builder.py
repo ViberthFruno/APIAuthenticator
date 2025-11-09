@@ -1,13 +1,12 @@
+# crear_preingreso_builder.py
+
 import re
 from datetime import datetime, timedelta
 from typing import Dict, Tuple
 from uuid import UUID
-
 from dateutil.relativedelta import relativedelta
-
 from api_integration.application.dtos import SucursalDTO, DatosExtraidosPDF, ArchivoAdjunto
 from api_integration.domain.entities import PreingresoData
-
 
 class CrearPreingresoBuilder:
     """Builder para construir PreingresoData paso a paso"""

@@ -1,4 +1,4 @@
-#settings.py
+# settings.py
 """
 Configuración del servicio de autenticación API
 """
