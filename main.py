@@ -7,9 +7,7 @@ API iFR Pro + Bot de Correo Electrónico
 import argparse
 import os
 import sys
-
 from dotenv import load_dotenv
-
 from logger import setup_logging
 from settings import Settings
 

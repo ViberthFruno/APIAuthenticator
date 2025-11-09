@@ -11,7 +11,7 @@ from api_integration.application.dtos import HealthCheckResult, GetPreingresoOut
 from api_integration.application.use_cases.crear_preingreso_use_case import CreatePreingresoUseCase
 from api_integration.application.use_cases.use_cases import GetPreingresoInput, GetPreingresoUseCase, HealthCheckUseCase
 from api_integration.infrastructure.retry_policy import RetryPolicy
-from case1 import extract_repair_data
+from case1 import extract_repair_data, _extract_text_from_pdf
 from utils import strip_if_string, formatear_valor
 
 tracemalloc.start()
@@ -1147,25 +1147,21 @@ class IntegratedGUI(LoggerMixin):
         )
 
     def extraer_datos_boleta_pdf(self, pdf_content):
-        """Extrae datos de un PDF de boleta de reparación usando OCR robusto"""
+        """Extrae datos de un PDF de boleta de reparación (con soporte OCR para Oracle Reports)"""
         try:
-            # Importar la función de extracción mejorada desde case1
-            from case1 import _extract_text_from_pdf
-
-            # Extraer texto del PDF usando el sistema OCR robusto
+            # Usar la función optimizada de case1.py que detecta automáticamente
+            # si es un PDF de Oracle Reports y aplica OCR si es necesario
             text = _extract_text_from_pdf(pdf_content, self.logger)
 
             if not text or not text.strip():
                 self.log_api_message("No se pudo extraer texto del PDF", level="ERROR")
                 return None
 
-            # Extraer datos usando regex
+            # Extraer datos usando regex (ya optimizado para OCR)
             return extract_repair_data(text, self.logger)
 
         except Exception as ex:
             self.log_api_message(f"Error extrayendo datos del PDF: {ex}", level="EXCEPTION")
-            import traceback
-            self.log_api_message(traceback.format_exc(), level="ERROR")
             return None
 
     def abrir_formulario_preingreso(self, resultado_api: dict[str, Any]):

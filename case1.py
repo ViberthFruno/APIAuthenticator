@@ -123,494 +123,358 @@ def _generate_formatted_text(data):
     return "\n".join(lines)
 
 
-def _preprocess_ocr_text(text):
-    """
-    Preprocesa el texto extraído por OCR para mejorar la extracción de datos
-
-    Args:
-        text: Texto extraído por OCR
-
-    Returns:
-        Texto preprocesado
-    """
-    if not text:
-        return text
-
-    # Normalizar espacios múltiples a uno solo
-    text = re.sub(r'\s+', ' ', text)
-
-    # Normalizar saltos de línea múltiples
-    text = re.sub(r'\n\s*\n', '\n', text)
-
-    # Corregir errores comunes de OCR
-    # (0 → O en contextos de letras, O → 0 en contextos de números)
-    # Esto es delicado, por ahora solo normalizamos espacios
-
-    return text
-
-
 def extract_repair_data(text, logger):
-    """Extrae los campos relevantes del texto del PDF"""
+    """Extrae los campos relevantes del texto del PDF (optimizado para OCR)"""
     data = {}
-    campos_encontrados = []
-    campos_faltantes = []
 
     try:
-        # Preprocesar el texto
-        text = _preprocess_ocr_text(text)
+        # Normalizar texto para OCR: eliminar espacios múltiples
+        text = re.sub(r'\s+', ' ', text)
 
-        logger.info("=" * 60)
-        logger.info("INICIANDO EXTRACCIÓN DE DATOS")
-        logger.info(f"Longitud del texto: {len(text)} caracteres")
-        logger.info("=" * 60)
-        # Número de Transacción (más flexible con espacios)
-        match = re.search(r'No\.?\s*Transacci[oó]n:?\s*(\S+)', text, re.IGNORECASE)
+        # Número de transacción (más flexible)
+        match = re.search(r'No\s*\.?\s*Transacci[oó]n\s*:?\s*(\d+)', text, re.IGNORECASE)
         if match:
             data['numero_transaccion'] = match.group(1).strip()
-            campos_encontrados.append('numero_transaccion')
-            logger.info(f"✓ numero_transaccion: {data['numero_transaccion']}")
-        else:
-            campos_faltantes.append('numero_transaccion')
-            logger.warning("✗ numero_transaccion: No encontrado")
 
-        # Número de Boleta (más flexible, crítico)
-        match = re.search(r'No\.?\s*Boleta:?\s*(\S+)', text, re.IGNORECASE)
+        # Número de boleta (más flexible)
+        match = re.search(r'No\s*\.?\s*Boleta\s*:?\s*(\d+-\d+)', text, re.IGNORECASE)
         if match:
             data['numero_boleta'] = match.group(1).strip()
             data['referencia'] = data['numero_boleta'].split('-')[0].zfill(3)
-            campos_encontrados.append('numero_boleta')
-            logger.info(f"✓ numero_boleta: {data['numero_boleta']}")
-            logger.info(f"  referencia: {data['referencia']}")
-        else:
-            campos_faltantes.append('numero_boleta')
-            logger.warning("✗ numero_boleta: No encontrado")
+            logger.info(f"Boleta: {data['numero_boleta']}")
 
         # Fecha (más flexible)
-        match = re.search(r'Fecha:?\s*(\d{2}[/-]\d{2}[/-]\d{4})', text, re.IGNORECASE)
+        match = re.search(r'Fecha\s*:?\s*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
         if match:
-            data['fecha'] = match.group(1).strip().replace('/', '/')
-            campos_encontrados.append('fecha')
-            logger.info(f"✓ fecha: {data['fecha']}")
-        else:
-            campos_faltantes.append('fecha')
-            logger.warning("✗ fecha: No encontrado")
+            data['fecha'] = match.group(1).strip()
 
         # Gestionada por (más flexible)
-        match = re.search(r'Gestionada\s+por:?\s*(.+?)(?:\n|$)', text, re.IGNORECASE)
+        match = re.search(r'Gestionada\s+por\s*:?\s*Taller\s+Local', text, re.IGNORECASE)
         if match:
-            data['gestionada_por'] = match.group(1).strip()
-            campos_encontrados.append('gestionada_por')
-            logger.info(f"✓ gestionada_por: {data['gestionada_por']}")
-        else:
-            campos_faltantes.append('gestionada_por')
-            logger.warning("✗ gestionada_por: No encontrado")
+            data['gestionada_por'] = "Taller Local"
 
-        # Sucursal (más flexible con código y nombre)
-        match = re.search(r'(\d{3}\s+[\w\-\sÁ-ú]+?)(?=\s*Tel[eé]fono|$)', text, re.IGNORECASE)
+        # Sucursal (buscar código de 3 dígitos seguido de nombre)
+        match = re.search(r'(\d{3})\s+([\w\s\-]+?)(?=\s+Telefonos?|Tel)', text, re.IGNORECASE)
         if match:
-            data['sucursal'] = match.group(1).strip()
-            campos_encontrados.append('sucursal')
-            logger.info(f"✓ sucursal: {data['sucursal']}")
-        else:
-            campos_faltantes.append('sucursal')
-            logger.warning("✗ sucursal: No encontrado")
+            data['sucursal'] = f"{match.group(1)} {match.group(2).strip()}"
 
-        # Teléfono sucursal (múltiples patrones)
-        match = re.search(r'Tel[eé]fono[s]?:?\s*(\d+)', text, re.IGNORECASE)
+        # Teléfono sucursal (más flexible)
+        match = re.search(r'Telefonos?\s*:?\s*(\d+)', text, re.IGNORECASE)
         if match:
             data['telefono_sucursal'] = match.group(1).strip()
-            campos_encontrados.append('telefono_sucursal')
-            logger.info(f"✓ telefono_sucursal: {data['telefono_sucursal']}")
-        else:
-            campos_faltantes.append('telefono_sucursal')
-            logger.warning("✗ telefono_sucursal: No encontrado")
 
-        # Nombre del Cliente (más flexible con espacios y caracteres)
-        match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E:?\s*(.+?)\s+Tel', text, re.IGNORECASE)
+        # Cliente/Contacto (más flexible para OCR que puede separar con espacios)
+        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O\s*:?\s*([A-Z\s]+?)(?=\s+Tel|CED)', text, re.IGNORECASE)
         if match:
-            data['nombre_cliente'] = match.group(1).strip()
-            campos_encontrados.append('nombre_cliente')
-            logger.info(f"✓ nombre_cliente: {data['nombre_cliente']}")
-        else:
-            campos_faltantes.append('nombre_cliente')
-            logger.warning("✗ nombre_cliente: No encontrado")
+            data['nombre_contacto'] = re.sub(r'\s+', ' ', match.group(1).strip())
+            data['nombre_cliente'] = data['nombre_contacto']  # Usar el mismo
+            logger.info(f"Cliente/Contacto: {data['nombre_contacto']}")
 
-        # Nombre del Contacto (más flexible)
-        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O:?\s*(.+?)\s+Tel', text, re.IGNORECASE)
-        if match:
-            data['nombre_contacto'] = match.group(1).strip()
-            campos_encontrados.append('nombre_contacto')
-            logger.info(f"✓ nombre_contacto: {data['nombre_contacto']}")
-        else:
-            campos_faltantes.append('nombre_contacto')
-            logger.warning("✗ nombre_contacto: No encontrado")
-
-        # Cédula del cliente (más flexible)
-        match = re.search(r'CED[UuÚú]?LA?:?\s*([\d\-]+)', text, re.IGNORECASE)
-        if not match:
-            match = re.search(r'CED\s*([\d\-]+)', text, re.IGNORECASE)
+        # Cédula (más flexible)
+        match = re.search(r'CED\s*:?\s*([\d\-]+)', text, re.IGNORECASE)
         if match:
             data['cedula_cliente'] = match.group(1).strip()
-            campos_encontrados.append('cedula_cliente')
-            logger.info(f"✓ cedula_cliente: {data['cedula_cliente']}")
-        else:
-            campos_faltantes.append('cedula_cliente')
-            logger.warning("✗ cedula_cliente: No encontrado")
 
-        # Teléfono del cliente (más flexible)
-        match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E:.*?Tel:?\s*(\d+)', text, re.IGNORECASE)
+        # Teléfono cliente (más flexible)
+        match = re.search(r'Tel\s*:?\s*(\d{8,})', text, re.IGNORECASE)
         if match:
             data['telefono_cliente'] = match.group(1).strip()
-            campos_encontrados.append('telefono_cliente')
-            logger.info(f"✓ telefono_cliente: {data['telefono_cliente']}")
-        else:
-            campos_faltantes.append('telefono_cliente')
-            logger.warning("✗ telefono_cliente: No encontrado")
 
-        # Correo del cliente (más flexible)
-        match = re.search(r'Correo:?\s*([\w.\-]+@[\w.\-]+\.\w+)', text, re.IGNORECASE)
+        # Correo electrónico (CRÍTICO - muy flexible para OCR)
+        # Primero intentar con formato normal
+        match = re.search(r'Correo\s*:?\s*([\w\.\-_]+\s*@\s*[\w\.\-]+\s*\.\s*\w+)', text, re.IGNORECASE)
         if match:
-            data['correo_cliente'] = match.group(1).strip()
-            campos_encontrados.append('correo_cliente')
-            logger.info(f"✓ correo_cliente: {data['correo_cliente']}")
+            correo = match.group(1).strip()
+            correo = re.sub(r'\s+', '', correo)  # Eliminar espacios
+            data['correo_cliente'] = correo
+            logger.info(f"Correo extraído: {correo}")
         else:
-            campos_faltantes.append('correo_cliente')
-            logger.warning("✗ correo_cliente: No encontrado")
-
-        # Teléfono adicional (más flexible)
-        match = re.search(r'N[UuÚú]?MERO\s+ADICIONAL:?\s*(\d+)', text, re.IGNORECASE)
-        if match:
-            data['telefono_adicional'] = match.group(1).strip()
-            campos_encontrados.append('telefono_adicional')
-            logger.info(f"✓ telefono_adicional: {data['telefono_adicional']}")
-        else:
-            campos_faltantes.append('telefono_adicional')
+            # Búsqueda más agresiva para OCR mal formateado
+            match = re.search(r'([\w\.\-_]+@[\w\.\-]+\.\w+)', text, re.IGNORECASE)
+            if match:
+                correo = match.group(1).strip()
+                correo = re.sub(r'\s+', '', correo)
+                data['correo_cliente'] = correo
+                logger.info(f"Correo extraído (alternativo): {correo}")
 
         # Dirección (más flexible)
-        match = re.search(r'Direcc[ióon]{1,3}:?\s*(.+?)(?=\n.*?No\.?\s*Factura|\nNo\.?\s*Factura)', text,
-                          re.DOTALL | re.IGNORECASE)
+        match = re.search(r'Direcc\s*:?\s*(.+?)(?=\s*No\.\s*Factura|\s*Factura)', text, re.IGNORECASE)
         if match:
-            direccion = match.group(1).strip()
-            direccion = ' '.join(direccion.split())
+            direccion = re.sub(r'\s+', ' ', match.group(1).strip())
             data['direccion_cliente'] = direccion
-            campos_encontrados.append('direccion_cliente')
-            logger.info(f"✓ direccion_cliente: {data['direccion_cliente'][:50]}...")
-        else:
-            campos_faltantes.append('direccion_cliente')
 
-        # Código del producto (más flexible)
-        match = re.search(r'C[óo]digo:?\s*(\d+)', text, re.IGNORECASE)
+        # Código producto (más flexible)
+        match = re.search(r'C[óo]digo\s*:?\s*(\d+)', text, re.IGNORECASE)
         if match:
             data['codigo_producto'] = match.group(1).strip()
-            campos_encontrados.append('codigo_producto')
-            logger.info(f"✓ codigo_producto: {data['codigo_producto']}")
-        else:
-            campos_faltantes.append('codigo_producto')
 
-        # Descripción del producto (más flexible)
-        match = re.search(r'C[óo]digo:?\s*\d+\s+([A-ZÁ-Ú\s]+?)\s+Serie', text, re.IGNORECASE)
+        # Descripción producto (más flexible)
+        match = re.search(r'C[óo]digo\s*:?\s*\d+\s+([A-Z\s]+?)\s+(?:Serie|Marca)', text, re.IGNORECASE)
         if match:
-            data['descripcion_producto'] = match.group(1).strip()
-            campos_encontrados.append('descripcion_producto')
-            logger.info(f"✓ descripcion_producto: {data['descripcion_producto']}")
-        else:
-            campos_faltantes.append('descripcion_producto')
+            data['descripcion_producto'] = re.sub(r'\s+', ' ', match.group(1).strip())
 
         # Serie (más flexible)
-        match = re.search(r'Serie:?\s*(\S+)', text, re.IGNORECASE)
+        match = re.search(r'Serie\s*:?\s*([A-Z0-9\-]+)', text, re.IGNORECASE)
         if match:
             data['serie'] = match.group(1).strip()
-            campos_encontrados.append('serie')
-            logger.info(f"✓ serie: {data['serie']}")
-        else:
-            campos_faltantes.append('serie')
 
         # Marca (más flexible)
-        match = re.search(r'Marca:?\s*(\S+)', text, re.IGNORECASE)
+        match = re.search(r'Marca\s*:?\s*(\w+)', text, re.IGNORECASE)
         if match:
             data['marca'] = match.group(1).strip()
-            campos_encontrados.append('marca')
-            logger.info(f"✓ marca: {data['marca']}")
-        else:
-            campos_faltantes.append('marca')
-            logger.warning("✗ marca: No encontrado")
 
         # Modelo (más flexible)
-        match = re.search(r'Modelo:?\s*(.+?)(?=\n|$)', text, re.IGNORECASE)
+        match = re.search(r'Modelo\s*:?\s*([A-Z0-9]+)', text, re.IGNORECASE)
         if match:
             data['modelo'] = match.group(1).strip()
-            campos_encontrados.append('modelo')
-            logger.info(f"✓ modelo: {data['modelo']}")
-        else:
-            campos_faltantes.append('modelo')
-            logger.warning("✗ modelo: No encontrado")
 
         # Distribuidor (más flexible)
-        match = re.search(r'Distrib:?\s*(\d+)\s+(.+?)(?=\n|$)', text, re.IGNORECASE)
+        match = re.search(r'Distrib\s*:?\s*(\d+)\s+([A-Z]+)', text, re.IGNORECASE)
         if match:
             data['codigo_distribuidor'] = match.group(1).strip()
             data['distribuidor'] = match.group(2).strip()
-            campos_encontrados.append('distribuidor')
-            logger.info(f"✓ distribuidor: {data['distribuidor']}")
-        else:
-            campos_faltantes.append('distribuidor')
 
-        # Número de Factura (más flexible con múltiples patrones)
-        match = re.search(r'No\.?\s*Factura:?\s*([^\n]+?)(?=\s*Fecha\s+de\s+Compra|$)', text, re.IGNORECASE)
+        # Número de factura (más flexible - captura STOCK)
+        match = re.search(r'No\s*\.?\s*Factura\s*:?\s*([^\s]+(?:\s+[^\s]+){0,5}?)(?=\s+Correo|\s+Fechas?)', text,
+                          re.IGNORECASE)
         if match:
-            data['numero_factura'] = match.group(1).strip()
-            campos_encontrados.append('numero_factura')
-            logger.info(f"✓ numero_factura: {data['numero_factura']}")
-        else:
-            campos_faltantes.append('numero_factura')
+            data['numero_factura'] = re.sub(r'\s+', ' ', match.group(1).strip())
 
-        # Fecha de Compra (más flexible)
-        match = re.search(r'Fecha\s+de\s+Compra:?\s*(\d{2}[/-]\d{2}[/-]\d{4})', text, re.IGNORECASE)
+        # Fecha de compra (más flexible)
+        match = re.search(r'(?:Fechas?|Compra)\s*[-:>]*\s*(?:Garantia|Garant[ií]a)?\s*(\d{2}/\d{2}/\d{4})', text,
+                          re.IGNORECASE)
         if match:
-            data['fecha_compra'] = match.group(1).strip().replace('-', '/')
-            campos_encontrados.append('fecha_compra')
-            logger.info(f"✓ fecha_compra: {data['fecha_compra']}")
-        else:
-            campos_faltantes.append('fecha_compra')
+            data['fecha_compra'] = match.group(1).strip()
 
-        # Fecha de Garantía (más flexible)
-        match = re.search(r'Fechas?-->?Garant[íi]a:?\s+(\d{2}[/-]\d{2}[/-]\d{4})', text, re.IGNORECASE)
+        # Fecha de garantía (más flexible)
+        match = re.search(r'Garant[ií]a\s*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
         if match:
-            data['fecha_garantia'] = match.group(1).strip().replace('-', '/')
-            campos_encontrados.append('fecha_garantia')
-            logger.info(f"✓ fecha_garantia: {data['fecha_garantia']}")
-        else:
-            campos_faltantes.append('fecha_garantia')
+            data['fecha_garantia'] = match.group(1).strip()
 
-        # Tipo de Garantía (más flexible)
-        match = re.search(r'Garant[íi]a:?\s*(.+?)(?=\n|$)', text, re.IGNORECASE)
+        # Tipo de garantía (más flexible)
+        match = re.search(r'Garant[ií]a\s*:?\s*([A-Za-z\s]+?)(?=\s+C\.S\.R|$)', text, re.IGNORECASE)
         if match:
-            data['tipo_garantia'] = match.group(1).strip()
-            campos_encontrados.append('tipo_garantia')
-            logger.info(f"✓ tipo_garantia: {data['tipo_garantia']}")
-        else:
-            campos_faltantes.append('tipo_garantia')
+            data['tipo_garantia'] = re.sub(r'\s+', ' ', match.group(1).strip())
 
         # Hecho por (más flexible)
-        match = re.search(r'Hecho\s+por:?\s*(.+?)\s+_', text, re.IGNORECASE)
+        match = re.search(r'Hecho\s+por\s*:?\s*([A-Z\s]+?)(?=\s+Firma|Cliente)', text, re.IGNORECASE)
         if match:
-            nombre_completo = match.group(1).strip()
-            nombre_completo = ' '.join(nombre_completo.split())
-            data['hecho_por'] = nombre_completo
-            campos_encontrados.append('hecho_por')
-            logger.info(f"✓ hecho_por: {data['hecho_por']}")
-        else:
-            campos_faltantes.append('hecho_por')
+            data['hecho_por'] = re.sub(r'\s+', ' ', match.group(1).strip())
 
-        # Daños (más flexible)
-        match = re.search(r'D\s*A\s*[ÑN]\s*O\s*S:?\s*(.+?)(?=\n={5,}|\n-{5,}|$)', text, re.DOTALL | re.IGNORECASE)
+        # Daños (más flexible - captura frases completas)
+        match = re.search(r'D\s*A\s*[NÑ]\s*O\s*S\s*:?\s*(.+?)(?=\s*={3,}|Hecho\s+por|$)', text, re.IGNORECASE)
         if match:
-            danos = match.group(1).strip()
-            danos = ' '.join(danos.split())
+            danos = re.sub(r'\s+', ' ', match.group(1).strip())
             data['danos'] = danos
-            campos_encontrados.append('danos')
-            logger.info(f"✓ danos: {data['danos'][:50]}...")
-        else:
-            campos_faltantes.append('danos')
-            logger.warning("✗ danos: No encontrado")
+            logger.info(f"Daños: {danos}")
 
         # Observaciones (más flexible)
         match = re.search(
-            r'O\s*B\s*S\s*E\s*R\s*V\s*A\s*C\s*I\s*O\s*N\s*E\s*S:?\s*(.+?)(?=\nN[UuÚú]?MERO ADICIONAL|\nD\s*A\s*[ÑN]\s*O\s*S)',
-            text, re.DOTALL | re.IGNORECASE)
+            r'O\s*B\s*S\s*E\s*R\s*V\s*A\s*C\s*I\s*O\s*N\s*E\s*S\s*:?\s*(.+?)(?=\s*D\s*A\s*[NÑ]\s*O\s*S|$)', text,
+            re.IGNORECASE)
         if match:
-            obs = match.group(1).strip()
-            obs = ' '.join(obs.split())
+            obs = re.sub(r'\s+', ' ', match.group(1).strip())
             data['observaciones'] = obs
-            campos_encontrados.append('observaciones')
-            logger.info(f"✓ observaciones: {data['observaciones'][:50]}...")
-        else:
-            campos_faltantes.append('observaciones')
 
-        # Resumen de extracción
-        logger.info("=" * 60)
-        logger.info(f"RESUMEN DE EXTRACCIÓN:")
-        logger.info(f"  ✓ Campos encontrados: {len(campos_encontrados)}")
-        logger.info(f"  ✗ Campos faltantes: {len(campos_faltantes)}")
-
-        if campos_faltantes:
-            logger.warning(f"  Campos no encontrados: {', '.join(campos_faltantes[:10])}")
-            if len(campos_faltantes) > 10:
-                logger.warning(f"  ... y {len(campos_faltantes) - 10} más")
-
-        logger.info("=" * 60)
-
+        logger.info(f"Total campos extraídos: {len(data)}")
         return data
 
     except Exception as e:
         logger.exception(f"Error en extracción de datos: {e}")
-        logger.info(f"Campos extraídos antes del error: {len(data)}")
         return data
 
 
-def _extract_text_from_pdf(pdf_data, logger):
+def _is_oracle_reports_pdf(pdf_data):
     """
-    Extrae texto del PDF usando PyMuPDF + PaddleOCR (robusto y multiplataforma)
-
-    Este método funciona en Windows, Linux y macOS sin requerir instalaciones
-    del sistema operativo (no necesita Tesseract, Poppler, etc.)
-
-    Estrategia:
-    1. Intenta extraer texto nativo del PDF con PyMuPDF (rápido)
-    2. Si no hay texto, usa PaddleOCR en las imágenes renderizadas (preciso)
+    Detecta si el PDF es generado por Oracle Reports
+    Estos PDFs tienen una estructura especial que causa loops infinitos en pdfplumber
     """
-    import io
-    import warnings
-
-    # Silenciar warnings
-    warnings.filterwarnings('ignore')
-
     try:
-        # Importar dependencias
+        import io
+        from PyPDF2 import PdfReader
+
+        pdf_file = io.BytesIO(pdf_data)
+        reader = PdfReader(pdf_file)
+
+        # Verificar el productor del PDF
+        if reader.metadata:
+            producer = reader.metadata.get('/Producer', '')
+            creator = reader.metadata.get('/Creator', '')
+
+            # Oracle Reports típicamente se identifica en estos campos
+            if 'Oracle' in str(producer) or 'Oracle' in str(creator):
+                return True
+
+        # Verificar la primera página - PDFs de Oracle Reports tienen una estructura específica
+        if len(reader.pages) > 0:
+            first_page = reader.pages[0]
+            content = first_page.extract_text()
+
+            # Si no hay texto extraíble o muy poco, probablemente es Oracle Reports
+            if not content or len(content.strip()) < 50:
+                return True
+
+        return False
+
+    except Exception:
+        # Si hay error detectando, asumir que NO es Oracle Reports
+        return False
+
+
+def _extract_text_with_ocr(pdf_data, logger):
+    """Extrae texto del PDF usando OCR con EasyOCR (para PDFs de Oracle Reports)"""
+    try:
+        import io
+        import numpy as np
+        from PIL import Image
+
+        # Instalar EasyOCR si no está
+        try:
+            import easyocr
+        except ImportError:
+            logger.warning("Instalando EasyOCR (puede tardar unos minutos la primera vez)...")
+            import subprocess
+            subprocess.check_call(['pip', 'install', 'easyocr', '--break-system-packages'])
+            import easyocr
+
+        # Intentar con PyMuPDF (fitz)
         try:
             import fitz  # PyMuPDF
-            from paddleocr import PaddleOCR
-            from PIL import Image
-            import numpy as np
-        except ImportError as import_err:
-            logger.warning(f"Instalando dependencias de OCR (PyMuPDF, PaddleOCR)...")
-            logger.warning(f"Error de importación: {import_err}")
+        except ImportError:
+            logger.warning("Instalando PyMuPDF...")
             import subprocess
-            import sys
-
-            # Instalar paquetes necesarios
-            packages = ['pymupdf', 'paddlepaddle', 'paddleocr', 'Pillow', 'numpy']
-            for package in packages:
-                try:
-                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', package, '--break-system-packages'])
-                except:
-                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
-
-            # Importar nuevamente después de la instalación
+            subprocess.check_call(['pip', 'install', 'PyMuPDF', '--break-system-packages'])
             import fitz
-            from paddleocr import PaddleOCR
-            from PIL import Image
-            import numpy as np
 
-        logger.info("=" * 60)
-        logger.info("🚀 EXTRACCIÓN DE TEXTO DEL PDF")
-        logger.info("=" * 60)
+        logger.info("Usando EasyOCR para extraer texto del PDF...")
+
+        # Inicializar EasyOCR (solo una vez)
+        # La primera vez descarga los modelos (~100MB), luego es rápido
+        logger.info("Inicializando EasyOCR con español...")
+        reader = easyocr.Reader(['es', 'en'], gpu=False)  # español e inglés
 
         # Abrir PDF con PyMuPDF
-        pdf_stream = io.BytesIO(pdf_data)
-        pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
-        total_pages = pdf_document.page_count
+        pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
 
-        logger.info(f"📄 PDF cargado: {total_pages} página(s)")
+        text = ""
+        for page_num in range(len(pdf_document)):
+            logger.info(f"Procesando página {page_num + 1}/{len(pdf_document)} con OCR...")
 
-        # ===== PASO 1: Intentar extraer texto nativo =====
-        logger.info("🔍 PASO 1: Intentando extracción de texto nativo...")
-        native_text = ""
-        pages_with_native_text = 0
-
-        for page_num in range(total_pages):
+            # Renderizar página como imagen
             page = pdf_document[page_num]
-            page_text = page.get_text("text")
+            pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))  # 300 DPI
 
-            if page_text and len(page_text.strip()) > 50:  # Al menos 50 caracteres
-                native_text += page_text + "\n"
-                pages_with_native_text += 1
+            # Convertir a numpy array para EasyOCR
+            img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
 
-        # Si encontramos suficiente texto nativo, usarlo
-        if pages_with_native_text >= total_pages * 0.8:  # Al menos 80% de las páginas
-            logger.info(f"✅ ÉXITO con texto nativo")
-            logger.info(f"   📊 Páginas con texto: {pages_with_native_text}/{total_pages}")
-            logger.info(f"   📝 Total caracteres: {len(native_text):,}")
-            logger.info("=" * 60)
-            pdf_document.close()
-            return native_text
-
-        logger.info(f"⚠️  Texto nativo insuficiente ({pages_with_native_text}/{total_pages} páginas)")
-        logger.info("🔄 PASO 2: Usando OCR en imágenes renderizadas...")
-
-        # ===== PASO 2: Usar PaddleOCR en imágenes renderizadas =====
-        # Inicializar PaddleOCR (español e inglés)
-        logger.info("🤖 Inicializando PaddleOCR (puede tardar en la primera ejecución)...")
-        ocr = PaddleOCR(
-            use_angle_cls=True,  # Detectar orientación del texto
-            lang='es',           # Idioma principal: español
-            use_gpu=False,       # No usar GPU (compatibilidad)
-            show_log=False       # No mostrar logs internos
-        )
-
-        ocr_text = ""
-        pages_with_ocr_text = 0
-
-        for page_num in range(total_pages):
-            logger.info(f"   📃 Procesando página {page_num + 1}/{total_pages}...")
-
+            # Extraer texto con EasyOCR
             try:
-                page = pdf_document[page_num]
+                results = reader.readtext(img_array, detail=0, paragraph=True)
 
-                # Renderizar página a imagen (alta resolución para mejor OCR)
-                zoom = 2.0  # 2x zoom = 144 DPI (mejor calidad OCR)
-                mat = fitz.Matrix(zoom, zoom)
-                pix = page.get_pixmap(matrix=mat, alpha=False)
+                # Combinar los resultados en texto
+                if results:
+                    page_text = '\n'.join(results)
+                    if page_text:
+                        text += page_text + "\n"
 
-                # Convertir a PIL Image
-                img_data = pix.tobytes("png")
-                img = Image.open(io.BytesIO(img_data))
-
-                # Convertir a numpy array para PaddleOCR
-                img_array = np.array(img)
-
-                # Ejecutar OCR
-                result = ocr.ocr(img_array, cls=True)
-
-                # Extraer texto de los resultados
-                if result and result[0]:
-                    page_texts = []
-                    for line in result[0]:
-                        if line and len(line) >= 2:
-                            # line[1] contiene (texto, confianza)
-                            text_content = line[1][0] if isinstance(line[1], (list, tuple)) else line[1]
-                            page_texts.append(str(text_content))
-
-                    page_text = '\n'.join(page_texts)
-
-                    if page_text and page_text.strip():
-                        ocr_text += page_text + "\n\n"
-                        pages_with_ocr_text += 1
-                        logger.info(f"      ✓ Extraídos {len(page_text)} caracteres")
-                    else:
-                        logger.warning(f"      ⚠️  No se extrajo texto")
-                else:
-                    logger.warning(f"      ⚠️  OCR no detectó texto")
-
-            except Exception as page_error:
-                logger.warning(f"      ✗ Error en página {page_num + 1}: {page_error}")
-                continue
+            except Exception as ocr_error:
+                logger.warning(f"Error en OCR de página {page_num + 1}: {ocr_error}")
 
         pdf_document.close()
 
-        # Verificar si se extrajo texto
-        if ocr_text.strip():
-            logger.info("=" * 60)
-            logger.info(f"✅ ÉXITO con PaddleOCR")
-            logger.info(f"   📊 Páginas procesadas: {pages_with_ocr_text}/{total_pages}")
-            logger.info(f"   📝 Total caracteres: {len(ocr_text):,}")
-            logger.info("=" * 60)
-            return ocr_text
-        else:
-            logger.error("✗ No se pudo extraer texto con OCR")
-            return None
+        if not text.strip():
+            logger.warning("EasyOCR no extrajo ningún texto - intentando método alternativo")
+            # Fallback: intentar extraer texto directamente de PyMuPDF
+            try:
+                pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+                for page_num in range(len(pdf_document)):
+                    page = pdf_document[page_num]
+                    page_text = page.get_text()
+                    if page_text:
+                        text += page_text + "\n"
+                pdf_document.close()
+
+                if text.strip():
+                    logger.info("✅ Texto extraído usando método alternativo (PyMuPDF)")
+            except:
+                pass
+
+        return text if text.strip() else None
 
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ ERROR EN EXTRACCIÓN DE TEXTO")
-        logger.error("=" * 60)
-        logger.error(f"Error: {str(e)}")
-        import traceback
-        logger.error(f"Traceback:\n{traceback.format_exc()}")
-        logger.error("=" * 60)
-        logger.error("💡 Solución: Instale las dependencias con:")
-        logger.error("   pip install pymupdf paddlepaddle paddleocr --break-system-packages")
-        logger.error("=" * 60)
+        logger.exception(f"Error al extraer texto con OCR: {e}")
+        return None
+
+
+def _extract_text_from_pdf(pdf_data, logger):
+    """Extrae texto plano del PDF usando pdfplumber o OCR si es necesario"""
+    try:
+        import io
+        import signal
+        from contextlib import contextmanager
+
+        @contextmanager
+        def timeout(seconds):
+            """Context manager para timeout"""
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Timeout al procesar PDF")
+
+            # Configurar timeout solo en Unix/Linux
+            if hasattr(signal, 'SIGALRM'):
+                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(seconds)
+                try:
+                    yield
+                finally:
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
+            else:
+                # En Windows, no hay timeout
+                yield
+
+        # Verificar si es un PDF de Oracle Reports
+        is_oracle = _is_oracle_reports_pdf(pdf_data)
+
+        if is_oracle:
+            logger.info("PDF de Oracle Reports detectado - usando OCR")
+            return _extract_text_with_ocr(pdf_data, logger)
+
+        # Intentar con pdfplumber normal con timeout de 30 segundos
+        try:
+            import pdfplumber
+        except ImportError:
+            logger.warning("Instalando pdfplumber...")
+            import subprocess
+            subprocess.check_call(['pip', 'install', 'pdfplumber', '--break-system-packages'])
+            import pdfplumber
+
+        pdf_file = io.BytesIO(pdf_data)
+        text = ""
+
+        try:
+            with timeout(30):  # Timeout de 30 segundos
+                with pdfplumber.open(pdf_file) as pdf:
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+        except TimeoutError:
+            logger.warning("Timeout al extraer texto con pdfplumber - cambiando a OCR")
+            return _extract_text_with_ocr(pdf_data, logger)
+        except Exception as e:
+            logger.warning(f"Error con pdfplumber: {e} - intentando con OCR")
+            return _extract_text_with_ocr(pdf_data, logger)
+
+        # Si no se extrajo texto, intentar con OCR
+        if not text.strip():
+            logger.info("No se extrajo texto con pdfplumber - intentando con OCR")
+            return _extract_text_with_ocr(pdf_data, logger)
+
+        return text if text.strip() else None
+
+    except Exception as e:
+        logger.exception(f"Error al extraer texto: {e}")
         return None
 
 
@@ -784,35 +648,14 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                 'filename': pdf_filename
             }
 
-        # Guardar texto extraído para debugging
-        try:
-            debug_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
-            debug_file.write(f"=== TEXTO EXTRAÍDO DE: {pdf_filename} ===\n\n")
-            debug_file.write(pdf_text)
-            debug_file.close()
-            logger.info(f"📝 Texto extraído guardado en: {debug_file.name}")
-        except Exception as e:
-            logger.warning(f"No se pudo guardar el texto para debugging: {e}")
-
         # Extraer datos del PDF
         logger.info(f"Extrayendo datos del PDF: {pdf_filename}")
         extracted_data = extract_repair_data(pdf_text, logger)
 
-        # Validación mejorada: solo verificar que haya datos mínimos
-        if not extracted_data:
+        if not extracted_data or len(extracted_data) < 3:
             return {
                 'success': False,
-                'error': 'No se pudieron extraer datos del PDF (diccionario vacío)',
-                'filename': pdf_filename
-            }
-
-        # Verificar que al menos se haya extraído el número de boleta
-        if not extracted_data.get('numero_boleta'):
-            logger.error(f"❌ No se encontró el número de boleta (campo crítico)")
-            logger.error(f"   Campos extraídos: {list(extracted_data.keys())}")
-            return {
-                'success': False,
-                'error': f'No se encontró el número de boleta. Campos extraídos: {len(extracted_data)}',
+                'error': 'PDF sin información válida (menos de 3 campos extraídos)',
                 'filename': pdf_filename
             }
 
