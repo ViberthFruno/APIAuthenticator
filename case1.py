@@ -488,48 +488,79 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
         non_pdf_files: Lista de nombres de archivos que no son PDF
         api_base_url: URL base de la API para generar links de consulta
     """
-    timestamp = datetime.now().strftime("%d/%m/%Y a las %H:%M:%S")
+    # Determinar si es plural o singular
+    es_plural = len(preingreso_results) > 1
+    solicitud_text = "solicitud(es)" if es_plural else "solicitud"
+    han_sido = "han sido procesadas" if es_plural else "ha sido procesada"
 
-    message_lines = ["¡Estimado Usuario!", "",
-                     "Fruno, Centro de Servicio Técnico de Reparación, le informa que se han procesado exitosamente las siguientes solicitudes de reparación:",
-                     ""]
+    message_lines = [
+        "Estimado/a Usuario,",
+        "",
+        f"Fruno, Centro de Servicio Técnico de Reparación, le informa que su(s) {solicitud_text} de reparación {han_sido} exitosamente en nuestro sistema.",
+        ""
+    ]
 
     # Mostrar preingresos creados exitosamente
     if preingreso_results:
         for idx, result in enumerate(preingreso_results, 1):
-            message_lines.append(f"{idx}. Archivo: {result['filename']}")
-            message_lines.append(f"   ✓ Boleta Gollo: {result['boleta']}")
+            # Si hay múltiples archivos, agregar separador
+            if len(preingreso_results) > 1:
+                message_lines.append(f"═══ Solicitud {idx} de {len(preingreso_results)} ═══")
+                message_lines.append("")
+
+            message_lines.append("📄 Detalles de la solicitud:")
+            message_lines.append("")
+            message_lines.append(f"   Archivo: {result['filename']}")
+            message_lines.append(f"   Boleta Gollo: {result['boleta']}")
             if result.get('numero_transaccion'):
-                message_lines.append(f"   ✓ No. Transacción Gollo: {result['numero_transaccion']}")
+                message_lines.append(f"   N.º de Transacción Gollo: {result['numero_transaccion']}")
             if result.get('preingreso_id'):
-                message_lines.append(f"   ✓ Boleta Fruno: {result['preingreso_id']}")
+                message_lines.append(f"   Boleta Fruno: {result['preingreso_id']}")
             if result.get('consultar_guia'):
-                message_lines.append(f"   ✓ Guía Fruno: {result['consultar_guia']}")
-            if result.get('consultar_reparacion'):
-                message_lines.append(
-                    f"   🔗 Para consultar el estado de la unidad haga clic en: {result['consultar_reparacion']}")
+                message_lines.append(f"   Guía Fruno: {result['consultar_guia']}")
 
             message_lines.append("")
 
+            # Sección de consulta del estado
+            if result.get('consultar_reparacion'):
+                message_lines.append("🔗 Consulta del estado:")
+                message_lines.append("")
+                message_lines.append(
+                    "   Puede verificar el progreso de la reparación en cualquier momento haciendo clic en el siguiente enlace:")
+                message_lines.append("")
+                message_lines.append(f"   👉 {result['consultar_reparacion']}")
+                message_lines.append("")
+
     # Mostrar archivos que no se pudieron procesar
     if failed_files:
-        message_lines.append("⚠ Archivos que no se pudieron procesar:")
+        message_lines.append("")
+        message_lines.append("⚠️ Archivos que no se pudieron procesar:")
+        message_lines.append("")
         for failed in failed_files:
-            message_lines.append(f"  ✗ {failed['filename']}")
+            message_lines.append(f"   ✗ {failed['filename']}")
             if failed.get('error'):
-                message_lines.append(f"    Motivo: {failed['error']}")
+                message_lines.append(f"     Motivo: {failed['error']}")
         message_lines.append("")
         message_lines.append("Por favor, revise los archivos que no se procesaron y reenvíelos si es necesario.")
         message_lines.append("")
 
     # Mostrar archivos que no son PDF
     if non_pdf_files:
-        message_lines.append("ℹ Archivos recibidos que no son PDF (no procesados):")
+        message_lines.append("")
+        message_lines.append("ℹ️ Archivos recibidos que no son PDF (no procesados):")
+        message_lines.append("")
         for file in non_pdf_files:
-            message_lines.append(f"  • {file}")
+            message_lines.append(f"   • {file}")
         message_lines.append("")
 
-    message_lines.append("Los preingresos han sido creados exitosamente en el sistema.")
+    # Cierre del mensaje
+    message_lines.append("")
+    message_lines.append("Los preingresos se han creado correctamente en nuestro sistema.")
+    message_lines.append("")
+    message_lines.append("Gracias por confiar en Fruno Centro de Servicio Técnico.")
+    message_lines.append("")
+    message_lines.append(
+        "Si tiene alguna duda o requiere asistencia adicional, puede contactarnos a través de nuestros canales de soporte.")
 
     return "\n".join(message_lines)
 

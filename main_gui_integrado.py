@@ -487,7 +487,7 @@ class IntegratedGUI(LoggerMixin):
 
         modal = tk.Toplevel(self.root)
         modal.title("Parámetros de Búsqueda")
-        modal.geometry("400x150")
+        modal.geometry("400x220")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -508,14 +508,29 @@ class IntegratedGUI(LoggerMixin):
         caso1_entry = ttk.Entry(params_frame, textvariable=caso1_var)
         caso1_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
 
+        ttk.Label(params_frame, text="Titular de correo (dominio):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        titular_var = tk.StringVar(value=search_params.get('titular_correo', ''))
+        titular_entry = ttk.Entry(params_frame, textvariable=titular_var)
+        titular_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+
+        # Ayuda para el campo titular
+        help_label = ttk.Label(
+            params_frame,
+            text="Ejemplo: @fruno.com (solo procesa correos de ese dominio)",
+            font=("Arial", 8),
+            foreground="gray"
+        )
+        help_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 5))
+
         button_frame = ttk.Frame(params_frame)
-        button_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=20)
+        button_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=20)
 
         def save_search_params():
             current_config = self.config_manager.load_config()
 
             current_config['search_params'] = {
-                'caso1': caso1_var.get().strip()
+                'caso1': caso1_var.get().strip(),
+                'titular_correo': titular_var.get().strip()
             }
 
             if self.config_manager.save_config(current_config):
@@ -659,7 +674,12 @@ class IntegratedGUI(LoggerMixin):
             self.monitor_thread = threading.Thread(target=self.monitor_emails, daemon=True)
             self.monitor_thread.start()
 
-            self.log_api_message("✅ Monitoreo de emails iniciado", level="INFO")
+            # Log informativo sobre la configuración activa
+            titular_correo = search_params.get('titular_correo', '').strip()
+            if titular_correo:
+                self.log_api_message(f"✅ Monitoreo iniciado con filtro de dominio: {titular_correo}", level="INFO")
+            else:
+                self.log_api_message("✅ Monitoreo de emails iniciado (sin filtro de dominio)", level="INFO")
         else:
             self.monitoring = False
             self.monitor_button.config(text="Iniciar Monitoreo")

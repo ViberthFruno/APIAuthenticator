@@ -411,13 +411,6 @@ class CrearPreingresoBuilder:
         Returns:
             True si es menor a 7 días (0-6 días), False en caso contrario o si da error
 
-        Examples:
-            >>> CrearPreingresoBuilder._es_dap("2024-11-07")  # Hoy
-            True
-            >>> CrearPreingresoBuilder._es_dap("2024-11-01")  # Hace 6 días
-            True
-            >>> CrearPreingresoBuilder._es_dap("2024-10-31")  # Hace 7 días
-            False
         """
         try:
             fecha = datetime.strptime(fecha_str, formato_fecha)
