@@ -1073,7 +1073,9 @@ class IntegratedGUI(LoggerMixin):
                     self.log_api_message(formatear_valor(result.response.raw_content))
                 else:
                     # Abrir formulario en el hilo principal de Tkinter
-                    self.root.after(0, lambda: self.abrir_formulario_preingreso(result.response.body))
+                    self.root.after(0, lambda: self.abrir_formulario_preingreso(
+                        result.response.body if result.response else None
+                    ))
             else:
                 error_msg = f"Error creando preingreso: {result.message}"
                 self.log_api_message(f"❌ {formatear_valor(result)}")
@@ -1186,7 +1188,7 @@ class IntegratedGUI(LoggerMixin):
             self.log_api_message(f"Error extrayendo datos del PDF: {ex}", level="EXCEPTION")
             return None
 
-    def abrir_formulario_preingreso(self, resultado_api: dict[str, Any]):
+    def abrir_formulario_preingreso(self, resultado_api: dict[str, Any] | None):
         """Abre un formulario para completar y enviar el preingreso"""
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
@@ -1232,16 +1234,14 @@ class IntegratedGUI(LoggerMixin):
         row = 0
 
         # Mostrar datos extraídos
-        # if isinstance(resultado_api, dict) and "data" in resultado_api:
-        data = resultado_api["data"]
-        print(resultado_api)
-        # else:
-        #   self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
-        #  print("Error: La API no devolvió la clave 'data'.")
-        #  modal.destroy()
-        # return
+        if resultado_api is None or not isinstance(resultado_api, dict):
+            self.log_api_message(f"❌ La API no devolvió la clave 'data'", level="ERROR")
+            print("Error: La API no devolvió la clave 'data'.")
+            print(resultado_api)
+            modal.destroy()
+            return
 
-        for label, valor in data.items():
+        for label, valor in resultado_api.items():
             ttk.Label(
                 scrollable_frame,
                 text=f"{label.replace('_', ' ').title()}:"
