@@ -1060,6 +1060,8 @@ class IntegratedGUI(LoggerMixin):
                 self.log_api_message(f"   Boleta usada: {result.boleta_usada}")
                 self.log_api_message(f"   Preingreso ID: {result.preingreso_id}")
                 self.log_api_message(f"   Preingreso Guía: {result.consultar_guia}")
+                self.log_api_message(f"   Tipo preingreso: {result.tipo_preingreso_nombre}")
+                self.log_api_message(f"   Garantía: {result.garantia_nombre}")
                 self.log_api_message(f"   Preingreso link: {result.consultar_reparacion}")
                 self.log_api_message(f"   Status: {result.response.status_code}")
                 self.log_api_message(f"   Tiempo: {result.response.response_time_ms:.0f}ms")

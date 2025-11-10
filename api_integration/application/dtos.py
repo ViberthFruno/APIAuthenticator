@@ -87,6 +87,8 @@ class CreatePreingresoOutput:
     preingreso_id: Optional[str] = None
     consultar_reparacion: Optional[str] = None
     consultar_guia: Optional[str] = None
+    tipo_preingreso_nombre: Optional[str] = None
+    garantia_nombre: Optional[str] = None
     message: Optional[str] = None
     errors: list[str] = None
     tiempo_ejecucion_ms: Optional[float] = None

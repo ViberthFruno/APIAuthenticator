@@ -82,8 +82,8 @@ class CreatePreingresoUseCase:
             )
 
             # Debug - datos enviados a la API:
-            #print("🏷️Datos que serán enviados:")
-            #print(preingreso_data.to_api_body())
+            # print("🏷️Datos que serán enviados:")
+            # print(preingreso_data.to_api_body())
 
             # Validar datos si se solicita
             if input_dto.validate_before_send:
@@ -125,9 +125,13 @@ class CreatePreingresoUseCase:
             preingreso_id = None
             consultar_reparacion = None
             consultar_guia = None
+            tipo_preingreso_nombre = None
+            garantia_nombre = None
             if response.has_json_body():
                 consultar_reparacion = response.extract_data("consultar_reparacion", required=False)
                 consultar_guia = response.extract_data("guia", required=False)
+                tipo_preingreso_nombre = response.extract_data("tipo_preingreso", required=False)
+                garantia_nombre = response.extract_data("garantia", required=False)
                 preingreso_id = response.extract_data("boleta", required=False)
                 if not preingreso_id:
                     preingreso_id = response.extract_data("orden_de_servicio", required=False)
@@ -145,6 +149,8 @@ class CreatePreingresoUseCase:
                 preingreso_id=preingreso_id,
                 consultar_reparacion=consultar_reparacion,
                 consultar_guia=consultar_guia,
+                tipo_preingreso_nombre=tipo_preingreso_nombre,
+                garantia_nombre=garantia_nombre,
                 timestamp=datetime.now(),
                 boleta_usada=input_dto.datos_pdf.numero_boleta
             )

@@ -558,6 +558,10 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
             message_lines.append(f"   Boleta Fruno: {result['preingreso_id']}")
         if result.get('consultar_guia'):
             message_lines.append(f"   Guía Fruno: {result['consultar_guia']}")
+        if result.get('tipo_preingreso_nombre'):
+            message_lines.append(f"   Tipo de preingreso: {result['tipo_preingreso_nombre']}")
+        if result.get('garantia_nombre'):
+            message_lines.append(f"   Garantía de preingreso: {result['garantia_nombre']}")
 
         message_lines.append("")
 
@@ -715,7 +719,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         logger: Logger para registrar eventos
 
     Returns:
-        dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, error}
+        dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
     """
     try:
         # Extraer texto del PDF
@@ -862,6 +866,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                     'numero_transaccion': extracted_data.get('numero_transaccion'),
                     'consultar_reparacion': result.consultar_reparacion,
                     'consultar_guia': result.consultar_guia,
+                    'tipo_preingreso_nombre': result.tipo_preingreso_nombre,
+                    'garantia_nombre': result.garantia_nombre,
                     'filename': pdf_filename
                 }
         else:
@@ -967,7 +973,9 @@ class Case(BaseCase):
                     'numero_transaccion': result.get('numero_transaccion'),
                     'preingreso_id': result.get('preingreso_id'),
                     'consultar_reparacion': result.get('consultar_reparacion'),
-                    'consultar_guia': result.get('consultar_guia')
+                    'consultar_guia': result.get('consultar_guia'),
+                    'tipo_preingreso_nombre': result.get('tipo_preingreso_nombre'),
+                    'garantia_nombre': result.get('garantia_nombre')
                 })
                 logger.info(f"✅ Preingreso creado para: {pdf_filename}")
             else:

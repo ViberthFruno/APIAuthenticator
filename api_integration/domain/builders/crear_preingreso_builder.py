@@ -4,9 +4,12 @@ import re
 from datetime import datetime, timedelta
 from typing import Dict, Tuple
 from uuid import UUID
+
 from dateutil.relativedelta import relativedelta
+
 from api_integration.application.dtos import SucursalDTO, DatosExtraidosPDF, ArchivoAdjunto
 from api_integration.domain.entities import PreingresoData
+
 
 class CrearPreingresoBuilder:
     """Builder para construir PreingresoData paso a paso"""
@@ -105,6 +108,8 @@ class CrearPreingresoBuilder:
 
         fecha_compra = CrearPreingresoBuilder._convertir_fecha(fecha_compra)
 
+        numero_factura = CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura, True)
+
         categoria_id = 5  # Desconocido
         tipo_dispositivo_id = 7  # Desconocido
 
@@ -126,7 +131,7 @@ class CrearPreingresoBuilder:
                     CrearPreingresoBuilder._validar_garantia(
                         fecha_compra,
                         CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre),
-                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura),
+                        numero_factura,
                         CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
                     )
                 )
@@ -148,6 +153,13 @@ class CrearPreingresoBuilder:
             CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_nombre, True),
             CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_contacto, True)
         )
+
+        if not numero_factura:
+            numero_factura = "N/A"
+
+        # Si es DOA entonces la factura va en blanco:
+        if tipo_preingreso_id == 8:
+            numero_factura = ""
 
         # Extraer contenido del pdf que será enviado al request
         pdf_content = await archivo_adjunto.leer_contenido()
@@ -176,7 +188,7 @@ class CrearPreingresoBuilder:
 
             fecha_compra=fecha_compra,
             otro_telefono_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_telefono2, True),
-            numero_factura=CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura, True),
+            numero_factura=numero_factura,
 
             # Archivo adjunto
             pdf_filename=CrearPreingresoBuilder._limpiar_texto(archivo_adjunto.nombre_archivo),
