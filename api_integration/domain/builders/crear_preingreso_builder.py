@@ -110,6 +110,9 @@ class CrearPreingresoBuilder:
 
         numero_factura = CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura, True)
 
+        if not numero_factura:
+            numero_factura = "N/A"
+
         categoria_id = 5  # Desconocido
         tipo_dispositivo_id = 7  # Desconocido
 
@@ -153,9 +156,6 @@ class CrearPreingresoBuilder:
             CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_nombre, True),
             CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_contacto, True)
         )
-
-        if not numero_factura:
-            numero_factura = "N/A"
 
         # Si es DOA entonces la factura va en blanco:
         if tipo_preingreso_id == 8:
