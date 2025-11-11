@@ -397,10 +397,23 @@ def _extract_text_with_ocr(pdf_data, logger):
 
         logger.info("Usando EasyOCR para extraer texto del PDF...")
 
-        # Inicializar EasyOCR (solo una vez)
-        # La primera vez descarga los modelos (~100MB), luego es rápido
-        logger.info("Inicializando EasyOCR con español...")
-        reader = easyocr.Reader(['es', 'en'], gpu=False)  # español e inglés
+        # Detectar si hay GPU disponible e inicializar EasyOCR
+        try:
+            import torch
+            gpu_available = torch.cuda.is_available()
+            if gpu_available:
+                logger.info("GPU detectado - Inicializando EasyOCR con aceleración GPU...")
+                reader = easyocr.Reader(['es', 'en'], gpu=True)
+                logger.info("✅ EasyOCR usando GPU - procesamiento acelerado")
+            else:
+                logger.info("GPU no disponible - usando CPU")
+                reader = easyocr.Reader(['es', 'en'], gpu=False)
+        except ImportError:
+            logger.warning("PyTorch no instalado - usando CPU para OCR")
+            reader = easyocr.Reader(['es', 'en'], gpu=False)
+        except Exception as e:
+            logger.warning(f"Error al detectar GPU: {e} - fallback a CPU")
+            reader = easyocr.Reader(['es', 'en'], gpu=False)
 
         # Abrir PDF con PyMuPDF
         pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
