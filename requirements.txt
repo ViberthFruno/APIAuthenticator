@@ -9,7 +9,8 @@ pymupdf>=1.23.0          # PyMuPDF (fitz) - Extracción PDF robusta y multiplata
 paddleocr>=2.7.0         # OCR robusto basado en PaddlePaddle (sin dependencias del sistema)
 paddlepaddle>=2.5.0      # Framework de deep learning de PaddleOCR
 Pillow>=10.0.0           # Python Imaging Library (PIL Fork)
-numpy>=1.24.0            # Requerido por PaddleOCR y procesamiento de imágenes
+numpy>=2.3.4            # Requerido por PaddleOCR y procesamiento de imágenes
+pypdf2>=2.12.1
 
 # ===== Logging =====
 structlog>=24.1.0           # Logging estructurado
@@ -30,4 +31,9 @@ tkinter-tooltip>=2.1.0
 colorama>=0.4.6
 
 python-dateutil>=2.9
+
+easyocr
+PyMuPDF
+pdfplumber
+
 

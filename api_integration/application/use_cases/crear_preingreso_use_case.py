@@ -82,8 +82,13 @@ class CreatePreingresoUseCase:
             )
 
             # Debug - datos enviados a la API:
-            # print("🏷️Datos que serán enviados:")
-            # print(preingreso_data.to_api_body())
+            print("")
+            print("🏷️Datos del PDF:")
+            print(input_dto.datos_pdf)
+            print("")
+            print("🏷️Datos que serán enviados:")
+            print(preingreso_data.to_api_body())
+            print("")
 
             # Validar datos si se solicita
             if input_dto.validate_before_send:
