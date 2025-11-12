@@ -45,7 +45,7 @@ try:
     from config_manager import ConfigManager
     from email_manager import EmailManager
     from case_handler import CaseHandler
-    from logger import setup_logging, LoggerMixin
+    from logger import setup_logging, LoggerMixin, set_gui_callback
 except ImportError as e:
     print(f"Error importando módulos: {e}")
     print("Asegúrese de que todos los archivos necesarios estén en el directorio")
@@ -124,6 +124,9 @@ class IntegratedGUI(LoggerMixin):
         self.setup_bottom_left_panel()
         self.setup_bottom_right_panel()
         self.initialize_components()
+
+        # Configurar callback de logger para que los logs se muestren en la GUI
+        self.setup_logger_gui_callback()
 
         # Mensaje de bienvenida
         self.logger.info("=" * 60)
@@ -379,6 +382,68 @@ class IntegratedGUI(LoggerMixin):
         config = self.config_manager.load_config()
         if config:
             self.log_api_message("Configuración cargada correctamente.")
+
+    def setup_logger_gui_callback(self):
+        """
+        Configura el callback del logger para que los mensajes se muestren en la GUI
+        Este callback se ejecutará de forma thread-safe usando self.root.after()
+        """
+        def gui_callback(message: str, level: str):
+            """
+            Callback que recibe mensajes del logger y los muestra en la GUI
+            Se ejecuta de forma thread-safe usando root.after()
+            """
+            # Usar root.after para ejecutar en el hilo principal de Tkinter
+            # Esto es necesario porque el logger puede llamarse desde otros hilos
+            try:
+                self.root.after(0, self._write_log_to_gui, message, level)
+            except Exception:
+                # Si hay algún error (ej: la ventana se cerró), ignorarlo
+                pass
+
+        # Configurar el callback global del logger
+        set_gui_callback(gui_callback)
+
+    def _write_log_to_gui(self, message: str, level: str):
+        """
+        Escribe un mensaje del logger en los widgets de texto de la GUI
+        DEBE ejecutarse en el hilo principal de Tkinter
+        """
+        try:
+            # Habilitar edición temporal
+            self.log_text.config(state=tk.NORMAL)
+
+            # Configurar color según nivel
+            if level == "ERROR":
+                tag = "error"
+                self.log_text.tag_config(tag, foreground="#FF0000")
+            elif level == "CRITICAL":
+                tag = "critical"
+                self.log_text.tag_config(tag, foreground="#8B0000")
+            elif level == "EXCEPTION":
+                tag = "exception"
+                self.log_text.tag_config(tag, foreground="#DC143C")
+            elif level == "WARNING":
+                tag = "warning"
+                self.log_text.tag_config(tag, foreground="#FF8C00")
+            elif level == "INFO":
+                tag = "info"
+                self.log_text.tag_config(tag, foreground="#0066CC")
+            else:  # DEBUG
+                tag = "debug"
+                self.log_text.tag_config(tag, foreground="#808080")
+
+            # Agregar mensaje al log del sistema
+            self.log_text.insert(tk.END, f"{message}\n", tag)
+
+            # Scroll al final
+            self.log_text.see(tk.END)
+
+            # Deshabilitar edición
+            self.log_text.config(state=tk.DISABLED)
+        except Exception:
+            # Si hay algún error (ej: widget destruido), ignorarlo
+            pass
 
     # ===== MÉTODOS DE CONFIGURACIÓN =====
 
@@ -1002,6 +1067,9 @@ class IntegratedGUI(LoggerMixin):
 
     def quit_app(self):
         """Cierra la aplicación de forma segura"""
+
+        # Limpiar callback del logger para evitar errores al cerrar
+        set_gui_callback(None)
 
         # Cerrar cliente httpx
         if hasattr(self, 'api_client'):

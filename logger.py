@@ -6,10 +6,31 @@ Usa structlog para logs estructurados con contexto
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 from logging.handlers import RotatingFileHandler
 import structlog
 from structlog.types import EventDict, Processor
+
+
+# Callback global para enviar logs a la GUI
+_gui_callback: Optional[Callable[[str, str], None]] = None
+
+
+def set_gui_callback(callback: Optional[Callable[[str, str], None]]):
+    """
+    Configura un callback para enviar logs a la interfaz gráfica
+
+    Args:
+        callback: Función que recibe (message: str, level: str)
+                 Se llamará cada vez que se registre un log
+
+    Example:
+        >>> def gui_log(message, level):
+        ...     print(f"[{level}] {message}")
+        >>> set_gui_callback(gui_log)
+    """
+    global _gui_callback
+    _gui_callback = callback
 
 
 class ContextLogger:
@@ -49,26 +70,38 @@ class ContextLogger:
     def debug(self, event: str, **kwargs):
         """Log nivel DEBUG"""
         self._logger.debug(event, **kwargs)
+        if _gui_callback:
+            _gui_callback(event, "DEBUG")
 
     def info(self, event: str, **kwargs):
         """Log nivel INFO"""
         self._logger.info(event, **kwargs)
+        if _gui_callback:
+            _gui_callback(event, "INFO")
 
     def warning(self, event: str, **kwargs):
         """Log nivel WARNING"""
         self._logger.warning(event, **kwargs)
+        if _gui_callback:
+            _gui_callback(event, "WARNING")
 
     def error(self, event: str, **kwargs):
         """Log nivel ERROR"""
         self._logger.error(event, **kwargs)
+        if _gui_callback:
+            _gui_callback(event, "ERROR")
 
     def critical(self, event: str, **kwargs):
         """Log nivel CRITICAL"""
         self._logger.critical(event, **kwargs)
+        if _gui_callback:
+            _gui_callback(event, "CRITICAL")
 
     def exception(self, event: str, exc_info=True, **kwargs):
         """Log de excepción con traceback"""
         self._logger.exception(event, exc_info=exc_info, **kwargs)
+        if _gui_callback:
+            _gui_callback(event, "EXCEPTION")
 
 
 def add_app_context(logger, method_name: str, event_dict: EventDict) -> EventDict:
