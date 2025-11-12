@@ -941,7 +941,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                     'consultar_guia': result.consultar_guia,
                     'tipo_preingreso_nombre': result.tipo_preingreso_nombre,
                     'garantia_nombre': result.garantia_nombre,
-                    'filename': pdf_filename
+                    'filename': pdf_filename,
+                    'extracted_data': extracted_data  # Incluir todos los datos extraídos
                 }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
@@ -1043,6 +1044,7 @@ class Case(BaseCase):
 
             preingreso_results = []
             failed_files = []
+            extracted_data = None  # Variable para guardar los datos extraídos
 
             if result['success']:
                 preingreso_results.append({
@@ -1055,6 +1057,8 @@ class Case(BaseCase):
                     'tipo_preingreso_nombre': result.get('tipo_preingreso_nombre'),
                     'garantia_nombre': result.get('garantia_nombre')
                 })
+                # Guardar los datos extraídos para enviar a usuarios CC
+                extracted_data = result.get('extracted_data')
                 logger.info(f"✅ Preingreso creado para: {pdf_filename}")
             else:
                 failed_files.append({
@@ -1124,7 +1128,8 @@ class Case(BaseCase):
                 'recipient': sender,
                 'subject': subject_line,
                 'body': body_message,
-                'attachments': []  # No enviamos archivos adjuntos, solo el mensaje
+                'attachments': [],  # No enviamos archivos adjuntos en el correo principal
+                'extracted_data': extracted_data  # Datos extraídos para usuarios CC
             }
 
             logger.info("Procesamiento completado: 1 preingreso creado exitosamente")

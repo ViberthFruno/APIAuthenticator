@@ -7,6 +7,7 @@ import imaplib
 import os
 import smtplib
 import ssl
+import tempfile
 from datetime import date, timedelta
 from email import encoders
 from email.header import decode_header
@@ -130,6 +131,110 @@ def _attach_file(msg, attachment):
 
     except Exception as e:
         print(f"Error al adjuntar archivo {attachment.get('filename', 'desconocido')}: {str(e)}")
+
+
+def _generate_formatted_text_for_cc(data):
+    """Genera el archivo de texto formateado con los datos extraídos del PDF"""
+    from datetime import datetime
+
+    lines = ["=" * 80, "BOLETA DE REPARACIÓN - INFORMACIÓN PROCESADA", "=" * 80, ""]
+
+    if any(k in data for k in ['numero_transaccion', 'numero_boleta', 'fecha', 'gestionada_por']):
+        lines.append("INFORMACIÓN DE LA TRANSACCIÓN")
+        lines.append("-" * 80)
+        if 'numero_transaccion' in data:
+            lines.append(f"Número de Transacción: {data['numero_transaccion']}")
+        if 'numero_boleta' in data:
+            lines.append(f"Número de Boleta: {data['numero_boleta']}")
+        if 'fecha' in data:
+            lines.append(f"Fecha: {data['fecha']}")
+        if 'gestionada_por' in data:
+            lines.append(f"Gestionada por: {data['gestionada_por']}")
+        lines.append("")
+
+    if any(k in data for k in ['sucursal', 'telefono_sucursal']):
+        lines.append("INFORMACIÓN DE LA SUCURSAL")
+        lines.append("-" * 80)
+        if 'sucursal' in data:
+            lines.append(f"Sucursal: {data['sucursal']}")
+        if 'telefono_sucursal' in data:
+            lines.append(f"Teléfono: {data['telefono_sucursal']}")
+        lines.append("")
+
+    cliente_keys = ['nombre_cliente', 'nombre_contacto', 'cedula_cliente', 'telefono_cliente',
+                    'telefono_adicional', 'correo_cliente', 'direccion_cliente']
+    if any(k in data for k in cliente_keys):
+        lines.append("INFORMACIÓN DEL CLIENTE")
+        lines.append("-" * 80)
+        if 'nombre_cliente' in data:
+            lines.append(f"Nombre: {data['nombre_cliente']}")
+        if 'nombre_contacto' in data:
+            lines.append(f"Nombre: {data['nombre_contacto']}")
+        if 'cedula_cliente' in data:
+            lines.append(f"Cédula: {data['cedula_cliente']}")
+        if 'telefono_cliente' in data:
+            lines.append(f"Teléfono: {data['telefono_cliente']}")
+        if 'telefono_adicional' in data:
+            lines.append(f"Teléfono Adicional: {data['telefono_adicional']}")
+        if 'correo_cliente' in data:
+            lines.append(f"Correo: {data['correo_cliente']}")
+        if 'direccion_cliente' in data:
+            lines.append(f"Dirección: {data['direccion_cliente']}")
+        lines.append("")
+
+    producto_keys = ['codigo_producto', 'descripcion_producto', 'marca',
+                     'modelo', 'serie', 'codigo_distribuidor']
+    if any(k in data for k in producto_keys):
+        lines.append("INFORMACIÓN DEL PRODUCTO")
+        lines.append("-" * 80)
+        if 'codigo_producto' in data:
+            lines.append(f"Código: {data['codigo_producto']}")
+        if 'descripcion_producto' in data:
+            lines.append(f"Descripción: {data['descripcion_producto']}")
+        if 'marca' in data:
+            lines.append(f"Marca: {data['marca']}")
+        if 'modelo' in data:
+            lines.append(f"Modelo: {data['modelo']}")
+        if 'serie' in data:
+            lines.append(f"Serie: {data['serie']}")
+        if 'codigo_distribuidor' in data:
+            lines.append(f"Código Distribuidor: {data['codigo_distribuidor']}")
+        lines.append("")
+
+    compra_keys = ['numero_factura', 'fecha_compra', 'fecha_garantia',
+                   'tipo_garantia', 'distribuidor']
+    if any(k in data for k in compra_keys):
+        lines.append("INFORMACIÓN DE COMPRA")
+        lines.append("-" * 80)
+        if 'numero_factura' in data:
+            lines.append(f"Número de Factura: {data['numero_factura']}")
+        if 'fecha_compra' in data:
+            lines.append(f"Fecha de Compra: {data['fecha_compra']}")
+        if 'fecha_garantia' in data:
+            lines.append(f"Fecha de Garantía: {data['fecha_garantia']}")
+        if 'tipo_garantia' in data:
+            lines.append(f"Tipo de Garantía: {data['tipo_garantia']}")
+        if 'distribuidor' in data:
+            lines.append(f"Distribuidor: {data['distribuidor']}")
+        lines.append("")
+
+    if any(k in data for k in ['hecho_por', 'danos', 'observaciones']):
+        lines.append("INFORMACIÓN TÉCNICA")
+        lines.append("-" * 80)
+        if 'hecho_por' in data:
+            lines.append(f"Hecho por: {data['hecho_por']}")
+        if 'danos' in data:
+            lines.append(f"Daños Reportados: {data['danos']}")
+        if 'observaciones' in data:
+            lines.append(f"Observaciones: {data['observaciones']}")
+        lines.append("")
+
+    lines.append("=" * 80)
+    lines.append("Documento procesado automáticamente por GolloBot")
+    lines.append(f"Fecha de procesamiento: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("=" * 80)
+
+    return "\n".join(lines)
 
 
 class EmailManager:
@@ -398,6 +503,7 @@ class EmailManager:
             recipient = response_data.get('recipient', '')
             subject = response_data.get('subject', '')
             body = response_data.get('body', '')
+            extracted_data = response_data.get('extracted_data')
 
             if '<' in recipient and '>' in recipient:
                 recipient = recipient.split('<')[1].split('>')[0].strip()
@@ -412,25 +518,122 @@ class EmailManager:
                     if 'path' in attachment:
                         temp_files_to_clean.append(attachment['path'])
 
-            result = self.send_email(provider, email_addr, password, recipient, subject, body, cc_list, attachments, logger)
+            # CAMBIO: Enviar correo principal SIN CC
+            logger.info("📤 Enviando correo principal al remitente (sin CC)...")
+            result = self.send_email(provider, email_addr, password, recipient, subject, body, None, attachments, logger)
+
+            if not result:
+                logger.error("❌ Fallo al enviar correo principal")
+                return False
+
+            logger.info("✅ Correo principal enviado correctamente")
+
+            # NUEVO: Enviar correos separados a usuarios CC con archivo de texto adjunto
+            if cc_list and len(cc_list) > 0 and extracted_data:
+                logger.info("")
+                logger.info("=" * 80)
+                logger.info(f"📧 Enviando correos separados a {len(cc_list)} usuario(s) CC...")
+                logger.info("=" * 80)
+
+                # Generar el archivo de texto con los datos extraídos
+                logger.info("📝 Generando archivo de texto con datos extraídos del PDF...")
+                text_content = _generate_formatted_text_for_cc(extracted_data)
+
+                # Crear archivo temporal
+                temp_text_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+                temp_text_file.write(text_content)
+                temp_text_file.close()
+                temp_files_to_clean.append(temp_text_file.name)
+
+                # Determinar nombre del archivo basado en boleta
+                boleta_numero = extracted_data.get('numero_boleta', 'datos')
+                text_filename = f"Datos_Extraidos_Boleta_{boleta_numero}.txt"
+
+                logger.info(f"✅ Archivo temporal creado: {text_filename}")
+
+                # Leer el contenido del archivo para adjuntar
+                with open(temp_text_file.name, 'rb') as f:
+                    text_file_data = f.read()
+
+                # Crear adjunto
+                text_attachment = [{
+                    'filename': text_filename,
+                    'data': text_file_data
+                }]
+
+                # Enviar a cada usuario CC por separado
+                cc_success_count = 0
+                cc_failed_count = 0
+
+                for cc_email in cc_list:
+                    cc_email = cc_email.strip()
+                    if not cc_email:
+                        continue
+
+                    logger.info("")
+                    logger.info(f"📧 Enviando correo a: {cc_email}")
+
+                    # Asunto específico para usuarios CC
+                    cc_subject = f"Notificación: {subject}"
+                    cc_body = f"""Estimado/a Usuario,
+
+Se le envía esta notificación automática como parte del proceso de gestión de la boleta de reparación.
+
+Adjunto encontrará un archivo de texto con todos los datos extraídos del PDF procesado.
+
+Detalles de la boleta:
+- Número de Boleta: {extracted_data.get('numero_boleta', 'N/A')}
+- Número de Transacción: {extracted_data.get('numero_transaccion', 'N/A')}
+- Cliente: {extracted_data.get('nombre_cliente', 'N/A')}
+- Fecha: {extracted_data.get('fecha', 'N/A')}
+
+Este es un correo automático generado por GolloBot.
+
+Atentamente,
+Sistema Automatizado de Gestión de Reparaciones
+"""
+
+                    cc_result = self.send_email(
+                        provider, email_addr, password,
+                        cc_email, cc_subject, cc_body,
+                        None,  # Sin CC
+                        text_attachment,
+                        logger
+                    )
+
+                    if cc_result:
+                        cc_success_count += 1
+                        logger.info(f"   ✅ Correo enviado exitosamente a {cc_email}")
+                    else:
+                        cc_failed_count += 1
+                        logger.error(f"   ❌ Error al enviar correo a {cc_email}")
+
+                logger.info("")
+                logger.info("=" * 80)
+                logger.info(f"📊 Resumen de envíos a usuarios CC:")
+                logger.info(f"   ✅ Exitosos: {cc_success_count}")
+                if cc_failed_count > 0:
+                    logger.info(f"   ❌ Fallidos: {cc_failed_count}")
+                logger.info("=" * 80)
+
+            elif cc_list and len(cc_list) > 0 and not extracted_data:
+                logger.warning("⚠️ Hay usuarios CC configurados, pero no hay datos extraídos para enviar")
 
             # Limpiar archivos temporales
             if temp_files_to_clean:
+                logger.info("")
                 logger.info("🧹 Limpiando archivos temporales...")
                 for temp_path in temp_files_to_clean:
                     try:
                         if os.path.exists(temp_path):
                             os.unlink(temp_path)
-                            logger.info(f"   • Eliminado: {temp_path}")
-                    except Exception:
-                        pass
+                            logger.info(f"   • Eliminado: {os.path.basename(temp_path)}")
+                    except Exception as cleanup_error:
+                        logger.warning(f"   ⚠️ No se pudo eliminar {os.path.basename(temp_path)}: {cleanup_error}")
 
-            if result:
-                logger.info("✅ Respuesta automática enviada correctamente")
-            else:
-                logger.error("❌ Fallo al enviar respuesta automática")
-
-            return result
+            logger.info("")
+            logger.info("✅ Proceso de envío de correos completado")
+            return True
 
         except Exception as e:
             logger.exception(f"❌ Error al enviar respuesta del caso: {str(e)}")
