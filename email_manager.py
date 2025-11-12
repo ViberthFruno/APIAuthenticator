@@ -166,9 +166,10 @@ def _generate_formatted_text_for_cc(data):
     if any(k in data for k in cliente_keys):
         lines.append("INFORMACIÓN DEL CLIENTE")
         lines.append("-" * 80)
+        # Solo mostrar el nombre una vez (priorizar nombre_cliente sobre nombre_contacto)
         if 'nombre_cliente' in data:
             lines.append(f"Nombre: {data['nombre_cliente']}")
-        if 'nombre_contacto' in data:
+        elif 'nombre_contacto' in data:
             lines.append(f"Nombre: {data['nombre_contacto']}")
         if 'cedula_cliente' in data:
             lines.append(f"Cédula: {data['cedula_cliente']}")
@@ -183,7 +184,7 @@ def _generate_formatted_text_for_cc(data):
         lines.append("")
 
     producto_keys = ['codigo_producto', 'descripcion_producto', 'marca',
-                     'modelo', 'serie', 'codigo_distribuidor']
+                     'modelo', 'serie', 'garantia', 'codigo_distribuidor']
     if any(k in data for k in producto_keys):
         lines.append("INFORMACIÓN DEL PRODUCTO")
         lines.append("-" * 80)
@@ -195,6 +196,8 @@ def _generate_formatted_text_for_cc(data):
             lines.append(f"Marca: {data['marca']}")
         if 'modelo' in data:
             lines.append(f"Modelo: {data['modelo']}")
+        if 'garantia' in data:
+            lines.append(f"Garantía: {data['garantia']}")
         if 'serie' in data:
             lines.append(f"Serie: {data['serie']}")
         if 'codigo_distribuidor' in data:
