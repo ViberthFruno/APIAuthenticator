@@ -219,13 +219,14 @@ class CrearPreingresoBuilder:
         if 'stock' in la_factura or 'stock' in la_observacion:
             return 8, 1
 
-        if CrearPreingresoBuilder._es_dap(fecha_compra):
-            return 9, 1
-
         clave_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_garantia)
 
         tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
         garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
+
+        # Si no es 'C.S.R.' y si es DAP, retorna como DAP:
+        if tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_dap(fecha_compra):
+            return 9, 1
 
         return tipo_preingreso_id, garantia_id
 
