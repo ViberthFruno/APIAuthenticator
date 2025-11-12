@@ -633,7 +633,7 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     message_lines.append("Gracias por confiar en Fruno Centro de Servicio Técnico.")
     message_lines.append("")
     message_lines.append(
-        "Si tiene alguna duda o requiere asistencia adicional, puede contactarnos a través de nuestros canales de soporte.")
+        "Si tiene alguna duda o necesita asistencia adicional, nuestro equipo de soporte y técnicos especializados están disponibles para ayudarle.")
 
     return "\n".join(message_lines)
 
