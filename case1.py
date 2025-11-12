@@ -164,11 +164,18 @@ def extract_repair_data(text, logger):
             data['telefono_sucursal'] = match.group(1).strip()
 
         # Cliente/Contacto (más flexible para OCR que puede separar con espacios)
-        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O\s*:?\s*([A-Z\s]+?)(?=\s+Tel|CED)', text, re.IGNORECASE)
+        # Buscar primero CONTACTO, luego CLIENTE como alternativa
+        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O\s*:?\s+([A-Z\s]+?)(?=\s+Tel|CED)', text, re.IGNORECASE)
+        if not match:
+            # Si no se encontró CONTACTO, buscar CLIENTE
+            match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E\s*:?\s+([A-Z\s]+?)(?=\s+Tel|CED)', text, re.IGNORECASE)
+
         if match:
-            data['nombre_contacto'] = re.sub(r'\s+', ' ', match.group(1).strip())
-            data['nombre_cliente'] = data['nombre_contacto']  # Usar el mismo
-            logger.info(f"Cliente/Contacto: {data['nombre_contacto']}")
+            # Limpiar espacios múltiples del nombre encontrado
+            nombre_limpio = re.sub(r'\s+', ' ', match.group(1).strip())
+            data['nombre_contacto'] = nombre_limpio
+            data['nombre_cliente'] = nombre_limpio
+            logger.info(f"Cliente/Contacto: {nombre_limpio}")
 
         # Cédula (más flexible)
         match = re.search(r'CED\s*:?\s*([\d\-]+)', text, re.IGNORECASE)
