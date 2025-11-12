@@ -71,7 +71,10 @@ def _extract_attachments(email_message, logger):
     attachments = []
 
     try:
+        logger.info("📎 Extrayendo archivos adjuntos del correo...")
+
         if not email_message.is_multipart():
+            logger.info("ℹ️ El correo no tiene adjuntos (no es multipart)")
             return attachments
 
         for part in email_message.walk():
@@ -85,16 +88,26 @@ def _extract_attachments(email_message, logger):
                     file_data = part.get_payload(decode=True)
 
                     if file_data:
+                        content_type = part.get_content_type()
+                        file_size_kb = len(file_data) / 1024
+
                         attachments.append({
                             'filename': filename,
                             'data': file_data,
-                            'content_type': part.get_content_type()
+                            'content_type': content_type
                         })
+
+                        logger.info(f"📎 Adjunto encontrado: {filename} | Tipo: {content_type} | Tamaño: {file_size_kb:.2f} KB")
+
+        if attachments:
+            logger.info(f"✅ Total de adjuntos extraídos: {len(attachments)}")
+        else:
+            logger.info("ℹ️ No se encontraron adjuntos en el correo")
 
         return attachments
 
     except Exception as e:
-        logger.error(f"Error extrayendo adjuntos: {str(e)}")
+        logger.error(f"❌ Error extrayendo adjuntos: {str(e)}")
         return []
 
 
@@ -202,9 +215,17 @@ class EmailManager:
             print(f"Error en la conexión IMAP: {str(e)}")
             return False
 
-    def send_email(self, provider, email_addr, password, to, subject, body, cc_list=None, attachments=None):
+    def send_email(self, provider, email_addr, password, to, subject, body, cc_list=None, attachments=None, logger=None):
         """Envía un correo electrónico a través de SMTP"""
         try:
+            # Si no se proporciona logger, usar print como fallback
+            if not logger:
+                logger = type('obj', (object,), {
+                    'info': lambda msg: print(msg),
+                    'warning': lambda msg: print(f"WARNING: {msg}"),
+                    'error': lambda msg: print(f"ERROR: {msg}")
+                })()
+
             config = self.get_provider_config(provider)
             server = config['smtp_server']
             port = config['smtp_port']
@@ -212,33 +233,50 @@ class EmailManager:
             email_addr = _sanitize_string(email_addr)
             password = _sanitize_string(password)
 
+            logger.info(f"📤 Preparando correo para enviar...")
+            logger.info(f"   Destinatario: {to}")
+            logger.info(f"   Asunto: {subject}")
+
             msg = MIMEMultipart()
             msg['From'] = email_addr
             msg['To'] = to
             msg['Subject'] = subject
 
             if cc_list:
+                logger.info(f"   CC: {', '.join(cc_list)}")
                 msg['Cc'] = ", ".join(cc_list)
 
             msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
             if attachments:
+                logger.info(f"📎 Adjuntando {len(attachments)} archivo(s)...")
                 for attachment in attachments:
                     _attach_file(msg, attachment)
+                    filename = attachment.get('filename', 'archivo_sin_nombre')
+                    logger.info(f"   • {filename}")
 
             context = ssl.create_default_context()
 
+            logger.info(f"📧 Conectando al servidor SMTP: {server}:{port}")
+
             with smtplib.SMTP(server, port) as smtp:
                 smtp.ehlo()
+                logger.info("🔐 Estableciendo conexión segura (TLS)...")
                 smtp.starttls(context=context)
                 smtp.ehlo()
+                logger.info(f"🔐 Autenticando cuenta: {email_addr}")
                 smtp.login(email_addr, password)
+                logger.info("📨 Enviando correo...")
                 smtp.send_message(msg)
 
+            logger.info("✅ Correo enviado exitosamente")
             return True
 
         except Exception as e:
-            print(f"Error al enviar correo: {str(e)}")
+            if logger:
+                logger.error(f"❌ Error al enviar correo: {str(e)}")
+            else:
+                print(f"Error al enviar correo: {str(e)}")
             return False
 
     def check_and_process_emails(self, provider, email_addr, password, search_titles, logger, cc_list=None):
@@ -253,9 +291,16 @@ class EmailManager:
 
             context = ssl.create_default_context()
 
+            logger.info(f"📧 Conectando al servidor IMAP: {server}:{port}")
+
             with imaplib.IMAP4_SSL(server, port, ssl_context=context) as imap:
+                logger.info(f"🔐 Autenticando cuenta: {email_addr}")
                 imap.login(email_addr, password)
+                logger.info("✅ Conexión IMAP establecida correctamente")
+
+                logger.info("📬 Seleccionando bandeja INBOX")
                 imap.select('INBOX')
+                logger.info("✅ Bandeja INBOX seleccionada")
 
                 today = date.today()
                 yesterday = (today - timedelta(days=1)).strftime("%d-%b-%Y")
@@ -289,21 +334,25 @@ class EmailManager:
 
                 for msg_id in message_ids:
                     try:
-                        logger.info(f"Procesando email ID: {msg_id}")
+                        logger.info(f"📨 Procesando email ID: {msg_id.decode() if isinstance(msg_id, bytes) else msg_id}")
 
+                        logger.info("📥 Descargando contenido del correo desde el servidor...")
                         status, email_data = imap.fetch(msg_id, '(RFC822)')
 
                         if status != 'OK' or not email_data:
-                            logger.warning(f"No se pudo obtener el email {msg_id}")
+                            logger.warning(f"⚠️ No se pudo obtener el email {msg_id}")
                             continue
 
+                        logger.info("✅ Correo descargado correctamente")
+
+                        logger.info("📖 Leyendo y decodificando el correo...")
                         raw_email = email_data[0][1]
                         email_message = email.message_from_bytes(raw_email, policy=email.policy.default)
 
                         subject = _decode_header_value(email_message.get('Subject', ''))
                         sender = email_message.get('From', '')
 
-                        logger.info(f"Revisando email: '{subject}' de {sender}")
+                        logger.info(f"📧 Email leído: Asunto='{subject}' | Remitente={sender}")
 
                         attachments = _extract_attachments(email_message, logger)
 
@@ -344,6 +393,8 @@ class EmailManager:
     def _send_case_reply(self, provider, email_addr, password, response_data, logger, cc_list=None, attachments=None):
         """Envía una respuesta automática usando los datos del caso"""
         try:
+            logger.info("📧 Iniciando envío de respuesta automática...")
+
             recipient = response_data.get('recipient', '')
             subject = response_data.get('subject', '')
             body = response_data.get('body', '')
@@ -351,23 +402,36 @@ class EmailManager:
             if '<' in recipient and '>' in recipient:
                 recipient = recipient.split('<')[1].split('>')[0].strip()
 
+            logger.info(f"   Destinatario: {recipient}")
+            logger.info(f"   Asunto: {subject}")
+
             temp_files_to_clean = []
             if attachments:
+                logger.info(f"   Adjuntos: {len(attachments)} archivo(s)")
                 for attachment in attachments:
                     if 'path' in attachment:
                         temp_files_to_clean.append(attachment['path'])
 
-            result = self.send_email(provider, email_addr, password, recipient, subject, body, cc_list, attachments)
+            result = self.send_email(provider, email_addr, password, recipient, subject, body, cc_list, attachments, logger)
 
-            for temp_path in temp_files_to_clean:
-                try:
-                    if os.path.exists(temp_path):
-                        os.unlink(temp_path)
-                except Exception:
-                    pass
+            # Limpiar archivos temporales
+            if temp_files_to_clean:
+                logger.info("🧹 Limpiando archivos temporales...")
+                for temp_path in temp_files_to_clean:
+                    try:
+                        if os.path.exists(temp_path):
+                            os.unlink(temp_path)
+                            logger.info(f"   • Eliminado: {temp_path}")
+                    except Exception:
+                        pass
+
+            if result:
+                logger.info("✅ Respuesta automática enviada correctamente")
+            else:
+                logger.error("❌ Fallo al enviar respuesta automática")
 
             return result
 
         except Exception as e:
-            logger.exception(f"Error al enviar respuesta del caso: {str(e)}")
+            logger.exception(f"❌ Error al enviar respuesta del caso: {str(e)}")
             return False

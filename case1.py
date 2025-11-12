@@ -395,39 +395,45 @@ def _extract_text_with_ocr(pdf_data, logger):
             subprocess.check_call(['pip', 'install', 'PyMuPDF', '--break-system-packages'])
             import fitz
 
-        logger.info("Usando EasyOCR para extraer texto del PDF...")
+        logger.info("🤖 Iniciando extracción de texto con OCR (EasyOCR)...")
 
         # Detectar si hay GPU disponible e inicializar EasyOCR
         try:
             import torch
             gpu_available = torch.cuda.is_available()
             if gpu_available:
-                logger.info("GPU detectado - Inicializando EasyOCR con aceleración GPU...")
+                logger.info("🎮 GPU detectado - Inicializando EasyOCR con aceleración GPU...")
                 reader = easyocr.Reader(['es', 'en'], gpu=True)
-                logger.info("✅ EasyOCR usando GPU - procesamiento acelerado")
+                logger.info("✅ EasyOCR configurado con GPU (procesamiento acelerado)")
             else:
-                logger.info("GPU no disponible - usando CPU")
+                logger.info("💻 GPU no disponible - Inicializando EasyOCR con CPU")
                 reader = easyocr.Reader(['es', 'en'], gpu=False)
+                logger.info("✅ EasyOCR configurado con CPU")
         except ImportError:
-            logger.warning("PyTorch no instalado - usando CPU para OCR")
+            logger.warning("⚠️ PyTorch no instalado - usando CPU para OCR")
             reader = easyocr.Reader(['es', 'en'], gpu=False)
         except Exception as e:
-            logger.warning(f"Error al detectar GPU: {e} - fallback a CPU")
+            logger.warning(f"⚠️ Error al detectar GPU: {e} - fallback a CPU")
             reader = easyocr.Reader(['es', 'en'], gpu=False)
 
         # Abrir PDF con PyMuPDF
+        logger.info("📄 Abriendo PDF con PyMuPDF...")
         pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+        total_pages = len(pdf_document)
+        logger.info(f"📄 Documento tiene {total_pages} página(s) para procesar con OCR")
 
         text = ""
-        for page_num in range(len(pdf_document)):
-            logger.info(f"Procesando página {page_num + 1}/{len(pdf_document)} con OCR...")
+        for page_num in range(total_pages):
+            logger.info(f"🔍 Procesando página {page_num + 1}/{total_pages} con OCR...")
 
             # Renderizar página como imagen
+            logger.info(f"   📸 Convirtiendo página {page_num + 1} a imagen (300 DPI)...")
             page = pdf_document[page_num]
             pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))  # 300 DPI
 
             # Convertir a numpy array para EasyOCR
             img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+            logger.info(f"   🤖 Ejecutando OCR en página {page_num + 1} (imagen {pix.width}x{pix.height}px)...")
 
             # Extraer texto con EasyOCR
             try:
@@ -438,14 +444,17 @@ def _extract_text_with_ocr(pdf_data, logger):
                     page_text = '\n'.join(results)
                     if page_text:
                         text += page_text + "\n"
+                        logger.info(f"   ✅ Página {page_num + 1} procesada: {len(page_text)} caracteres extraídos")
+                else:
+                    logger.warning(f"   ⚠️ Página {page_num + 1}: No se encontró texto")
 
             except Exception as ocr_error:
-                logger.warning(f"Error en OCR de página {page_num + 1}: {ocr_error}")
+                logger.warning(f"   ❌ Error en OCR de página {page_num + 1}: {ocr_error}")
 
         pdf_document.close()
 
         if not text.strip():
-            logger.warning("EasyOCR no extrajo ningún texto - intentando método alternativo")
+            logger.warning("⚠️ EasyOCR no extrajo ningún texto - intentando método alternativo (PyMuPDF directo)")
             # Fallback: intentar extraer texto directamente de PyMuPDF
             try:
                 pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
@@ -457,9 +466,11 @@ def _extract_text_with_ocr(pdf_data, logger):
                 pdf_document.close()
 
                 if text.strip():
-                    logger.info("✅ Texto extraído usando método alternativo (PyMuPDF)")
-            except:
-                pass
+                    logger.info(f"✅ Texto extraído usando método alternativo PyMuPDF ({len(text)} caracteres)")
+            except Exception as fallback_error:
+                logger.error(f"❌ Error en método alternativo: {fallback_error}")
+        else:
+            logger.info(f"✅ OCR completado exitosamente - Total extraído: {len(text)} caracteres")
 
         return text if text.strip() else None
 
@@ -496,17 +507,20 @@ def _extract_text_from_pdf(pdf_data, logger):
                 yield
 
         # Verificar si es un PDF de Oracle Reports
+        logger.info("🔍 Analizando tipo de PDF...")
         is_oracle = _is_oracle_reports_pdf(pdf_data)
 
         if is_oracle:
-            logger.info("PDF de Oracle Reports detectado - usando OCR")
+            logger.info("📄 PDF de Oracle Reports detectado → Usando método OCR")
             return _extract_text_with_ocr(pdf_data, logger)
+
+        logger.info("📄 PDF estándar detectado → Intentando extracción con pdfplumber")
 
         # Intentar con pdfplumber normal con timeout de 30 segundos
         try:
             import pdfplumber
         except ImportError:
-            logger.warning("Instalando pdfplumber...")
+            logger.warning("📦 Instalando pdfplumber...")
             import subprocess
             subprocess.check_call(['pip', 'install', 'pdfplumber', '--break-system-packages'])
             import pdfplumber
@@ -515,22 +529,30 @@ def _extract_text_from_pdf(pdf_data, logger):
         text = ""
 
         try:
+            logger.info("📖 Extrayendo texto con pdfplumber (timeout: 30s)...")
             with timeout(30):  # Timeout de 30 segundos
                 with pdfplumber.open(pdf_file) as pdf:
-                    for page in pdf.pages:
+                    total_pages = len(pdf.pages)
+                    logger.info(f"📄 Documento tiene {total_pages} página(s)")
+
+                    for page_num, page in enumerate(pdf.pages, start=1):
+                        logger.info(f"   Procesando página {page_num}/{total_pages}...")
                         page_text = page.extract_text()
                         if page_text:
                             text += page_text + "\n"
+
+            if text.strip():
+                logger.info(f"✅ Extracción con pdfplumber completada ({len(text)} caracteres)")
         except TimeoutError:
-            logger.warning("Timeout al extraer texto con pdfplumber - cambiando a OCR")
+            logger.warning("⏱️ Timeout al extraer texto con pdfplumber → Cambiando a OCR")
             return _extract_text_with_ocr(pdf_data, logger)
         except Exception as e:
-            logger.warning(f"Error con pdfplumber: {e} - intentando con OCR")
+            logger.warning(f"⚠️ Error con pdfplumber: {e} → Cambiando a OCR")
             return _extract_text_with_ocr(pdf_data, logger)
 
         # Si no se extrajo texto, intentar con OCR
         if not text.strip():
-            logger.info("No se extrajo texto con pdfplumber - intentando con OCR")
+            logger.warning("⚠️ No se extrajo texto con pdfplumber → Cambiando a OCR")
             return _extract_text_with_ocr(pdf_data, logger)
 
         return text if text.strip() else None
@@ -735,32 +757,52 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
     """
     try:
+        logger.info("=" * 80)
+        logger.info(f"📄 INICIANDO ANÁLISIS DE PDF: {pdf_filename}")
+        logger.info("=" * 80)
+
         # Extraer texto del PDF
-        logger.info(f"Extrayendo texto del PDF: {pdf_filename}")
+        logger.info(f"🔍 Paso 1/4: Extrayendo texto del PDF...")
         pdf_text = _extract_text_from_pdf(pdf_content, logger)
 
         if not pdf_text:
+            logger.error("❌ No se pudo extraer texto del PDF")
             return {
                 'success': False,
                 'error': 'No se pudo extraer texto del PDF',
                 'filename': pdf_filename
             }
 
+        logger.info(f"✅ Texto extraído correctamente ({len(pdf_text)} caracteres)")
+
         # Extraer datos del PDF
-        logger.info(f"Extrayendo datos del PDF: {pdf_filename}")
+        logger.info(f"🔍 Paso 2/4: Analizando y extrayendo datos del PDF...")
         extracted_data = extract_repair_data(pdf_text, logger)
 
         if not extracted_data or len(extracted_data) < 3:
+            logger.error(f"❌ PDF sin información válida (solo {len(extracted_data) if extracted_data else 0} campos extraídos)")
             return {
                 'success': False,
                 'error': 'PDF sin información válida (menos de 3 campos extraídos)',
                 'filename': pdf_filename
             }
 
+        logger.info(f"✅ Datos extraídos correctamente ({len(extracted_data)} campos)")
+
+        # Mostrar datos clave extraídos
+        if 'numero_boleta' in extracted_data:
+            logger.info(f"   📋 Boleta: {extracted_data['numero_boleta']}")
+        if 'numero_transaccion' in extracted_data:
+            logger.info(f"   📋 Transacción: {extracted_data['numero_transaccion']}")
+        if 'nombre_cliente' in extracted_data:
+            logger.info(f"   👤 Cliente: {extracted_data['nombre_cliente']}")
+
         # Crear archivo temporal para el PDF
+        logger.info(f"🔍 Paso 3/4: Preparando archivo temporal para envío a API...")
         temp_pdf = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
         temp_pdf.write(pdf_content)
         temp_pdf.close()
+        logger.info(f"   📁 Archivo temporal creado: {temp_pdf.name}")
 
         # Crear DTO con los datos extraídos
         datos_pdf = DatosExtraidosPDF(
@@ -846,32 +888,50 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
             archivo_adjunto=archivo_adjunto
         )
 
-        logger.info(f"Creando preingreso para: {pdf_filename}")
+        logger.info(f"🔍 Paso 4/4: Creando preingreso en la API...")
+        logger.info(f"   📄 Archivo: {pdf_filename}")
+        logger.info(f"   🌐 API Base URL: {settings.API_BASE_URL}")
 
         # Ejecutar caso de uso de forma asíncrona (desde código síncrono)
         async def ejecutar_creacion():
             return await use_case.execute(input_dto)
 
+        logger.info("   ⏳ Enviando datos a la API iFR Pro...")
         result = run_async_from_sync(ejecutar_creacion())
 
         # Limpiar archivo temporal
         import os
         try:
             os.unlink(temp_pdf.name)
-        except:
-            pass
+            logger.info(f"   🧹 Archivo temporal eliminado")
+        except Exception as cleanup_error:
+            logger.warning(f"   ⚠️ No se pudo eliminar archivo temporal: {cleanup_error}")
 
         if result.success:
             # Verificar si la API devolvió un JSON válido
             if not result.response.body:
                 logger.warning("⚠️ La API no devolvió un json válido")
+                logger.error("=" * 80)
                 return {
                     'success': False,
                     'error': "La API no devolvió un json válido",
                     'filename': pdf_filename
                 }
             else:
-                logger.info(f"✅ Preingreso creado exitosamente: {result.preingreso_id}")
+                logger.info("=" * 80)
+                logger.info("✅ PREINGRESO CREADO EXITOSAMENTE")
+                logger.info("=" * 80)
+                logger.info(f"   📄 Archivo procesado: {pdf_filename}")
+                logger.info(f"   🎫 Boleta Fruno: {result.preingreso_id}")
+                logger.info(f"   📋 Boleta Gollo: {extracted_data.get('numero_boleta')}")
+                if extracted_data.get('numero_transaccion'):
+                    logger.info(f"   🔢 Transacción: {extracted_data.get('numero_transaccion')}")
+                if result.tipo_preingreso_nombre:
+                    logger.info(f"   📝 Tipo: {result.tipo_preingreso_nombre}")
+                if result.garantia_nombre:
+                    logger.info(f"   🛡️ Garantía: {result.garantia_nombre}")
+                logger.info("=" * 80)
+
                 return {
                     'success': True,
                     'preingreso_id': result.preingreso_id,
@@ -885,7 +945,12 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                 }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
-            logger.error(f"❌ Error al crear preingreso: {error_msg}")
+            logger.error("=" * 80)
+            logger.error("❌ ERROR AL CREAR PREINGRESO")
+            logger.error("=" * 80)
+            logger.error(f"   📄 Archivo: {pdf_filename}")
+            logger.error(f"   💥 Error: {error_msg}")
+            logger.error("=" * 80)
 
             # Detectar error 409 Conflict (preingreso duplicado)
             is_409_conflict = '[409]' in error_msg or '409 Conflict' in error_msg
