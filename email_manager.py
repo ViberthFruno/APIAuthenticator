@@ -507,6 +507,7 @@ class EmailManager:
             subject = response_data.get('subject', '')
             body = response_data.get('body', '')
             extracted_data = response_data.get('extracted_data')
+            pdf_original = response_data.get('pdf_original')  # PDF original para CC
 
             if '<' in recipient and '>' in recipient:
                 recipient = recipient.split('<')[1].split('>')[0].strip()
@@ -552,17 +553,27 @@ class EmailManager:
                 boleta_numero = extracted_data.get('numero_boleta', 'datos')
                 text_filename = f"Datos_Extraidos_Boleta_{boleta_numero}.txt"
 
-                logger.info(f"✅ Archivo temporal creado: {text_filename}")
+                logger.info(f"✅ Archivo de texto creado: {text_filename}")
 
                 # Leer el contenido del archivo para adjuntar
                 with open(temp_text_file.name, 'rb') as f:
                     text_file_data = f.read()
 
-                # Crear adjunto
-                text_attachment = [{
+                # Crear lista de adjuntos (archivo de texto + PDF original)
+                cc_attachments = [{
                     'filename': text_filename,
                     'data': text_file_data
                 }]
+
+                # Agregar PDF original si está disponible
+                if pdf_original and pdf_original.get('data'):
+                    pdf_filename = pdf_original.get('filename', 'boleta.pdf')
+                    pdf_data = pdf_original.get('data')
+                    cc_attachments.append({
+                        'filename': pdf_filename,
+                        'data': pdf_data
+                    })
+                    logger.info(f"✅ PDF original incluido: {pdf_filename}")
 
                 # Enviar a cada usuario CC por separado
                 cc_success_count = 0
@@ -582,7 +593,9 @@ class EmailManager:
 
 Se le envía esta notificación automática como parte del proceso de gestión de la boleta de reparación.
 
-Adjunto encontrará un archivo de texto con todos los datos extraídos del PDF procesado.
+Adjunto encontrará:
+• Archivo de texto con todos los datos extraídos del PDF procesado
+• PDF original de la boleta de reparación
 
 Detalles de la boleta:
 - Número de Boleta: {extracted_data.get('numero_boleta', 'N/A')}
@@ -600,7 +613,7 @@ Sistema Automatizado de Gestión de Reparaciones
                         provider, email_addr, password,
                         cc_email, cc_subject, cc_body,
                         None,  # Sin CC
-                        text_attachment,
+                        cc_attachments,  # Incluye archivo de texto + PDF original
                         logger
                     )
 
