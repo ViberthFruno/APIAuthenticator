@@ -270,7 +270,7 @@ class IntegratedGUI(LoggerMixin):
 
         self.cc_users_button = ttk.Button(
             self.bottom_left_panel,
-            text="Usuarios Adjuntos (CC)",
+            text="Usuarios a Notificar",
             command=self.open_cc_users_modal
         )
         self.cc_users_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
@@ -614,13 +614,13 @@ class IntegratedGUI(LoggerMixin):
         button_frame.columnconfigure(1, weight=1)
 
     def open_cc_users_modal(self):
-        """Abre una ventana modal para configurar correos en CC"""
+        """Abre una ventana modal para configurar correos a notificar"""
         config = self.config_manager.load_config()
         cc_users_list = config.get('cc_users', [])
 
         modal = tk.Toplevel(self.root)
-        modal.title("Configurar Usuarios Adjuntos (CC)")
-        modal.geometry("400x300")
+        modal.title("Configurar Usuarios a Notificar")
+        modal.geometry("500x350")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -636,7 +636,21 @@ class IntegratedGUI(LoggerMixin):
         cc_frame = ttk.Frame(modal, padding="10")
         cc_frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(cc_frame, text="Ingrese los correos a copiar (uno por línea):").pack(anchor="w", padx=5, pady=(0, 5))
+        # Título descriptivo
+        title_label = ttk.Label(
+            cc_frame,
+            text="Usuarios que recibirán notificaciones con datos extraídos",
+            font=("Segoe UI", 10, "bold")
+        )
+        title_label.pack(anchor="w", padx=5, pady=(0, 5))
+
+        # Descripción
+        desc_label = ttk.Label(
+            cc_frame,
+            text="Estos usuarios recibirán un correo separado con un archivo de texto\nque contiene todos los datos extraídos del PDF procesado.\n\nIngrese los correos (uno por línea):",
+            justify=tk.LEFT
+        )
+        desc_label.pack(anchor="w", padx=5, pady=(0, 10))
 
         cc_text = tk.Text(cc_frame, wrap=tk.WORD, height=10)
         cc_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -654,10 +668,10 @@ class IntegratedGUI(LoggerMixin):
             current_config['cc_users'] = emails_list
 
             if self.config_manager.save_config(current_config):
-                self.log_api_message("✅ Lista de usuarios CC guardada correctamente.", level="INFO")
+                self.log_api_message("✅ Lista de usuarios a notificar guardada correctamente.", level="INFO")
                 modal.destroy()
             else:
-                self.log_api_message("❌ Error al guardar la lista de usuarios CC.", level="ERROR")
+                self.log_api_message("❌ Error al guardar la lista de usuarios a notificar.", level="ERROR")
 
         save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
         save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
