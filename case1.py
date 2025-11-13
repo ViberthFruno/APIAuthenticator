@@ -563,15 +563,119 @@ def extract_repair_data(text, logger):
             direccion = re.sub(r'\s+', ' ', match.group(1).strip())
             data['direccion_cliente'] = direccion
 
-        # Código producto (más flexible)
-        match = re.search(r'C[óo]digo\s*:?\s*(\d+)', text, re.IGNORECASE)
-        if match:
-            data['codigo_producto'] = match.group(1).strip()
+        # ============================================================================
+        # EXTRACCIÓN DE CÓDIGO PRODUCTO Y DESCRIPCIÓN - VERSIÓN ULTRA ROBUSTA
+        # ============================================================================
+        # Estrategia multi-nivel:
+        # 1. Patrón optimizado (código ~10 dígitos + descripción en misma línea)
+        # 2. Búsqueda con espacios fragmentados por OCR
+        # 3. Búsqueda basada en posición relativa a "Marca:"
+        # ============================================================================
 
-        # Descripción producto (más flexible)
-        match = re.search(r'C[óo]digo\s*:?\s*\d+\s+([A-Z\s]+?)\s+(?:Serie|Marca)', text, re.IGNORECASE)
+        codigo_encontrado = None
+        descripcion_encontrada = None
+
+        # NIVEL 1: Búsqueda estándar optimizada
+        # Busca código de 8-12 dígitos (centrado en 10) seguido de descripción
+        # La descripción puede contener letras mayúsculas, espacios, y algunas minúsculas
+        match = re.search(
+            r'C[óo]digo\s*:?\s*(\d{8,12})\s+([A-Z][A-Z0-9\s]+?)(?=\s+(?:Serie|Marca|Modelo))',
+            text,
+            re.IGNORECASE
+        )
         if match:
-            data['descripcion_producto'] = re.sub(r'\s+', ' ', match.group(1).strip())
+            codigo_encontrado = match.group(1).strip()
+            descripcion_encontrada = re.sub(r'\s+', ' ', match.group(2).strip())
+            logger.info(f"✓ [NIVEL 1] Código y descripción encontrados: {codigo_encontrado} - {descripcion_encontrada}")
+
+        # NIVEL 2: Si no se encontró, buscar código solo y luego descripción por separado
+        if not codigo_encontrado:
+            # Primero buscar el código (permitir 6-14 dígitos para ser más flexible)
+            match_codigo = re.search(r'C[óo]digo\s*:?\s*(\d{6,14})', text, re.IGNORECASE)
+            if match_codigo:
+                codigo_encontrado = match_codigo.group(1).strip()
+                logger.info(f"✓ [NIVEL 2] Código encontrado: {codigo_encontrado}")
+
+                # Buscar descripción después del código
+                # Intentar capturar texto alfanumérico después del código hasta Serie/Marca/Modelo
+                pos_codigo = match_codigo.end()
+                texto_despues = text[pos_codigo:pos_codigo+200]  # Buscar en siguientes 200 caracteres
+
+                match_desc = re.search(
+                    r'^\s*([A-Z][A-Z0-9\s]+?)(?=\s+(?:Serie|Marca|Modelo))',
+                    texto_despues,
+                    re.IGNORECASE
+                )
+                if match_desc:
+                    descripcion_encontrada = re.sub(r'\s+', ' ', match_desc.group(1).strip())
+                    logger.info(f"✓ [NIVEL 2] Descripción encontrada: {descripcion_encontrada}")
+
+        # NIVEL 3: Búsqueda basada en posición relativa a "Marca:"
+        # El código siempre está ARRIBA de "Marca:", así que buscar en el texto previo
+        if not codigo_encontrado:
+            match_marca = re.search(r'Marca\s*:?\s*\w+', text, re.IGNORECASE)
+            if match_marca:
+                # Obtener texto antes de "Marca:"
+                texto_antes_marca = text[:match_marca.start()]
+
+                # Buscar patrón de código en las últimas 300 caracteres antes de "Marca:"
+                texto_busqueda = texto_antes_marca[-300:] if len(texto_antes_marca) > 300 else texto_antes_marca
+
+                # Buscar código con descripción
+                match = re.search(
+                    r'C[óo]digo\s*:?\s*(\d{6,14})\s+([A-Z][A-Z0-9\s]+?)$',
+                    texto_busqueda,
+                    re.IGNORECASE
+                )
+                if match:
+                    codigo_encontrado = match.group(1).strip()
+                    descripcion_encontrada = re.sub(r'\s+', ' ', match.group(2).strip())
+                    logger.info(f"✓ [NIVEL 3] Código y descripción encontrados antes de Marca: {codigo_encontrado} - {descripcion_encontrada}")
+                else:
+                    # Solo buscar código
+                    match_codigo = re.search(r'C[óo]digo\s*:?\s*(\d{6,14})', texto_busqueda, re.IGNORECASE)
+                    if match_codigo:
+                        codigo_encontrado = match_codigo.group(1).strip()
+                        logger.info(f"✓ [NIVEL 3] Código encontrado antes de Marca: {codigo_encontrado}")
+
+        # NIVEL 4: Búsqueda ultra-flexible con espacios fragmentados (OCR deteriorado)
+        # Busca "C ó d i g o" o "C o d i g o" con espacios
+        if not codigo_encontrado:
+            match = re.search(
+                r'C\s*[óo]?\s*d\s*i\s*g\s*o\s*:?\s*(\d[\s\d]{10,30})',
+                text,
+                re.IGNORECASE
+            )
+            if match:
+                # Eliminar espacios del código extraído
+                codigo_encontrado = re.sub(r'\s+', '', match.group(1))
+                # Filtrar para obtener solo números de 6-14 dígitos
+                if 6 <= len(codigo_encontrado) <= 14:
+                    logger.info(f"✓ [NIVEL 4] Código encontrado (OCR fragmentado): {codigo_encontrado}")
+                else:
+                    codigo_encontrado = None
+
+        # Asignar valores encontrados
+        if codigo_encontrado:
+            data['codigo_producto'] = codigo_encontrado
+            logger.info(f"Código producto final: {codigo_encontrado}")
+
+        if descripcion_encontrada:
+            data['descripcion_producto'] = descripcion_encontrada
+            logger.info(f"Descripción producto final: {descripcion_encontrada}")
+
+        # Si no se encontró descripción, intentar buscarla de forma independiente
+        # entre el código y Marca/Serie
+        if not descripcion_encontrada and codigo_encontrado:
+            match = re.search(
+                rf'{re.escape(codigo_encontrado)}\s+([A-Z][A-Z0-9\s]+?)(?=\s+(?:Serie|Marca|Modelo))',
+                text,
+                re.IGNORECASE
+            )
+            if match:
+                descripcion_encontrada = re.sub(r'\s+', ' ', match.group(1).strip())
+                data['descripcion_producto'] = descripcion_encontrada
+                logger.info(f"Descripción producto (búsqueda post-código): {descripcion_encontrada}")
 
         # Serie (más flexible)
         match = re.search(r'Serie\s*:?\s*([A-Z0-9\-]+)', text, re.IGNORECASE)
