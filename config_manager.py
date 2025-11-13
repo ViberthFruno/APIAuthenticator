@@ -108,6 +108,17 @@ class ConfigManager:
 
         return validation_result
 
+    def get_categorias_dispositivo(self):
+        """Obtiene el mapeo de palabras clave a tipos de dispositivo"""
+        config = self.load_config()
+        return config.get('categorias_dispositivo', {})
+
+    def set_categorias_dispositivo(self, categorias_map):
+        """Establece el mapeo de palabras clave a tipos de dispositivo"""
+        config = self.load_config()
+        config['categorias_dispositivo'] = categorias_map
+        return self.save_config(config)
+
     def reset_config(self):
         """Resetea la configuración a valores por defecto"""
         default_config = {
@@ -115,6 +126,7 @@ class ConfigManager:
             'email': '',
             'password': '',
             'search_params': {},
-            'cc_users': []
+            'cc_users': [],
+            'categorias_dispositivo': {}
         }
         return self.save_config(default_config)

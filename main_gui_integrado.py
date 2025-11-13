@@ -283,6 +283,14 @@ class IntegratedGUI(LoggerMixin):
         )
         self.api_config_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
+        # Botón para configurar categorías
+        self.categorias_button = ttk.Button(
+            self.bottom_left_panel,
+            text="Configurar Categorías",
+            command=self.open_categorias_modal
+        )
+        self.categorias_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
         self.bottom_left_panel.columnconfigure(0, weight=1)
 
     def setup_bottom_right_panel(self):
@@ -674,6 +682,187 @@ class IntegratedGUI(LoggerMixin):
                 self.log_api_message("❌ Error al guardar la lista de usuarios a notificar.", level="ERROR")
 
         save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
+        save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+
+        cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
+        cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+
+    def open_categorias_modal(self):
+        """Abre una ventana modal para configurar palabras clave y sus tipos de dispositivo"""
+        categorias_guardadas = self.config_manager.get_categorias_dispositivo()
+
+        modal = tk.Toplevel(self.root)
+        modal.title("Configurar Categorías - Tipos de Dispositivo")
+        modal.geometry("800x500")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        main_frame = ttk.Frame(modal, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título
+        title_label = ttk.Label(
+            main_frame,
+            text="Configurar Palabras Clave y Tipos de Dispositivo",
+            font=("Segoe UI", 11, "bold")
+        )
+        title_label.pack(anchor="w", pady=(0, 5))
+
+        desc_label = ttk.Label(
+            main_frame,
+            text="Escribe una palabra clave y asígnale un tipo de dispositivo.\nSi la palabra aparece en el PDF, se usará ese tipo automáticamente.",
+            justify=tk.LEFT
+        )
+        desc_label.pack(anchor="w", pady=(0, 10))
+
+        # Lista de tipos de dispositivo para el dropdown
+        tipos_dispositivo = [
+            "Desconocido (ID: 7)",
+            "Celulares y Tablets (ID: 1)",
+            "Monitores (ID: 2)",
+            "Cocinas (ID: 3)",
+            "Refrigeradoras (ID: 4)",
+            "Licuadoras (ID: 6)",
+            "Audífonos (ID: 8)",
+            "Relojes (ID: 9)",
+            "Cable USB (ID: 10)",
+            "Cubo (ID: 11)",
+            "Proyector (ID: 13)",
+            "Parlante (ID: 15)",
+            "Mouse (ID: 16)",
+            "Scooter (ID: 17)",
+            "Robot de Limpieza (ID: 18)",
+            "Pantallas (ID: 19)",
+            "Impresora (ID: 20)",
+            "Laptop (ID: 21)",
+            "Cámaras de seguridad (ID: 23)",
+            "Router (ID: 24)",
+            "Drones (ID: 25)",
+            "Baterías (ID: 26)",
+            "Gamming (ID: 27)",
+            "Teclado (ID: 28)",
+            "Estuches (ID: 29)",
+            "Audio/video (ID: 32)",
+            "Internet Satelital (ID: 33)",
+            "Tarjeta de memoria externa (ID: 34)",
+            "No encontrado (ID: 36)"
+        ]
+
+        # Frame con scroll para las categorías
+        canvas = tk.Canvas(main_frame, height=300)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Headers
+        ttk.Label(scrollable_frame, text="Palabra Clave", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        ttk.Label(scrollable_frame, text="Tipo de Dispositivo", font=("Segoe UI", 9, "bold")).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(scrollable_frame, text="", font=("Segoe UI", 9, "bold")).grid(row=0, column=2, padx=10, pady=5)
+
+        # Lista para almacenar las filas
+        filas = []
+
+        def agregar_fila(palabra="", tipo_id=7):
+            """Agrega una nueva fila para editar"""
+            row = len(filas) + 1
+
+            # Entry para la palabra
+            palabra_var = tk.StringVar(value=palabra)
+            palabra_entry = ttk.Entry(scrollable_frame, textvariable=palabra_var, width=30)
+            palabra_entry.grid(row=row, column=0, padx=10, pady=5, sticky="ew")
+
+            # Combobox para tipo de dispositivo
+            tipo_var = tk.StringVar()
+            # Buscar el texto correspondiente al ID
+            tipo_texto = next((t for t in tipos_dispositivo if f"ID: {tipo_id})" in t), tipos_dispositivo[0])
+            tipo_var.set(tipo_texto)
+
+            tipo_combo = ttk.Combobox(
+                scrollable_frame,
+                textvariable=tipo_var,
+                values=tipos_dispositivo,
+                state="readonly",
+                width=35
+            )
+            tipo_combo.grid(row=row, column=1, padx=10, pady=5, sticky="ew")
+
+            # Botón eliminar
+            def eliminar():
+                palabra_entry.destroy()
+                tipo_combo.destroy()
+                eliminar_btn.destroy()
+                filas.remove((palabra_var, tipo_var, palabra_entry, tipo_combo, eliminar_btn))
+
+            eliminar_btn = ttk.Button(scrollable_frame, text="✖", width=3, command=eliminar)
+            eliminar_btn.grid(row=row, column=2, padx=10, pady=5)
+
+            filas.append((palabra_var, tipo_var, palabra_entry, tipo_combo, eliminar_btn))
+
+        # Cargar categorías guardadas
+        for palabra, tipo_id in categorias_guardadas.items():
+            agregar_fila(palabra, tipo_id)
+
+        # Si no hay ninguna, agregar una fila vacía
+        if not categorias_guardadas:
+            agregar_fila()
+
+        scrollable_frame.columnconfigure(0, weight=1)
+        scrollable_frame.columnconfigure(1, weight=2)
+
+        # Separador
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
+
+        # Botón agregar
+        add_button = ttk.Button(main_frame, text="+ Agregar Palabra", command=lambda: agregar_fila())
+        add_button.pack(pady=5)
+
+        # Frame de botones
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+
+        def save_categorias():
+            """Guarda la configuración de categorías"""
+            categorias_map = {}
+
+            for palabra_var, tipo_var, _, _, _ in filas:
+                palabra = palabra_var.get().strip().lower()
+                if palabra:
+                    # Extraer el ID del texto: "Nombre (ID: XX)"
+                    tipo_texto = tipo_var.get()
+                    try:
+                        id_str = tipo_texto.split("ID: ")[1].rstrip(")")
+                        tipo_id = int(id_str)
+                        categorias_map[palabra] = tipo_id
+                    except (IndexError, ValueError):
+                        categorias_map[palabra] = 7  # Default
+
+            # Guardar en config
+            if self.config_manager.set_categorias_dispositivo(categorias_map):
+                self.log_api_message("✅ Configuración de categorías guardada correctamente", level="INFO")
+                modal.destroy()
+            else:
+                self.log_api_message("❌ Error al guardar configuración de categorías", level="ERROR")
+
+        save_button = ttk.Button(button_frame, text="Guardar", command=save_categorias)
         save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
         cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
@@ -1229,8 +1418,15 @@ class IntegratedGUI(LoggerMixin):
                 hecho_por=strip_if_string(datos_extraidos.get('hecho_por'))
             )
 
-            # Crear caso de uso
-            use_case = CreatePreingresoUseCase(self.repository, self.retry_policy)
+            # Obtener mapeo de categorías a tipos de dispositivo
+            categorias_dispositivo_map = self.config_manager.get_categorias_dispositivo()
+
+            # Crear caso de uso con el mapeo
+            use_case = CreatePreingresoUseCase(
+                self.repository,
+                self.retry_policy,
+                categorias_dispositivo_map
+            )
 
             self.log_api_message("Enviando solicitud de crear el preingreso...")
 

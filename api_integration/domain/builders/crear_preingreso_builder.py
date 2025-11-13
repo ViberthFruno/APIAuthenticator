@@ -95,7 +95,7 @@ class CrearPreingresoBuilder:
 
     @staticmethod
     async def build(datos_pdf: DatosExtraidosPDF, info_sucursal: SucursalDTO,
-                    archivo_adjunto: ArchivoAdjunto) -> PreingresoData:
+                    archivo_adjunto: ArchivoAdjunto, categorias_dispositivo_map: Dict[str, int] = None) -> PreingresoData:
         """Construye la instancia final inmutable de PreingresoData"""
 
         # Obtener id y nombre canónico de la marca
@@ -115,6 +115,15 @@ class CrearPreingresoBuilder:
 
         categoria_id = 5  # Desconocido
         tipo_dispositivo_id = 7  # Desconocido
+
+        # Buscar si alguna palabra clave del mapeo aparece en el PDF
+        if categorias_dispositivo_map:
+            texto_buscar = f"{datos_pdf.producto_descripcion or ''} {datos_pdf.marca_nombre or ''} {datos_pdf.modelo_nombre or ''}".lower()
+            for palabra_clave, tipo_id in categorias_dispositivo_map.items():
+                if palabra_clave in texto_buscar:
+                    tipo_dispositivo_id = tipo_id
+                    print(f"📱 Palabra clave encontrada: '{palabra_clave}' -> tipo_dispositivo_id: {tipo_id}")
+                    break
 
         # Por default están sin garantía
         tipo_preingreso_id = 92
