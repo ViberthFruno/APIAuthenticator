@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime, timedelta
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from uuid import UUID
 
 from dateutil.relativedelta import relativedelta
@@ -13,6 +13,29 @@ from api_integration.domain.entities import PreingresoData
 
 class CrearPreingresoBuilder:
     """Builder para construir PreingresoData paso a paso"""
+
+    @staticmethod
+    def _obtener_categorias_configuradas() -> Tuple[int, int]:
+        """
+        Obtiene las categorías configuradas desde el archivo de configuración.
+        Si no están configuradas o hay error, retorna valores por defecto.
+
+        Returns:
+            Tuple[int, int]: (categoria_id, tipo_dispositivo_id)
+        """
+        try:
+            from config_manager import ConfigManager
+            config_manager = ConfigManager()
+            config = config_manager.load_config()
+            categories_config = config.get('categories_config', {})
+
+            categoria_id = int(categories_config.get('categoria_id', 5))
+            tipo_dispositivo_id = int(categories_config.get('tipo_dispositivo_id', 7))
+
+            return categoria_id, tipo_dispositivo_id
+        except Exception:
+            # Si hay cualquier error, usar valores por defecto
+            return 5, 7  # Desconocido
 
     @staticmethod
     def _extraer_nombres_apellidos(
@@ -113,8 +136,8 @@ class CrearPreingresoBuilder:
         if not numero_factura:
             numero_factura = "N/A"
 
-        categoria_id = 5  # Desconocido
-        tipo_dispositivo_id = 7  # Desconocido
+        # Obtener categorías configuradas (o valores por defecto si no están configuradas)
+        categoria_id, tipo_dispositivo_id = CrearPreingresoBuilder._obtener_categorias_configuradas()
 
         # Por default están sin garantía
         tipo_preingreso_id = 92

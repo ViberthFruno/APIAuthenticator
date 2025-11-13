@@ -44,7 +44,11 @@ class ConfigManager:
                 'caso1': '',
                 'titular_correo': ''
             },
-            'cc_users': []
+            'cc_users': [],
+            'categories_config': {
+                'categoria_id': '5',
+                'tipo_dispositivo_id': '7'
+            }
         }
         try:
             with open(self.config_file, 'w', encoding='utf-8') as file:
@@ -64,6 +68,11 @@ class ConfigManager:
                         config['search_params'] = {}
                     if 'cc_users' not in config:
                         config['cc_users'] = []
+                    if 'categories_config' not in config:
+                        config['categories_config'] = {
+                            'categoria_id': '5',
+                            'tipo_dispositivo_id': '7'
+                        }
                     return config
             else:
                 # Si no existe, crear uno limpio y devolverlo
@@ -81,7 +90,11 @@ class ConfigManager:
                 'email': '',
                 'password': '',
                 'search_params': {},
-                'cc_users': []
+                'cc_users': [],
+                'categories_config': {
+                    'categoria_id': '5',
+                    'tipo_dispositivo_id': '7'
+                }
             }
 
     def save_config(self, config):

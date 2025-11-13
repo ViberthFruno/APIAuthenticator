@@ -275,13 +275,21 @@ class IntegratedGUI(LoggerMixin):
         )
         self.cc_users_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
+        # Botón para editar categorías
+        self.categories_button = ttk.Button(
+            self.bottom_left_panel,
+            text="Editar Categorías",
+            command=self.open_categories_modal
+        )
+        self.categories_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
         # Botón para probar conexión API
         self.api_config_button = ttk.Button(
             self.bottom_left_panel,
             text="Probar Conexión API",
             command=self.test_api_connection
         )
-        self.api_config_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.api_config_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
         self.bottom_left_panel.columnconfigure(0, weight=1)
 
@@ -674,6 +682,150 @@ class IntegratedGUI(LoggerMixin):
                 self.log_api_message("❌ Error al guardar la lista de usuarios a notificar.", level="ERROR")
 
         save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
+        save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+
+        cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
+        cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+
+    def open_categories_modal(self):
+        """Abre una ventana modal para configurar categorías por defecto"""
+        config = self.config_manager.load_config()
+        categories_config = config.get('categories_config', {})
+
+        modal = tk.Toplevel(self.root)
+        modal.title("Configurar Categorías por Defecto")
+        modal.geometry("550x450")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        categories_frame = ttk.Frame(modal, padding="10")
+        categories_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título descriptivo
+        title_label = ttk.Label(
+            categories_frame,
+            text="Configurar Categorías y Tipos de Dispositivo",
+            font=("Segoe UI", 11, "bold")
+        )
+        title_label.pack(anchor="w", padx=5, pady=(0, 5))
+
+        # Descripción
+        desc_label = ttk.Label(
+            categories_frame,
+            text="Configure las categorías y tipos de dispositivo por defecto para preingresos.\nEstos valores se usarán cuando no se pueda determinar automáticamente.",
+            justify=tk.LEFT,
+            foreground="#555"
+        )
+        desc_label.pack(anchor="w", padx=5, pady=(0, 15))
+
+        # Frame para los campos
+        fields_frame = ttk.LabelFrame(categories_frame, text="Valores por Defecto", padding="10")
+        fields_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Categoría ID
+        ttk.Label(fields_frame, text="Categoría ID:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        categoria_var = tk.StringVar(value=categories_config.get('categoria_id', '5'))
+        categoria_entry = ttk.Entry(fields_frame, textvariable=categoria_var, width=10)
+        categoria_entry.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+
+        categoria_help = ttk.Label(
+            fields_frame,
+            text="(Por defecto: 5 - Desconocido)",
+            font=("Arial", 8),
+            foreground="gray"
+        )
+        categoria_help.grid(row=0, column=2, sticky="w", padx=5, pady=5)
+
+        # Tipo Dispositivo ID
+        ttk.Label(fields_frame, text="Tipo Dispositivo ID:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        tipo_dispositivo_var = tk.StringVar(value=categories_config.get('tipo_dispositivo_id', '7'))
+        tipo_dispositivo_entry = ttk.Entry(fields_frame, textvariable=tipo_dispositivo_var, width=10)
+        tipo_dispositivo_entry.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+
+        tipo_help = ttk.Label(
+            fields_frame,
+            text="(Por defecto: 7 - Desconocido)",
+            font=("Arial", 8),
+            foreground="gray"
+        )
+        tipo_help.grid(row=1, column=2, sticky="w", padx=5, pady=5)
+
+        fields_frame.columnconfigure(2, weight=1)
+
+        # Información adicional
+        info_frame = ttk.LabelFrame(categories_frame, text="Información", padding="10")
+        info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=10)
+
+        info_text = tk.Text(info_frame, wrap=tk.WORD, height=8, font=("Arial", 9))
+        info_text.pack(fill=tk.BOTH, expand=True)
+
+        info_content = """ℹ️  Valores Comunes de Categorías:
+
+• Categoría ID: 5 = Desconocido
+• Tipo Dispositivo ID: 7 = Desconocido
+
+Para obtener la lista completa de categorías disponibles, use el botón
+"Consultar Recursos" en la pestaña API.
+
+Los valores configurados aquí se aplicarán a todos los preingresos creados
+automáticamente por el bot de correo o manualmente desde la interfaz.
+"""
+        info_text.insert("1.0", info_content)
+        info_text.config(state=tk.DISABLED)
+
+        # Botones de acción
+        button_frame = ttk.Frame(categories_frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+
+        def save_categories():
+            try:
+                categoria_id = categoria_var.get().strip()
+                tipo_dispositivo_id = tipo_dispositivo_var.get().strip()
+
+                # Validar que sean números
+                if not categoria_id.isdigit():
+                    self.log_api_message("❌ Error: Categoría ID debe ser un número", level="ERROR")
+                    messagebox.showerror("Error", "Categoría ID debe ser un número válido")
+                    return
+
+                if not tipo_dispositivo_id.isdigit():
+                    self.log_api_message("❌ Error: Tipo Dispositivo ID debe ser un número", level="ERROR")
+                    messagebox.showerror("Error", "Tipo Dispositivo ID debe ser un número válido")
+                    return
+
+                current_config = self.config_manager.load_config()
+                current_config['categories_config'] = {
+                    'categoria_id': categoria_id,
+                    'tipo_dispositivo_id': tipo_dispositivo_id
+                }
+
+                if self.config_manager.save_config(current_config):
+                    self.log_api_message(
+                        f"✅ Configuración de categorías guardada: Categoría={categoria_id}, Tipo={tipo_dispositivo_id}",
+                        level="INFO"
+                    )
+                    messagebox.showinfo(
+                        "Éxito",
+                        f"Configuración guardada correctamente.\n\nCategoría ID: {categoria_id}\nTipo Dispositivo ID: {tipo_dispositivo_id}"
+                    )
+                    modal.destroy()
+                else:
+                    self.log_api_message("❌ Error al guardar la configuración de categorías", level="ERROR")
+                    messagebox.showerror("Error", "No se pudo guardar la configuración")
+            except Exception as e:
+                self.log_api_message(f"❌ Error al guardar categorías: {str(e)}", level="ERROR")
+                messagebox.showerror("Error", f"Error al guardar: {str(e)}")
+
+        save_button = ttk.Button(button_frame, text="Guardar", command=save_categories)
         save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
         cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
