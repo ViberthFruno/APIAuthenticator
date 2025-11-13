@@ -275,13 +275,21 @@ class IntegratedGUI(LoggerMixin):
         )
         self.cc_users_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
+        # Botón para configurar categorías personalizadas
+        self.categorias_button = ttk.Button(
+            self.bottom_left_panel,
+            text="Configurar Categorías",
+            command=self.open_categorias_modal
+        )
+        self.categorias_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
         # Botón para probar conexión API
         self.api_config_button = ttk.Button(
             self.bottom_left_panel,
             text="Probar Conexión API",
             command=self.test_api_connection
         )
-        self.api_config_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.api_config_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
         self.bottom_left_panel.columnconfigure(0, weight=1)
 
@@ -678,6 +686,328 @@ class IntegratedGUI(LoggerMixin):
 
         cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
         cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+
+    def open_categorias_modal(self):
+        """Abre una ventana modal para configurar categorías personalizadas"""
+
+        # Tipos de dispositivo disponibles (del usuario)
+        TIPOS_DISPOSITIVO = [
+            {"key": 1, "value": "Móviles"},
+            {"key": 2, "value": "Electrodoméstico"},
+            {"key": 3, "value": "Hogar"},
+            {"key": 4, "value": "Cómputo"},
+            {"key": 6, "value": "Accesorios"},
+            {"key": 7, "value": "Transporte"},
+            {"key": 8, "value": "Seguridad"},
+            {"key": 10, "value": "Entretenimiento"},
+            {"key": 11, "value": "Telecomunicaciones"},
+            {"key": 12, "value": "No encontrado"}
+        ]
+
+        modal = tk.Toplevel(self.root)
+        modal.title("Configurar Categorías Personalizadas")
+        modal.geometry("700x500")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        main_frame = ttk.Frame(modal, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título descriptivo
+        title_label = ttk.Label(
+            main_frame,
+            text="Gestión de Categorías Personalizadas",
+            font=("Segoe UI", 12, "bold")
+        )
+        title_label.pack(anchor="w", padx=5, pady=(0, 5))
+
+        # Descripción
+        desc_label = ttk.Label(
+            main_frame,
+            text="Aquí puedes crear categorías personalizadas y asignarles un tipo de dispositivo.\nCada categoría tendrá un ID único y un tipo de dispositivo asociado.",
+            justify=tk.LEFT
+        )
+        desc_label.pack(anchor="w", padx=5, pady=(0, 10))
+
+        # Frame para la lista y botones
+        list_frame = ttk.Frame(main_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        # Frame izquierdo - Lista de categorías
+        left_frame = ttk.Frame(list_frame)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        ttk.Label(left_frame, text="Categorías creadas:", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+
+        # Listbox con scrollbar
+        listbox_frame = ttk.Frame(left_frame)
+        listbox_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        scrollbar = ttk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        categorias_listbox = tk.Listbox(listbox_frame, yscrollcommand=scrollbar.set, height=15)
+        categorias_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=categorias_listbox.yview)
+
+        # Frame derecho - Botones de acción
+        right_frame = ttk.Frame(list_frame)
+        right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
+
+        def cargar_categorias():
+            """Carga las categorías en el listbox"""
+            categorias_listbox.delete(0, tk.END)
+            categorias = self.config_manager.get_categorias_personalizadas()
+            categoria_default = self.config_manager.get_categoria_default()
+
+            if not categorias:
+                categorias_listbox.insert(tk.END, "No hay categorías creadas")
+                categorias_listbox.config(state=tk.DISABLED)
+            else:
+                categorias_listbox.config(state=tk.NORMAL)
+                for cat in categorias:
+                    # Marcar con estrella si es la categoría default
+                    es_default = categoria_default and categoria_default.get('id') == cat['id']
+                    estrella = "⭐ " if es_default else ""
+                    texto = f"{estrella}ID: {cat['id']} | {cat['nombre']} → {cat['tipo_dispositivo_nombre']}"
+                    categorias_listbox.insert(tk.END, texto)
+
+        def abrir_agregar_categoria():
+            """Abre un sub-modal para agregar una nueva categoría"""
+            sub_modal = tk.Toplevel(modal)
+            sub_modal.title("Agregar Categoría")
+            sub_modal.geometry("450x200")
+            sub_modal.transient(modal)
+            sub_modal.grab_set()
+
+            # Centrar sub-modal
+            sub_modal.update_idletasks()
+            sw = sub_modal.winfo_width()
+            sh = sub_modal.winfo_height()
+            sx = (sub_modal.winfo_screenwidth() // 2) - (sw // 2)
+            sy = (sub_modal.winfo_screenheight() // 2) - (sh // 2)
+            sub_modal.geometry(f"{sw}x{sh}+{sx}+{sy}")
+
+            sub_frame = ttk.Frame(sub_modal, padding="15")
+            sub_frame.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(sub_frame, text="Nombre de la categoría:").grid(row=0, column=0, sticky="w", pady=5)
+            nombre_var = tk.StringVar()
+            nombre_entry = ttk.Entry(sub_frame, textvariable=nombre_var, width=30)
+            nombre_entry.grid(row=0, column=1, sticky="ew", pady=5)
+            nombre_entry.focus()
+
+            ttk.Label(sub_frame, text="Tipo de dispositivo:").grid(row=1, column=0, sticky="w", pady=5)
+            tipo_var = tk.StringVar()
+            tipo_combo = ttk.Combobox(sub_frame, textvariable=tipo_var, state="readonly", width=28)
+            tipo_combo['values'] = [f"{t['key']} - {t['value']}" for t in TIPOS_DISPOSITIVO]
+            tipo_combo.grid(row=1, column=1, sticky="ew", pady=5)
+            if tipo_combo['values']:
+                tipo_combo.current(0)
+
+            button_frame = ttk.Frame(sub_frame)
+            button_frame.grid(row=2, column=0, columnspan=2, pady=20)
+
+            def guardar_categoria():
+                nombre = nombre_var.get().strip()
+                tipo_seleccionado = tipo_var.get()
+
+                if not nombre:
+                    self.log_api_message("❌ Error: El nombre de la categoría es obligatorio", level="ERROR")
+                    return
+
+                if not tipo_seleccionado:
+                    self.log_api_message("❌ Error: Debe seleccionar un tipo de dispositivo", level="ERROR")
+                    return
+
+                # Extraer key del tipo seleccionado
+                tipo_dispositivo_id = int(tipo_seleccionado.split(" - ")[0])
+                tipo_dispositivo_nombre = tipo_seleccionado.split(" - ")[1]
+
+                if self.config_manager.agregar_categoria(nombre, tipo_dispositivo_id, tipo_dispositivo_nombre):
+                    self.log_api_message(f"✅ Categoría '{nombre}' agregada correctamente", level="INFO")
+                    cargar_categorias()
+                    sub_modal.destroy()
+                else:
+                    self.log_api_message("❌ Error al agregar la categoría", level="ERROR")
+
+            save_btn = ttk.Button(button_frame, text="Guardar", command=guardar_categoria)
+            save_btn.pack(side=tk.LEFT, padx=5)
+
+            cancel_btn = ttk.Button(button_frame, text="Cancelar", command=sub_modal.destroy)
+            cancel_btn.pack(side=tk.LEFT, padx=5)
+
+            sub_frame.columnconfigure(1, weight=1)
+
+        def abrir_editar_categoria():
+            """Abre un sub-modal para editar la categoría seleccionada"""
+            seleccion = categorias_listbox.curselection()
+            if not seleccion:
+                self.log_api_message("❌ Seleccione una categoría para editar", level="WARNING")
+                return
+
+            categorias = self.config_manager.get_categorias_personalizadas()
+            if not categorias:
+                return
+
+            categoria_seleccionada = categorias[seleccion[0]]
+
+            sub_modal = tk.Toplevel(modal)
+            sub_modal.title("Editar Categoría")
+            sub_modal.geometry("450x200")
+            sub_modal.transient(modal)
+            sub_modal.grab_set()
+
+            # Centrar sub-modal
+            sub_modal.update_idletasks()
+            sw = sub_modal.winfo_width()
+            sh = sub_modal.winfo_height()
+            sx = (sub_modal.winfo_screenwidth() // 2) - (sw // 2)
+            sy = (sub_modal.winfo_screenheight() // 2) - (sh // 2)
+            sub_modal.geometry(f"{sw}x{sh}+{sx}+{sy}")
+
+            sub_frame = ttk.Frame(sub_modal, padding="15")
+            sub_frame.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(sub_frame, text="Nombre de la categoría:").grid(row=0, column=0, sticky="w", pady=5)
+            nombre_var = tk.StringVar(value=categoria_seleccionada['nombre'])
+            nombre_entry = ttk.Entry(sub_frame, textvariable=nombre_var, width=30)
+            nombre_entry.grid(row=0, column=1, sticky="ew", pady=5)
+            nombre_entry.focus()
+
+            ttk.Label(sub_frame, text="Tipo de dispositivo:").grid(row=1, column=0, sticky="w", pady=5)
+            tipo_var = tk.StringVar()
+            tipo_combo = ttk.Combobox(sub_frame, textvariable=tipo_var, state="readonly", width=28)
+            tipo_combo['values'] = [f"{t['key']} - {t['value']}" for t in TIPOS_DISPOSITIVO]
+            tipo_combo.grid(row=1, column=1, sticky="ew", pady=5)
+
+            # Seleccionar el tipo actual
+            tipo_actual = f"{categoria_seleccionada['tipo_dispositivo_id']} - {categoria_seleccionada['tipo_dispositivo_nombre']}"
+            if tipo_actual in tipo_combo['values']:
+                tipo_combo.set(tipo_actual)
+            else:
+                tipo_combo.current(0)
+
+            button_frame = ttk.Frame(sub_frame)
+            button_frame.grid(row=2, column=0, columnspan=2, pady=20)
+
+            def guardar_edicion():
+                nombre = nombre_var.get().strip()
+                tipo_seleccionado = tipo_var.get()
+
+                if not nombre:
+                    self.log_api_message("❌ Error: El nombre de la categoría es obligatorio", level="ERROR")
+                    return
+
+                if not tipo_seleccionado:
+                    self.log_api_message("❌ Error: Debe seleccionar un tipo de dispositivo", level="ERROR")
+                    return
+
+                # Extraer key del tipo seleccionado
+                tipo_dispositivo_id = int(tipo_seleccionado.split(" - ")[0])
+                tipo_dispositivo_nombre = tipo_seleccionado.split(" - ")[1]
+
+                if self.config_manager.editar_categoria(
+                    categoria_seleccionada['id'],
+                    nombre,
+                    tipo_dispositivo_id,
+                    tipo_dispositivo_nombre
+                ):
+                    self.log_api_message(f"✅ Categoría editada correctamente", level="INFO")
+                    cargar_categorias()
+                    sub_modal.destroy()
+                else:
+                    self.log_api_message("❌ Error al editar la categoría", level="ERROR")
+
+            save_btn = ttk.Button(button_frame, text="Guardar", command=guardar_edicion)
+            save_btn.pack(side=tk.LEFT, padx=5)
+
+            cancel_btn = ttk.Button(button_frame, text="Cancelar", command=sub_modal.destroy)
+            cancel_btn.pack(side=tk.LEFT, padx=5)
+
+            sub_frame.columnconfigure(1, weight=1)
+
+        def eliminar_categoria():
+            """Elimina la categoría seleccionada"""
+            seleccion = categorias_listbox.curselection()
+            if not seleccion:
+                self.log_api_message("❌ Seleccione una categoría para eliminar", level="WARNING")
+                return
+
+            categorias = self.config_manager.get_categorias_personalizadas()
+            if not categorias:
+                return
+
+            categoria_seleccionada = categorias[seleccion[0]]
+
+            # Confirmar eliminación
+            confirmar = messagebox.askyesno(
+                "Confirmar eliminación",
+                f"¿Está seguro de eliminar la categoría:\n\n'{categoria_seleccionada['nombre']}'?"
+            )
+
+            if confirmar:
+                if self.config_manager.eliminar_categoria(categoria_seleccionada['id']):
+                    self.log_api_message(f"✅ Categoría eliminada correctamente", level="INFO")
+                    cargar_categorias()
+                else:
+                    self.log_api_message("❌ Error al eliminar la categoría", level="ERROR")
+
+        def marcar_como_default():
+            """Marca la categoría seleccionada como default"""
+            seleccion = categorias_listbox.curselection()
+            if not seleccion:
+                self.log_api_message("❌ Seleccione una categoría para marcar como default", level="WARNING")
+                return
+
+            categorias = self.config_manager.get_categorias_personalizadas()
+            if not categorias:
+                return
+
+            categoria_seleccionada = categorias[seleccion[0]]
+
+            if self.config_manager.set_categoria_default(categoria_seleccionada['id']):
+                self.log_api_message(
+                    f"✅ Categoría '{categoria_seleccionada['nombre']}' marcada como default",
+                    level="INFO"
+                )
+                cargar_categorias()
+            else:
+                self.log_api_message("❌ Error al marcar categoría como default", level="ERROR")
+
+        # Botones de acción
+        agregar_btn = ttk.Button(right_frame, text="➕ Agregar", command=abrir_agregar_categoria, width=15)
+        agregar_btn.pack(pady=5)
+
+        editar_btn = ttk.Button(right_frame, text="✏️ Editar", command=abrir_editar_categoria, width=15)
+        editar_btn.pack(pady=5)
+
+        eliminar_btn = ttk.Button(right_frame, text="🗑️ Eliminar", command=eliminar_categoria, width=15)
+        eliminar_btn.pack(pady=5)
+
+        ttk.Separator(right_frame, orient='horizontal').pack(fill='x', pady=10)
+
+        default_btn = ttk.Button(right_frame, text="⭐ Marcar Default", command=marcar_como_default, width=15)
+        default_btn.pack(pady=5)
+
+        # Frame de botones inferior
+        bottom_button_frame = ttk.Frame(main_frame)
+        bottom_button_frame.pack(fill=tk.X, pady=(10, 0))
+
+        cerrar_btn = ttk.Button(bottom_button_frame, text="Cerrar", command=modal.destroy)
+        cerrar_btn.pack(side=tk.RIGHT, padx=5)
+
+        # Cargar categorías al abrir el modal
+        cargar_categorias()
 
     # ===== MÉTODOS DE ACCIÓN =====
 
@@ -1234,11 +1564,23 @@ class IntegratedGUI(LoggerMixin):
 
             self.log_api_message("Enviando solicitud de crear el preingreso...")
 
+            # Obtener categoría personalizada default del ConfigManager
+            categoria_default = self.config_manager.get_categoria_default()
+
+            # Extraer categoria_id y tipo_dispositivo_id si existe configuración
+            categoria_id = None
+            tipo_dispositivo_id = None
+            if categoria_default:
+                categoria_id = categoria_default.get('tipo_dispositivo_id')
+                tipo_dispositivo_id = categoria_default.get('tipo_dispositivo_id')
+
             # Ejecutar caso de uso (operación asíncrona)
             result = await use_case.execute(
                 CreatePreingresoInput(
                     datos_pdf=datos_pdf,
-                    archivo_adjunto=archivo_adjunto
+                    archivo_adjunto=archivo_adjunto,
+                    categoria_id=categoria_id,
+                    tipo_dispositivo_id=tipo_dispositivo_id
                 )
             )
 
