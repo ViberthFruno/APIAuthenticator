@@ -415,16 +415,21 @@ def extract_repair_data(text, logger):
                 # Validar longitud razonable
                 if 6 <= len(correo_encontrado) <= 254:
                     data['correo_cliente'] = correo_encontrado
+                    # NUEVO: Guardar el texto original extraído del OCR para diagnóstico
+                    data['correo_ocr_raw'] = correo_encontrado
                     logger.info(f"✅ Correo extraído y validado exitosamente: {correo_encontrado}")
                 else:
                     logger.warning(f"⚠️ Correo con longitud inválida ({len(correo_encontrado)} caracteres): {correo_encontrado}")
                     data['correo_cliente'] = "correo_no_encontrado@gollo.com"
+                    data['correo_ocr_raw'] = f"INVALIDO (longitud {len(correo_encontrado)}): {correo_encontrado}"
             else:
                 logger.warning(f"⚠️ Correo con formato inválido: {correo_encontrado}")
                 data['correo_cliente'] = "correo_no_encontrado@gollo.com"
+                data['correo_ocr_raw'] = f"INVALIDO (formato): {correo_encontrado}"
         else:
             logger.warning("⚠️ No se pudo extraer el correo del cliente - usando correo por defecto")
             data['correo_cliente'] = "correo_no_encontrado@gollo.com"
+            data['correo_ocr_raw'] = "NO_ENCONTRADO_EN_PDF"
 
         logger.info("=" * 80)
 
