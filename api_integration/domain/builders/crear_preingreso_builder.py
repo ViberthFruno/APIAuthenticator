@@ -95,97 +95,115 @@ class CrearPreingresoBuilder:
         _normalizar_clave('DAP'): 1,
     }
 
-    # Cache para la configuración de categorías (se carga una vez)
-    _CATEGORIAS_CONFIG: Optional[Dict] = None
+    # Categorías hardcodeadas (solo categoria_id, sin tipo_dispositivo_id)
+    _CATEGORIAS_CONFIG: Dict = {
+        "Móviles": {"id": 1, "palabras_clave": []},
+        "Hogar": {"id": 3, "palabras_clave": []},
+        "Cómputo": {"id": 4, "palabras_clave": []},
+        "Desconocido": {"id": 5, "palabras_clave": []},
+        "Accesorios": {"id": 6, "palabras_clave": []},
+        "Transporte": {"id": 7, "palabras_clave": []},
+        "Seguridad": {"id": 8, "palabras_clave": []},
+        "Entretenimiento": {"id": 10, "palabras_clave": []},
+        "Telecomunicaciones": {"id": 11, "palabras_clave": []},
+        "No encontrado": {"id": 12, "palabras_clave": []}
+    }
 
     @staticmethod
     def _cargar_config_categorias() -> Dict:
         """
-        Carga la configuración de categorías desde config_categorias.json
-        Cachea el resultado para evitar múltiples lecturas del archivo.
+        Carga la configuración de categorías hardcodeadas y las palabras clave del JSON si existe.
 
         Returns:
             Dict: Configuración de categorías con IDs y palabras clave
         """
-        if CrearPreingresoBuilder._CATEGORIAS_CONFIG is not None:
-            return CrearPreingresoBuilder._CATEGORIAS_CONFIG
-
         # Buscar el archivo config_categorias.json en el directorio raíz del proyecto
         archivo_config = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config_categorias.json')
+
+        # Crear una copia de las categorías hardcodeadas
+        categorias = {nombre: {"id": datos["id"], "palabras_clave": datos["palabras_clave"].copy()}
+                     for nombre, datos in CrearPreingresoBuilder._CATEGORIAS_CONFIG.items()}
 
         try:
             with open(archivo_config, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                CrearPreingresoBuilder._CATEGORIAS_CONFIG = config.get('categorias', {})
-                return CrearPreingresoBuilder._CATEGORIAS_CONFIG
-        except FileNotFoundError:
-            # Si no existe el archivo, retornar configuración vacía y usar categoría por defecto
-            return {}
-        except json.JSONDecodeError:
-            # Si el JSON está mal formado, retornar configuración vacía
-            return {}
+                categorias_guardadas = config.get('categorias', {})
+
+                # Importar solo las palabras clave de las categorías guardadas
+                for nombre_cat, datos_cat in categorias_guardadas.items():
+                    if nombre_cat in categorias:
+                        palabras_guardadas = datos_cat.get('palabras_clave', [])
+                        # Convertir palabras clave a formato simple (solo strings)
+                        palabras_simples = []
+                        for palabra_data in palabras_guardadas:
+                            if isinstance(palabra_data, str):
+                                palabras_simples.append(palabra_data)
+                            elif isinstance(palabra_data, dict):
+                                palabras_simples.append(palabra_data.get('palabra', ''))
+                        categorias[nombre_cat]['palabras_clave'] = palabras_simples
+        except (FileNotFoundError, json.JSONDecodeError):
+            # Si no existe el archivo o hay error, usar categorías hardcodeadas sin palabras clave
+            pass
+
+        return categorias
 
     @staticmethod
     def _detectar_categoria(descripcion_producto: Optional[str]) -> Tuple[int, int]:
         """
-        Detecta la categoría y tipo de dispositivo del producto basándose en palabras clave en la descripción.
+        Detecta la categoría del producto basándose en palabras clave en la descripción.
         Prioriza coincidencias más largas (más específicas) sobre coincidencias cortas.
+
+        Nota: tipo_dispositivo_id siempre retorna 7 (Desconocido) ya que solo se trabaja con categoria_id.
 
         Args:
             descripcion_producto: Descripción del producto extraída del PDF
 
         Returns:
             Tuple[int, int]: (categoria_id, tipo_dispositivo_id)
-                           (5, 7) = (Desconocido, Desconocido) si no se encuentra coincidencia
+                           (12, 7) = (No encontrado, Desconocido) si no se encuentra coincidencia
         """
-        # Si no hay descripción, retornar Desconocido
-        if not descripcion_producto:
-            return 5, 7  # Categoría Desconocido, Tipo Dispositivo Desconocido
+        # Tipo de dispositivo siempre será Desconocido (7) ya que solo trabajamos con categoria_id
+        TIPO_DISPOSITIVO_DESCONOCIDO = 7
 
-        # Cargar configuración de categorías
+        # Si no hay descripción, retornar "No encontrado"
+        if not descripcion_producto:
+            return 12, TIPO_DISPOSITIVO_DESCONOCIDO  # Categoría "No encontrado", Tipo Dispositivo Desconocido
+
+        # Cargar configuración de categorías hardcodeadas
         categorias_config = CrearPreingresoBuilder._cargar_config_categorias()
 
         if not categorias_config:
-            # Si no hay configuración, retornar Desconocido
-            return 5, 7
+            # Si no hay configuración, retornar "No encontrado"
+            return 12, TIPO_DISPOSITIVO_DESCONOCIDO
 
         # Normalizar la descripción para búsqueda case-insensitive
         descripcion_normalizada = descripcion_producto.upper().strip()
 
-        # Recopilar todas las palabras clave con sus categorías y tipos de dispositivo
+        # Recopilar todas las palabras clave con sus categorías
         # y ordenarlas por longitud descendente (más largas primero)
         todas_palabras = []
         for nombre_categoria, config_categoria in categorias_config.items():
             categoria_id = config_categoria.get('id')
             palabras_clave = config_categoria.get('palabras_clave', [])
 
-            for palabra_data in palabras_clave:
-                # Manejar tanto el formato antiguo (string) como el nuevo (objeto)
-                if isinstance(palabra_data, str):
-                    # Formato antiguo: solo string, usar tipo_dispositivo_id por defecto
-                    palabra_normalizada = palabra_data.upper().strip()
-                    tipo_dispositivo_id = 7  # Desconocido por defecto
-                elif isinstance(palabra_data, dict):
-                    # Formato nuevo: objeto con palabra y tipo_dispositivo_id
-                    palabra_normalizada = palabra_data.get('palabra', '').upper().strip()
-                    tipo_dispositivo_id = palabra_data.get('tipo_dispositivo_id', 7)
-                else:
-                    continue
-
-                if palabra_normalizada:  # Ignorar palabras vacías
-                    todas_palabras.append((palabra_normalizada, categoria_id, tipo_dispositivo_id))
+            for palabra in palabras_clave:
+                # Las palabras clave ahora son strings simples
+                if isinstance(palabra, str):
+                    palabra_normalizada = palabra.upper().strip()
+                    if palabra_normalizada:  # Ignorar palabras vacías
+                        todas_palabras.append((palabra_normalizada, categoria_id))
 
         # Ordenar por longitud descendente (más largas primero)
         todas_palabras.sort(key=lambda x: len(x[0]), reverse=True)
 
         # Buscar coincidencias con palabras clave ordenadas
-        for palabra_normalizada, categoria_id, tipo_dispositivo_id in todas_palabras:
-            # Si la palabra clave está contenida en la descripción, retornar los IDs
+        for palabra_normalizada, categoria_id in todas_palabras:
+            # Si la palabra clave está contenida en la descripción, retornar la categoría
             if palabra_normalizada in descripcion_normalizada:
-                return categoria_id, tipo_dispositivo_id
+                return categoria_id, TIPO_DISPOSITIVO_DESCONOCIDO
 
-        # Si no se encontró ninguna coincidencia, retornar Desconocido
-        return 5, 7  # Categoría Desconocido, Tipo Dispositivo Desconocido
+        # Si no se encontró ninguna coincidencia, retornar "No encontrado"
+        return 12, TIPO_DISPOSITIVO_DESCONOCIDO  # Categoría "No encontrado", Tipo Dispositivo Desconocido
 
     @staticmethod
     async def build(datos_pdf: DatosExtraidosPDF, info_sucursal: SucursalDTO,
