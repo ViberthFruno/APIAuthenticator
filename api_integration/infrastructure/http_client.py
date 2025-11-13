@@ -1,4 +1,4 @@
-#http_cliente.py
+# http_cliente.py
 """
 API Integration Context - Infrastructure Layer
 Cliente HTTP robusto con manejo de reintentos y rate limiting

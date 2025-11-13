@@ -126,54 +126,66 @@ class CrearPreingresoBuilder:
             return {}
 
     @staticmethod
-    def _detectar_categoria(descripcion_producto: Optional[str]) -> int:
+    def _detectar_categoria(descripcion_producto: Optional[str]) -> Tuple[int, int]:
         """
-        Detecta la categoría del producto basándose en palabras clave en la descripción.
+        Detecta la categoría y tipo de dispositivo del producto basándose en palabras clave en la descripción.
         Prioriza coincidencias más largas (más específicas) sobre coincidencias cortas.
 
         Args:
             descripcion_producto: Descripción del producto extraída del PDF
 
         Returns:
-            int: ID de la categoría detectada (5 = Desconocido si no se encuentra coincidencia)
+            Tuple[int, int]: (categoria_id, tipo_dispositivo_id)
+                           (5, 7) = (Desconocido, Desconocido) si no se encuentra coincidencia
         """
         # Si no hay descripción, retornar Desconocido
         if not descripcion_producto:
-            return 5  # Desconocido
+            return 5, 7  # Categoría Desconocido, Tipo Dispositivo Desconocido
 
         # Cargar configuración de categorías
         categorias_config = CrearPreingresoBuilder._cargar_config_categorias()
 
         if not categorias_config:
             # Si no hay configuración, retornar Desconocido
-            return 5
+            return 5, 7
 
         # Normalizar la descripción para búsqueda case-insensitive
         descripcion_normalizada = descripcion_producto.upper().strip()
 
-        # Recopilar todas las palabras clave con sus categorías
+        # Recopilar todas las palabras clave con sus categorías y tipos de dispositivo
         # y ordenarlas por longitud descendente (más largas primero)
         todas_palabras = []
         for nombre_categoria, config_categoria in categorias_config.items():
             categoria_id = config_categoria.get('id')
             palabras_clave = config_categoria.get('palabras_clave', [])
 
-            for palabra_clave in palabras_clave:
-                palabra_normalizada = palabra_clave.upper().strip()
+            for palabra_data in palabras_clave:
+                # Manejar tanto el formato antiguo (string) como el nuevo (objeto)
+                if isinstance(palabra_data, str):
+                    # Formato antiguo: solo string, usar tipo_dispositivo_id por defecto
+                    palabra_normalizada = palabra_data.upper().strip()
+                    tipo_dispositivo_id = 7  # Desconocido por defecto
+                elif isinstance(palabra_data, dict):
+                    # Formato nuevo: objeto con palabra y tipo_dispositivo_id
+                    palabra_normalizada = palabra_data.get('palabra', '').upper().strip()
+                    tipo_dispositivo_id = palabra_data.get('tipo_dispositivo_id', 7)
+                else:
+                    continue
+
                 if palabra_normalizada:  # Ignorar palabras vacías
-                    todas_palabras.append((palabra_normalizada, categoria_id))
+                    todas_palabras.append((palabra_normalizada, categoria_id, tipo_dispositivo_id))
 
         # Ordenar por longitud descendente (más largas primero)
         todas_palabras.sort(key=lambda x: len(x[0]), reverse=True)
 
         # Buscar coincidencias con palabras clave ordenadas
-        for palabra_normalizada, categoria_id in todas_palabras:
-            # Si la palabra clave está contenida en la descripción, retornar el ID
+        for palabra_normalizada, categoria_id, tipo_dispositivo_id in todas_palabras:
+            # Si la palabra clave está contenida en la descripción, retornar los IDs
             if palabra_normalizada in descripcion_normalizada:
-                return categoria_id
+                return categoria_id, tipo_dispositivo_id
 
         # Si no se encontró ninguna coincidencia, retornar Desconocido
-        return 5  # Desconocido
+        return 5, 7  # Categoría Desconocido, Tipo Dispositivo Desconocido
 
     @staticmethod
     async def build(datos_pdf: DatosExtraidosPDF, info_sucursal: SucursalDTO,
@@ -195,9 +207,8 @@ class CrearPreingresoBuilder:
         if not numero_factura:
             numero_factura = "N/A"
 
-        # Detectar categoría automáticamente basándose en la descripción del producto
-        categoria_id = CrearPreingresoBuilder._detectar_categoria(datos_pdf.producto_descripcion)
-        tipo_dispositivo_id = 7  # Desconocido
+        # Detectar categoría y tipo de dispositivo automáticamente basándose en la descripción del producto
+        categoria_id, tipo_dispositivo_id = CrearPreingresoBuilder._detectar_categoria(datos_pdf.producto_descripcion)
 
         # Por default están sin garantía
         tipo_preingreso_id = 92

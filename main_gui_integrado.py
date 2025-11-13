@@ -396,6 +396,7 @@ class IntegratedGUI(LoggerMixin):
         Configura el callback del logger para que los mensajes se muestren en la GUI
         Este callback se ejecutará de forma thread-safe usando self.root.after()
         """
+
         def gui_callback(message: str, level: str):
             """
             Callback que recibe mensajes del logger y los muestra en la GUI
@@ -787,8 +788,21 @@ class IntegratedGUI(LoggerMixin):
             # Cargar palabras clave de esta categoría
             palabras_listbox.delete(0, tk.END)
             palabras_clave = categorias_dict[nombre_categoria].get('palabras_clave', [])
-            for palabra in palabras_clave:
-                palabras_listbox.insert(tk.END, palabra)
+
+            # Mapeo de IDs a nombres
+            tipo_nombres = {7: "Desconocido", 1: "Celulares y Tablets", 10: "Cable USB"}
+
+            for palabra_data in palabras_clave:
+                # Manejar tanto el formato antiguo (string) como el nuevo (objeto)
+                if isinstance(palabra_data, str):
+                    # Formato antiguo: solo string
+                    palabras_listbox.insert(tk.END, f"{palabra_data} [Desconocido]")
+                else:
+                    # Formato nuevo: objeto con palabra y tipo_dispositivo_id
+                    palabra = palabra_data.get('palabra', '')
+                    tipo_id = palabra_data.get('tipo_dispositivo_id', 7)
+                    tipo_nombre = tipo_nombres.get(tipo_id, "Desconocido")
+                    palabras_listbox.insert(tk.END, f"{palabra} [{tipo_nombre}]")
 
         def agregar_palabra():
             """Agrega una nueva palabra clave a la categoría seleccionada"""
@@ -799,7 +813,7 @@ class IntegratedGUI(LoggerMixin):
             # Crear ventana para ingresar la palabra
             palabra_modal = tk.Toplevel(modal)
             palabra_modal.title("Agregar Palabra Clave")
-            palabra_modal.geometry("400x150")
+            palabra_modal.geometry("450x250")
             palabra_modal.transient(modal)
             palabra_modal.grab_set()
 
@@ -815,10 +829,30 @@ class IntegratedGUI(LoggerMixin):
             frame = ttk.Frame(palabra_modal, padding="20")
             frame.pack(fill=tk.BOTH, expand=True)
 
-            ttk.Label(frame, text="Nueva palabra clave:").pack(pady=(0, 10))
+            # Entrada de palabra clave
+            ttk.Label(frame, text="Nueva palabra clave:").grid(row=0, column=0, sticky="w", pady=(0, 5))
             entrada = ttk.Entry(frame, width=40)
-            entrada.pack(pady=(0, 20))
+            entrada.grid(row=0, column=1, pady=(0, 5), padx=(10, 0))
             entrada.focus_set()
+
+            # Dropdown de tipo de dispositivo
+            ttk.Label(frame, text="Tipo de Dispositivo:").grid(row=1, column=0, sticky="w", pady=(0, 20))
+
+            tipo_dispositivo_opciones = {
+                "Desconocido": 7,
+                "Celulares y Tablets": 1,
+                "Cable USB": 10
+            }
+
+            tipo_dispositivo_var = tk.StringVar(value="Desconocido")
+            tipo_dispositivo_dropdown = ttk.Combobox(
+                frame,
+                textvariable=tipo_dispositivo_var,
+                values=list(tipo_dispositivo_opciones.keys()),
+                state="readonly",
+                width=37
+            )
+            tipo_dispositivo_dropdown.grid(row=1, column=1, pady=(0, 20), padx=(10, 0))
 
             def guardar_palabra():
                 palabra = entrada.get().strip()
@@ -826,16 +860,26 @@ class IntegratedGUI(LoggerMixin):
                     messagebox.showwarning("Advertencia", "La palabra clave no puede estar vacía")
                     return
 
-                # Agregar a la categoría
-                categorias_dict[categoria_seleccionada[0]]['palabras_clave'].append(palabra)
-                palabras_listbox.insert(tk.END, palabra)
+                tipo_disp_nombre = tipo_dispositivo_var.get()
+                tipo_disp_id = tipo_dispositivo_opciones[tipo_disp_nombre]
+
+                # Agregar a la categoría como objeto
+                nueva_palabra = {
+                    'palabra': palabra,
+                    'tipo_dispositivo_id': tipo_disp_id
+                }
+                categorias_dict[categoria_seleccionada[0]]['palabras_clave'].append(nueva_palabra)
+
+                # Actualizar listbox con formato
+                palabras_listbox.insert(tk.END, f"{palabra} [{tipo_disp_nombre}]")
                 palabra_modal.destroy()
 
             button_frame = ttk.Frame(frame)
-            button_frame.pack(fill=tk.X)
+            button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
 
             ttk.Button(button_frame, text="Guardar", command=guardar_palabra).pack(side=tk.LEFT, expand=True, padx=5)
-            ttk.Button(button_frame, text="Cancelar", command=palabra_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=palabra_modal.destroy).pack(side=tk.LEFT, expand=True,
+                                                                                          padx=5)
 
             # Permitir Enter para guardar
             entrada.bind('<Return>', lambda e: guardar_palabra())
@@ -852,17 +896,146 @@ class IntegratedGUI(LoggerMixin):
                 return
 
             idx = selection[0]
-            palabra = palabras_listbox.get(idx)
+            palabra_mostrada = palabras_listbox.get(idx)
+            # Extraer solo la palabra (antes del corchete)
+            palabra = palabra_mostrada.split(" [")[0]
 
             # Confirmar eliminación
             if messagebox.askyesno("Confirmar", f"¿Eliminar la palabra clave '{palabra}'?"):
                 # Eliminar de la lista en memoria
-                categorias_dict[categoria_seleccionada[0]]['palabras_clave'].remove(palabra)
+                palabras_clave = categorias_dict[categoria_seleccionada[0]]['palabras_clave']
+
+                # Buscar y eliminar el objeto correspondiente
+                for i, palabra_data in enumerate(palabras_clave):
+                    palabra_actual = palabra_data.get('palabra', palabra_data) if isinstance(palabra_data,
+                                                                                             dict) else palabra_data
+                    if palabra_actual == palabra:
+                        palabras_clave.pop(i)
+                        break
+
                 palabras_listbox.delete(idx)
 
+        def editar_palabra():
+            """Edita la palabra clave seleccionada"""
+            if not categoria_seleccionada[0]:
+                messagebox.showwarning("Advertencia", "Selecciona primero una categoría")
+                return
+
+            selection = palabras_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona una palabra clave para editar")
+                return
+
+            idx = selection[0]
+            palabra_mostrada = palabras_listbox.get(idx)
+            # Extraer solo la palabra (antes del corchete)
+            palabra_actual = palabra_mostrada.split(" [")[0]
+
+            # Buscar la palabra en la lista
+            palabras_clave = categorias_dict[categoria_seleccionada[0]]['palabras_clave']
+            palabra_obj = None
+            palabra_idx = None
+
+            for i, palabra_data in enumerate(palabras_clave):
+                if isinstance(palabra_data, dict):
+                    if palabra_data.get('palabra') == palabra_actual:
+                        palabra_obj = palabra_data
+                        palabra_idx = i
+                        break
+                else:
+                    # Formato antiguo
+                    if palabra_data == palabra_actual:
+                        palabra_obj = {'palabra': palabra_data, 'tipo_dispositivo_id': 7}
+                        palabra_idx = i
+                        break
+
+            if not palabra_obj:
+                messagebox.showerror("Error", "No se pudo encontrar la palabra clave")
+                return
+
+            # Crear ventana para editar
+            editar_modal = tk.Toplevel(modal)
+            editar_modal.title("Editar Palabra Clave")
+            editar_modal.geometry("450x250")
+            editar_modal.transient(modal)
+            editar_modal.grab_set()
+
+            # Centrar ventana
+            editar_modal.update_idletasks()
+            ew = editar_modal.winfo_width()
+            eh = editar_modal.winfo_height()
+            ex = (editar_modal.winfo_screenwidth() // 2) - (ew // 2)
+            ey = (editar_modal.winfo_screenheight() // 2) - (eh // 2)
+            editar_modal.geometry(f"{ew}x{eh}+{ex}+{ey}")
+
+            # Frame
+            frame = ttk.Frame(editar_modal, padding="20")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            # Mostrar palabra actual (solo lectura)
+            ttk.Label(frame, text="Palabra Clave:").grid(row=0, column=0, sticky="w", pady=(0, 5))
+            palabra_label = ttk.Label(frame, text=palabra_actual, font=("Arial", 10, "bold"))
+            palabra_label.grid(row=0, column=1, sticky="w", pady=(0, 5), padx=(10, 0))
+
+            # Dropdown de tipo de dispositivo
+            ttk.Label(frame, text="Tipo de Dispositivo:").grid(row=1, column=0, sticky="w", pady=(0, 20))
+
+            tipo_dispositivo_opciones = {
+                "Desconocido": 7,
+                "Celulares y Tablets": 1,
+                "Cable USB": 10
+            }
+
+            # Obtener el tipo actual
+            tipo_actual_id = palabra_obj.get('tipo_dispositivo_id', 7)
+            tipo_actual_nombre = "Desconocido"
+            for nombre, id_val in tipo_dispositivo_opciones.items():
+                if id_val == tipo_actual_id:
+                    tipo_actual_nombre = nombre
+                    break
+
+            tipo_dispositivo_var = tk.StringVar(value=tipo_actual_nombre)
+            tipo_dispositivo_dropdown = ttk.Combobox(
+                frame,
+                textvariable=tipo_dispositivo_var,
+                values=list(tipo_dispositivo_opciones.keys()),
+                state="readonly",
+                width=37
+            )
+            tipo_dispositivo_dropdown.grid(row=1, column=1, pady=(0, 20), padx=(10, 0))
+
+            def guardar_edicion():
+                tipo_disp_nombre = tipo_dispositivo_var.get()
+                tipo_disp_id = tipo_dispositivo_opciones[tipo_disp_nombre]
+
+                # Actualizar el objeto en la lista
+                palabras_clave[palabra_idx] = {
+                    'palabra': palabra_actual,
+                    'tipo_dispositivo_id': tipo_disp_id
+                }
+
+                # Actualizar listbox
+                palabras_listbox.delete(idx)
+                palabras_listbox.insert(idx, f"{palabra_actual} [{tipo_disp_nombre}]")
+                palabras_listbox.selection_set(idx)
+
+                messagebox.showinfo("Éxito", f"✅ Palabra clave '{palabra_actual}' actualizada correctamente")
+                editar_modal.destroy()
+
+            button_frame = ttk.Frame(frame)
+            button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+
+            ttk.Button(button_frame, text="💾 Guardar", command=guardar_edicion).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="❌ Cancelar", command=editar_modal.destroy).pack(side=tk.LEFT, expand=True,
+                                                                                           padx=5)
+
         # Botones para gestionar palabras clave
-        ttk.Button(palabras_buttons_frame, text="➕ Agregar", command=agregar_palabra).pack(side=tk.LEFT, expand=True, padx=2)
-        ttk.Button(palabras_buttons_frame, text="🗑️ Eliminar", command=eliminar_palabra).pack(side=tk.LEFT, expand=True, padx=2)
+        ttk.Button(palabras_buttons_frame, text="➕ Agregar", command=agregar_palabra).pack(side=tk.LEFT, expand=True,
+                                                                                           padx=2)
+        ttk.Button(palabras_buttons_frame, text="✏️ Editar", command=editar_palabra).pack(side=tk.LEFT, expand=True,
+                                                                                          padx=2)
+        ttk.Button(palabras_buttons_frame, text="🗑️ Eliminar", command=eliminar_palabra).pack(side=tk.LEFT, expand=True,
+                                                                                              padx=2)
 
         # Bind de selección de categoría
         categorias_listbox.bind('<<ListboxSelect>>', on_categoria_select)
@@ -887,7 +1060,8 @@ class IntegratedGUI(LoggerMixin):
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar la configuración:\n{e}")
 
-        ttk.Button(main_button_frame, text="💾 Guardar", command=guardar_configuracion).pack(side=tk.LEFT, expand=True, padx=5)
+        ttk.Button(main_button_frame, text="💾 Guardar", command=guardar_configuracion).pack(side=tk.LEFT, expand=True,
+                                                                                            padx=5)
         ttk.Button(main_button_frame, text="❌ Cancelar", command=modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
 
         # Configurar grid weights
