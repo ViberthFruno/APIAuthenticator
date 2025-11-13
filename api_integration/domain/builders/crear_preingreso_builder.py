@@ -94,75 +94,9 @@ class CrearPreingresoBuilder:
     }
 
     @staticmethod
-    def _detectar_categoria_producto(descripcion: str = "", marca: str = "", modelo: str = "") -> str:
-        """
-        Detecta la categoría del producto basándose en palabras clave en la descripción, marca o modelo.
-
-        Args:
-            descripcion: Descripción del producto
-            marca: Marca del producto
-            modelo: Modelo del producto
-
-        Returns:
-            str: Nombre de la categoría detectada o "Otros" si no se detecta ninguna
-        """
-        # Concatenar todos los campos y convertir a minúsculas para búsqueda
-        texto_completo = f"{descripcion} {marca} {modelo}".lower()
-
-        # Diccionario de palabras clave por categoría
-        palabras_clave = {
-            "Celulares": ["celular", "smartphone", "iphone", "galaxy", "android", "móvil", "movil", "telefono"],
-            "Tablets": ["tablet", "ipad", "tab "],
-            "Laptops": ["laptop", "notebook", "macbook", "chromebook", "portátil", "portatil"],
-            "Computadoras": ["computadora", "pc", "desktop", "imac", "torre"],
-            "Monitores": ["monitor", "pantalla", "display", "led", "lcd"],
-            "Impresoras": ["impresora", "printer", "multifuncional"],
-            "Teclados": ["teclado", "keyboard"],
-            "Mouse": ["mouse", "ratón", "raton"],
-            "Audífonos": ["audífono", "audifono", "auricular", "headphone", "earphone", "airpod"],
-            "Parlantes": ["parlante", "bocina", "speaker", "altavoz"],
-            "Cámaras": ["cámara", "camara", "camera", "webcam"],
-            "Proyectores": ["proyector", "projector"],
-            "Televisores": ["televisor", "tv", "television", "smart tv"],
-            "Consolas": ["consola", "playstation", "xbox", "nintendo", "ps5", "ps4"],
-            "Routers": ["router", "modem", "access point"],
-            "Refrigeradoras": ["refrigeradora", "refrigerador", "nevera", "frigorífico", "frigorifico"],
-            "Cocinas": ["cocina", "estufa"],
-            "Microondas": ["microondas"],
-            "Licuadoras": ["licuadora", "batidora", "blender"],
-            "Aspiradoras": ["aspiradora", "vacuum"],
-            "Aires Acondicionados": ["aire acondicionado", "ac ", "split"],
-            "Lavadoras": ["lavadora", "washing"],
-            "Secadoras": ["secadora", "dryer"],
-            "Relojes Inteligentes": ["reloj", "smartwatch", "watch"],
-            "Drones": ["drone", "dron"],
-            "Scooters": ["scooter", "patineta"],
-            "Baterías": ["batería", "bateria", "battery", "powerbank"],
-            "Cargadores": ["cargador", "charger"],
-            "Cables": ["cable", "usb"],
-            "Estuches": ["estuche", "funda", "case", "cover"],
-        }
-
-        # Buscar coincidencias
-        for categoria, keywords in palabras_clave.items():
-            for keyword in keywords:
-                if keyword in texto_completo:
-                    return categoria
-
-        return "Otros"  # Categoría por defecto si no se detecta ninguna
-
-    @staticmethod
     async def build(datos_pdf: DatosExtraidosPDF, info_sucursal: SucursalDTO,
-                    archivo_adjunto: ArchivoAdjunto, categorias_dispositivo_map: Dict[str, int] = None) -> PreingresoData:
-        """
-        Construye la instancia final inmutable de PreingresoData
-
-        Args:
-            datos_pdf: Datos extraídos del PDF
-            info_sucursal: Información de la sucursal
-            archivo_adjunto: Archivo adjunto
-            categorias_dispositivo_map: Mapeo opcional de categorías a tipo_dispositivo_id
-        """
+                    archivo_adjunto: ArchivoAdjunto) -> PreingresoData:
+        """Construye la instancia final inmutable de PreingresoData"""
 
         # Obtener id y nombre canónico de la marca
         marca_id, marca_nombre_canonico = CrearPreingresoBuilder._obtener_marca(datos_pdf.marca_nombre)
@@ -180,22 +114,7 @@ class CrearPreingresoBuilder:
             numero_factura = "N/A"
 
         categoria_id = 5  # Desconocido
-        tipo_dispositivo_id = 7  # Desconocido (valor por defecto)
-
-        # Intentar detectar la categoría del producto y obtener el tipo_dispositivo_id correspondiente
-        if categorias_dispositivo_map:
-            categoria_detectada = CrearPreingresoBuilder._detectar_categoria_producto(
-                descripcion=datos_pdf.producto_descripcion or "",
-                marca=datos_pdf.marca_nombre or "",
-                modelo=datos_pdf.modelo_nombre or ""
-            )
-
-            # Si se detectó una categoría y existe en el mapeo, usar el tipo_dispositivo_id configurado
-            if categoria_detectada in categorias_dispositivo_map:
-                tipo_dispositivo_id = categorias_dispositivo_map[categoria_detectada]
-                print(f"📱 Categoría detectada: {categoria_detectada} -> tipo_dispositivo_id: {tipo_dispositivo_id}")
-            else:
-                print(f"⚠️ Categoría detectada '{categoria_detectada}' no encontrada en configuración, usando valor por defecto")
+        tipo_dispositivo_id = 7  # Desconocido
 
         # Por default están sin garantía
         tipo_preingreso_id = 92
