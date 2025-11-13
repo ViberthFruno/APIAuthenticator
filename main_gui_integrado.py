@@ -882,7 +882,7 @@ class IntegratedGUI(LoggerMixin):
                     json.dump(config_data, f, indent=2, ensure_ascii=False)
 
                 messagebox.showinfo("Éxito", "✅ Configuración de categorías guardada correctamente")
-                self.log_system_message("✅ Configuración de categorías actualizada", level="INFO")
+                self.log_api_message("✅ Configuración de categorías actualizada", level="INFO")
                 modal.destroy()
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar la configuración:\n{e}")
