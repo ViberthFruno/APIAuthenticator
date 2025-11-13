@@ -75,6 +75,8 @@ class CreatePreingresoInput:
     retry_on_failure: bool = False
     validate_before_send: bool = True
     archivo_adjunto: Optional[ArchivoAdjunto] = None
+    categoria_id: Optional[int] = None
+    tipo_dispositivo_id: Optional[int] = None
 
 
 @dataclass

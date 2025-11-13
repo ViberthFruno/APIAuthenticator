@@ -78,7 +78,9 @@ class CreatePreingresoUseCase:
             preingreso_data = await CrearPreingresoBuilder.build(
                 input_dto.datos_pdf,
                 tienda,
-                input_dto.archivo_adjunto
+                input_dto.archivo_adjunto,
+                categoria_id=input_dto.categoria_id,
+                tipo_dispositivo_id=input_dto.tipo_dispositivo_id
             )
 
             # Debug - datos enviados a la API:

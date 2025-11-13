@@ -95,8 +95,18 @@ class CrearPreingresoBuilder:
 
     @staticmethod
     async def build(datos_pdf: DatosExtraidosPDF, info_sucursal: SucursalDTO,
-                    archivo_adjunto: ArchivoAdjunto) -> PreingresoData:
-        """Construye la instancia final inmutable de PreingresoData"""
+                    archivo_adjunto: ArchivoAdjunto, categoria_id: int = None,
+                    tipo_dispositivo_id: int = None) -> PreingresoData:
+        """
+        Construye la instancia final inmutable de PreingresoData
+
+        Args:
+            datos_pdf: Datos extraídos del PDF
+            info_sucursal: Información de la sucursal
+            archivo_adjunto: Archivo PDF adjunto
+            categoria_id: ID de categoría personalizada (opcional, por defecto: 5 - Desconocido)
+            tipo_dispositivo_id: ID de tipo de dispositivo personalizado (opcional, por defecto: 7 - Desconocido)
+        """
 
         # Obtener id y nombre canónico de la marca
         marca_id, marca_nombre_canonico = CrearPreingresoBuilder._obtener_marca(datos_pdf.marca_nombre)
@@ -113,8 +123,11 @@ class CrearPreingresoBuilder:
         if not numero_factura:
             numero_factura = "N/A"
 
-        categoria_id = 5  # Desconocido
-        tipo_dispositivo_id = 7  # Desconocido
+        # Usar categorías personalizadas si se proporcionan, sino usar defaults
+        if categoria_id is None:
+            categoria_id = 5  # Desconocido (default)
+        if tipo_dispositivo_id is None:
+            tipo_dispositivo_id = 7  # Desconocido (default)
 
         # Por default están sin garantía
         tipo_preingreso_id = 92
