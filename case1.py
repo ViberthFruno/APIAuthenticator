@@ -301,6 +301,89 @@ def extract_repair_data(text, logger):
                 if len(correos_candidatos) > 1:
                     logger.info(f"ℹ️ Se encontraron {len(correos_candidatos)} correos válidos, se seleccionó el primero")
 
+        # Si no se encontró correo, buscar patrones SIN punto antes de la extensión
+        # Ejemplo: "maxjoca_200S@hotmailcom" → "maxjoca_200S@hotmail.com"
+        if not correo_encontrado:
+            logger.info("🔍 Patrón con punto no encontró correos, buscando patrones sin punto...")
+
+            # Lista de extensiones comunes a buscar
+            extensiones_comunes = [
+                'com', 'net', 'org', 'es', 'mx', 'co', 'ar', 'cl', 'pe', 'ec',
+                'edu', 'gov', 'mil', 'info', 'biz', 'io', 'us', 'uk', 'ca'
+            ]
+
+            # Construir lista de dominios + extensiones comunes (sin punto)
+            # Ejemplo: "hotmailcom", "gmailcom", "outlookcom"
+            dominios_base = ['gmail', 'hotmail', 'outlook', 'yahoo', 'live', 'icloud', 'aol', 'gollo', 'fruno']
+            patrones_sin_punto = []
+            for dominio in dominios_base:
+                for ext in extensiones_comunes:
+                    patrones_sin_punto.append(f"{dominio}{ext}")
+
+            # Patrón para buscar: parte_local @ dominio_sin_punto
+            # Ejemplo: algo@hotmailcom
+            for patron_dominio_ext in patrones_sin_punto:
+                # Crear patrón regex que busque este dominio+extensión sin punto
+                # Patrón: ([correo_local])@(hotmailcom)
+                patron_busqueda = rf'([a-zA-Z0-9][a-zA-Z0-9\.\-_]{{0,63}})\s*@\s*({re.escape(patron_dominio_ext)})'
+
+                match = re.search(patron_busqueda, text, re.IGNORECASE)
+                if match:
+                    local_part = match.group(1).strip()
+                    dominio_ext_sin_punto = match.group(2).strip().lower()
+
+                    logger.info(f"   ✓ Patrón sin punto encontrado: {local_part}@{dominio_ext_sin_punto}")
+
+                    # Buscar dónde insertar el punto
+                    # Intentar encontrar la extensión dentro del dominio
+                    dominio_corregido = None
+                    for ext in extensiones_comunes:
+                        if dominio_ext_sin_punto.endswith(ext):
+                            # Encontramos la extensión, insertar el punto
+                            # Ejemplo: "hotmailcom" → "hotmail" + "." + "com"
+                            dominio_parte = dominio_ext_sin_punto[:-len(ext)]
+                            dominio_corregido = f"{dominio_parte}.{ext}"
+                            break
+
+                    if dominio_corregido:
+                        # Reconstruir el correo con el punto
+                        correo_temp = f"{local_part}@{dominio_corregido}"
+                        correo_temp = re.sub(r'\s+', '', correo_temp).lower()
+
+                        logger.info(f"   ✓ Correo corregido (punto agregado): {correo_temp}")
+
+                        # Validaciones básicas
+                        if len(correo_temp) >= 6 and correo_temp.count('@') == 1:
+                            correo_encontrado = correo_temp
+                            logger.info(f"✅ Correo extraído con corrección de punto: {correo_encontrado}")
+                            break
+
+            # Si aún no se encontró, intentar búsqueda genérica de @ seguido de texto sin punto
+            if not correo_encontrado:
+                logger.info("🔍 Buscando cualquier patrón sin punto con extensiones comunes...")
+
+                # Patrón más general: algo@algoext donde ext es una extensión común
+                # Construir patrón que busque @ seguido de letras/números y luego una extensión conocida
+                extensiones_pattern = '|'.join(extensiones_comunes)
+                patron_generico = rf'([a-zA-Z0-9][a-zA-Z0-9\.\-_]{{2,63}})\s*@\s*([a-zA-Z0-9][a-zA-Z0-9\-]{{2,63}})({extensiones_pattern})'
+
+                match = re.search(patron_generico, text, re.IGNORECASE)
+                if match:
+                    local_part = match.group(1).strip()
+                    dominio_parte = match.group(2).strip()
+                    extension = match.group(3).strip()
+
+                    # Reconstruir con el punto
+                    correo_temp = f"{local_part}@{dominio_parte}.{extension}"
+                    correo_temp = re.sub(r'\s+', '', correo_temp).lower()
+
+                    logger.info(f"   ✓ Patrón genérico sin punto encontrado: {correo_temp}")
+
+                    # Validaciones básicas
+                    if len(correo_temp) >= 6 and correo_temp.count('@') == 1:
+                        correo_encontrado = correo_temp
+                        logger.info(f"✅ Correo extraído con patrón genérico: {correo_encontrado}")
+
         # Si no se encontró correo con el patrón robusto, intentar búsqueda con espacios
         if not correo_encontrado:
             logger.info("🔍 Patrón robusto no encontró correos, intentando búsqueda con espacios...")
