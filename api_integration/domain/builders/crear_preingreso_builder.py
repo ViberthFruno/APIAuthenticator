@@ -1,8 +1,10 @@
 # crear_preingreso_builder.py
 
 import re
+import json
+import os
 from datetime import datetime, timedelta
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from uuid import UUID
 
 from dateutil.relativedelta import relativedelta
@@ -93,6 +95,86 @@ class CrearPreingresoBuilder:
         _normalizar_clave('DAP'): 1,
     }
 
+    # Cache para la configuración de categorías (se carga una vez)
+    _CATEGORIAS_CONFIG: Optional[Dict] = None
+
+    @staticmethod
+    def _cargar_config_categorias() -> Dict:
+        """
+        Carga la configuración de categorías desde config_categorias.json
+        Cachea el resultado para evitar múltiples lecturas del archivo.
+
+        Returns:
+            Dict: Configuración de categorías con IDs y palabras clave
+        """
+        if CrearPreingresoBuilder._CATEGORIAS_CONFIG is not None:
+            return CrearPreingresoBuilder._CATEGORIAS_CONFIG
+
+        # Buscar el archivo config_categorias.json en el directorio raíz del proyecto
+        archivo_config = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config_categorias.json')
+
+        try:
+            with open(archivo_config, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                CrearPreingresoBuilder._CATEGORIAS_CONFIG = config.get('categorias', {})
+                return CrearPreingresoBuilder._CATEGORIAS_CONFIG
+        except FileNotFoundError:
+            # Si no existe el archivo, retornar configuración vacía y usar categoría por defecto
+            return {}
+        except json.JSONDecodeError:
+            # Si el JSON está mal formado, retornar configuración vacía
+            return {}
+
+    @staticmethod
+    def _detectar_categoria(descripcion_producto: Optional[str]) -> int:
+        """
+        Detecta la categoría del producto basándose en palabras clave en la descripción.
+        Prioriza coincidencias más largas (más específicas) sobre coincidencias cortas.
+
+        Args:
+            descripcion_producto: Descripción del producto extraída del PDF
+
+        Returns:
+            int: ID de la categoría detectada (5 = Desconocido si no se encuentra coincidencia)
+        """
+        # Si no hay descripción, retornar Desconocido
+        if not descripcion_producto:
+            return 5  # Desconocido
+
+        # Cargar configuración de categorías
+        categorias_config = CrearPreingresoBuilder._cargar_config_categorias()
+
+        if not categorias_config:
+            # Si no hay configuración, retornar Desconocido
+            return 5
+
+        # Normalizar la descripción para búsqueda case-insensitive
+        descripcion_normalizada = descripcion_producto.upper().strip()
+
+        # Recopilar todas las palabras clave con sus categorías
+        # y ordenarlas por longitud descendente (más largas primero)
+        todas_palabras = []
+        for nombre_categoria, config_categoria in categorias_config.items():
+            categoria_id = config_categoria.get('id')
+            palabras_clave = config_categoria.get('palabras_clave', [])
+
+            for palabra_clave in palabras_clave:
+                palabra_normalizada = palabra_clave.upper().strip()
+                if palabra_normalizada:  # Ignorar palabras vacías
+                    todas_palabras.append((palabra_normalizada, categoria_id))
+
+        # Ordenar por longitud descendente (más largas primero)
+        todas_palabras.sort(key=lambda x: len(x[0]), reverse=True)
+
+        # Buscar coincidencias con palabras clave ordenadas
+        for palabra_normalizada, categoria_id in todas_palabras:
+            # Si la palabra clave está contenida en la descripción, retornar el ID
+            if palabra_normalizada in descripcion_normalizada:
+                return categoria_id
+
+        # Si no se encontró ninguna coincidencia, retornar Desconocido
+        return 5  # Desconocido
+
     @staticmethod
     async def build(datos_pdf: DatosExtraidosPDF, info_sucursal: SucursalDTO,
                     archivo_adjunto: ArchivoAdjunto) -> PreingresoData:
@@ -113,7 +195,8 @@ class CrearPreingresoBuilder:
         if not numero_factura:
             numero_factura = "N/A"
 
-        categoria_id = 5  # Desconocido
+        # Detectar categoría automáticamente basándose en la descripción del producto
+        categoria_id = CrearPreingresoBuilder._detectar_categoria(datos_pdf.producto_descripcion)
         tipo_dispositivo_id = 7  # Desconocido
 
         # Por default están sin garantía
