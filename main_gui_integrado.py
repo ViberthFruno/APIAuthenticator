@@ -46,7 +46,6 @@ try:
     from email_manager import EmailManager
     from case_handler import CaseHandler
     from logger import setup_logging, LoggerMixin, set_gui_callback
-    from device_types import TIPOS_DISPOSITIVO, get_tipos_dispositivo_ordenados
 except ImportError as e:
     print(f"Error importando módulos: {e}")
     print("Asegúrese de que todos los archivos necesarios estén en el directorio")
@@ -283,14 +282,6 @@ class IntegratedGUI(LoggerMixin):
             command=self.test_api_connection
         )
         self.api_config_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-
-        # Botón para configurar categorías
-        self.categorias_button = ttk.Button(
-            self.bottom_left_panel,
-            text="Configurar Categorías",
-            command=self.open_categorias_modal
-        )
-        self.categorias_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
         self.bottom_left_panel.columnconfigure(0, weight=1)
 
@@ -683,149 +674,6 @@ class IntegratedGUI(LoggerMixin):
                 self.log_api_message("❌ Error al guardar la lista de usuarios a notificar.", level="ERROR")
 
         save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
-        save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-
-        cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
-        cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-
-    def open_categorias_modal(self):
-        """Abre una ventana modal para configurar categorías y sus tipos de dispositivo"""
-
-        # Cargar configuración actual
-        categorias_guardadas = self.config_manager.get_categorias_dispositivo()
-
-        modal = tk.Toplevel(self.root)
-        modal.title("Configurar Categorías - Tipos de Dispositivo")
-        modal.geometry("700x600")
-        modal.transient(self.root)
-        modal.grab_set()
-        modal.focus_set()
-
-        # Centrar ventana
-        modal.update_idletasks()
-        width = modal.winfo_width()
-        height = modal.winfo_height()
-        x = (modal.winfo_screenwidth() // 2) - (width // 2)
-        y = (modal.winfo_screenheight() // 2) - (height // 2)
-        modal.geometry(f"{width}x{height}+{x}+{y}")
-
-        main_frame = ttk.Frame(modal, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Título y descripción
-        title_label = ttk.Label(
-            main_frame,
-            text="Configurar Tipos de Dispositivo por Categoría",
-            font=("Segoe UI", 11, "bold")
-        )
-        title_label.pack(anchor="w", pady=(0, 5))
-
-        desc_label = ttk.Label(
-            main_frame,
-            text="Asigne un tipo de dispositivo a cada categoría.\nEsto se usará al crear preingresos automáticamente.",
-            justify=tk.LEFT
-        )
-        desc_label.pack(anchor="w", pady=(0, 10))
-
-        # Frame con scroll para las categorías
-        canvas = tk.Canvas(main_frame, height=400)
-        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Lista de categorías predefinidas comunes
-        # (pueden extenderse o modificarse según necesidad)
-        categorias_predefinidas = [
-            "Celulares", "Tablets", "Laptops", "Computadoras",
-            "Monitores", "Impresoras", "Teclados", "Mouse",
-            "Audífonos", "Parlantes", "Cámaras", "Proyectores",
-            "Televisores", "Consolas", "Routers", "Modems",
-            "Refrigeradoras", "Cocinas", "Microondas", "Licuadoras",
-            "Aspiradoras", "Aires Acondicionados", "Lavadoras", "Secadoras",
-            "Relojes Inteligentes", "Drones", "Scooters", "Baterías",
-            "Cargadores", "Cables", "Estuches", "Otros"
-        ]
-
-        # Diccionario para almacenar las variables de los combobox
-        categoria_vars = {}
-
-        # Obtener lista de tipos de dispositivo para el dropdown
-        tipos_dispositivo_list = [f"{nombre} (ID: {id_tipo})" for id_tipo, nombre in get_tipos_dispositivo_ordenados()]
-
-        row = 0
-        for categoria in categorias_predefinidas:
-            # Label de la categoría
-            ttk.Label(
-                scrollable_frame,
-                text=f"{categoria}:",
-                font=("Segoe UI", 9)
-            ).grid(row=row, column=0, sticky="w", padx=10, pady=5)
-
-            # Combobox para seleccionar tipo de dispositivo
-            var = tk.StringVar()
-
-            # Cargar valor guardado si existe
-            if categoria in categorias_guardadas:
-                tipo_id = categorias_guardadas[categoria]
-                tipo_nombre = TIPOS_DISPOSITIVO.get(tipo_id, "Desconocido")
-                var.set(f"{tipo_nombre} (ID: {tipo_id})")
-            else:
-                var.set("Desconocido (ID: 7)")  # Valor por defecto
-
-            combo = ttk.Combobox(
-                scrollable_frame,
-                textvariable=var,
-                values=tipos_dispositivo_list,
-                state="readonly",
-                width=35
-            )
-            combo.grid(row=row, column=1, sticky="ew", padx=10, pady=5)
-
-            categoria_vars[categoria] = var
-            row += 1
-
-        scrollable_frame.columnconfigure(1, weight=1)
-
-        # Separador
-        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
-
-        # Frame de botones
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=(0, 0))
-
-        def save_categorias():
-            """Guarda la configuración de categorías"""
-            categorias_map = {}
-
-            for categoria, var in categoria_vars.items():
-                selected_text = var.get()
-                # Extraer el ID del texto seleccionado: "Nombre (ID: XX)"
-                try:
-                    id_str = selected_text.split("ID: ")[1].rstrip(")")
-                    tipo_id = int(id_str)
-                    categorias_map[categoria] = tipo_id
-                except (IndexError, ValueError):
-                    # Si hay error, usar valor por defecto
-                    categorias_map[categoria] = 7
-
-            # Guardar en config
-            if self.config_manager.set_categorias_dispositivo(categorias_map):
-                self.log_api_message("✅ Configuración de categorías guardada correctamente", level="INFO")
-                modal.destroy()
-            else:
-                self.log_api_message("❌ Error al guardar configuración de categorías", level="ERROR")
-
-        save_button = ttk.Button(button_frame, text="Guardar", command=save_categorias)
         save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
         cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
@@ -1381,15 +1229,8 @@ class IntegratedGUI(LoggerMixin):
                 hecho_por=strip_if_string(datos_extraidos.get('hecho_por'))
             )
 
-            # Obtener mapeo de categorías a tipos de dispositivo
-            categorias_dispositivo_map = self.config_manager.get_categorias_dispositivo()
-
-            # Crear caso de uso con el mapeo de categorías
-            use_case = CreatePreingresoUseCase(
-                self.repository,
-                self.retry_policy,
-                categorias_dispositivo_map
-            )
+            # Crear caso de uso
+            use_case = CreatePreingresoUseCase(self.repository, self.retry_policy)
 
             self.log_api_message("Enviando solicitud de crear el preingreso...")
 
