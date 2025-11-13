@@ -115,7 +115,7 @@ class CrearPreingresoBuilder:
         Carga la configuración de categorías hardcodeadas y las palabras clave del JSON si existe.
 
         Returns:
-            Dict: Configuración de categorías con IDs y palabras clave
+            Dict: Configuración de categorías con IDs y palabras clave (formato completo con tipo_dispositivo_id)
         """
         # Buscar el archivo config_categorias.json en el directorio raíz del proyecto
         archivo_config = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config_categorias.json')
@@ -129,18 +129,20 @@ class CrearPreingresoBuilder:
                 config = json.load(f)
                 categorias_guardadas = config.get('categorias', {})
 
-                # Importar solo las palabras clave de las categorías guardadas
+                # Importar palabras clave con su tipo_dispositivo_id
                 for nombre_cat, datos_cat in categorias_guardadas.items():
                     if nombre_cat in categorias:
                         palabras_guardadas = datos_cat.get('palabras_clave', [])
-                        # Convertir palabras clave a formato simple (solo strings)
-                        palabras_simples = []
+                        # Mantener el formato completo con tipo_dispositivo_id
+                        palabras_completas = []
                         for palabra_data in palabras_guardadas:
                             if isinstance(palabra_data, str):
-                                palabras_simples.append(palabra_data)
+                                # Si es string simple, convertir a formato completo con tipo_dispositivo_id por defecto
+                                palabras_completas.append({"palabra": palabra_data, "tipo_dispositivo_id": 7})
                             elif isinstance(palabra_data, dict):
-                                palabras_simples.append(palabra_data.get('palabra', ''))
-                        categorias[nombre_cat]['palabras_clave'] = palabras_simples
+                                # Si ya tiene el formato correcto, mantenerlo
+                                palabras_completas.append(palabra_data)
+                        categorias[nombre_cat]['palabras_clave'] = palabras_completas
         except (FileNotFoundError, json.JSONDecodeError):
             # Si no existe el archivo o hay error, usar categorías hardcodeadas sin palabras clave
             pass
@@ -150,60 +152,67 @@ class CrearPreingresoBuilder:
     @staticmethod
     def _detectar_categoria(descripcion_producto: Optional[str]) -> Tuple[int, int]:
         """
-        Detecta la categoría del producto basándose en palabras clave en la descripción.
+        Detecta la categoría y tipo de dispositivo basándose en palabras clave en la descripción.
         Prioriza coincidencias más largas (más específicas) sobre coincidencias cortas.
 
-        Nota: tipo_dispositivo_id siempre retorna 7 (Desconocido) ya que solo se trabaja con categoria_id.
-
         Args:
-            descripcion_producto: Descripción del producto extraída del PDF
+            descripcion_producto: Descripción del producto extraída del PDF (del campo Descripción: en el OCR)
 
         Returns:
             Tuple[int, int]: (categoria_id, tipo_dispositivo_id)
-                           (12, 7) = (No encontrado, Desconocido) si no se encuentra coincidencia
+                           (12, 36) = (No encontrado, No encontrado) si no se encuentra coincidencia
         """
-        # Tipo de dispositivo siempre será Desconocido (7) ya que solo trabajamos con categoria_id
-        TIPO_DISPOSITIVO_DESCONOCIDO = 7
+        # Valores por defecto cuando no se encuentra coincidencia
+        CATEGORIA_NO_ENCONTRADO = 12
+        TIPO_DISPOSITIVO_NO_ENCONTRADO = 36
 
         # Si no hay descripción, retornar "No encontrado"
         if not descripcion_producto:
-            return 12, TIPO_DISPOSITIVO_DESCONOCIDO  # Categoría "No encontrado", Tipo Dispositivo Desconocido
+            return CATEGORIA_NO_ENCONTRADO, TIPO_DISPOSITIVO_NO_ENCONTRADO
 
-        # Cargar configuración de categorías hardcodeadas
+        # Cargar configuración de categorías con palabras clave
         categorias_config = CrearPreingresoBuilder._cargar_config_categorias()
 
         if not categorias_config:
             # Si no hay configuración, retornar "No encontrado"
-            return 12, TIPO_DISPOSITIVO_DESCONOCIDO
+            return CATEGORIA_NO_ENCONTRADO, TIPO_DISPOSITIVO_NO_ENCONTRADO
 
         # Normalizar la descripción para búsqueda case-insensitive
         descripcion_normalizada = descripcion_producto.upper().strip()
 
-        # Recopilar todas las palabras clave con sus categorías
+        # Recopilar todas las palabras clave con sus categorías y tipo_dispositivo_id
         # y ordenarlas por longitud descendente (más largas primero)
         todas_palabras = []
         for nombre_categoria, config_categoria in categorias_config.items():
             categoria_id = config_categoria.get('id')
             palabras_clave = config_categoria.get('palabras_clave', [])
 
-            for palabra in palabras_clave:
-                # Las palabras clave ahora son strings simples
-                if isinstance(palabra, str):
-                    palabra_normalizada = palabra.upper().strip()
-                    if palabra_normalizada:  # Ignorar palabras vacías
-                        todas_palabras.append((palabra_normalizada, categoria_id))
+            for palabra_data in palabras_clave:
+                # Las palabras clave ahora son diccionarios con palabra y tipo_dispositivo_id
+                if isinstance(palabra_data, dict):
+                    palabra = palabra_data.get('palabra', '')
+                    tipo_dispositivo_id = palabra_data.get('tipo_dispositivo_id', TIPO_DISPOSITIVO_NO_ENCONTRADO)
+
+                    if palabra:  # Ignorar palabras vacías
+                        palabra_normalizada = palabra.upper().strip()
+                        todas_palabras.append((palabra_normalizada, categoria_id, tipo_dispositivo_id))
+                elif isinstance(palabra_data, str):
+                    # Backward compatibility: si es string simple, usar tipo_dispositivo_id por defecto
+                    palabra_normalizada = palabra_data.upper().strip()
+                    if palabra_normalizada:
+                        todas_palabras.append((palabra_normalizada, categoria_id, TIPO_DISPOSITIVO_NO_ENCONTRADO))
 
         # Ordenar por longitud descendente (más largas primero)
         todas_palabras.sort(key=lambda x: len(x[0]), reverse=True)
 
         # Buscar coincidencias con palabras clave ordenadas
-        for palabra_normalizada, categoria_id in todas_palabras:
-            # Si la palabra clave está contenida en la descripción, retornar la categoría
+        for palabra_normalizada, categoria_id, tipo_dispositivo_id in todas_palabras:
+            # Si la palabra clave está contenida en la descripción, retornar la categoría y tipo
             if palabra_normalizada in descripcion_normalizada:
-                return categoria_id, TIPO_DISPOSITIVO_DESCONOCIDO
+                return categoria_id, tipo_dispositivo_id
 
         # Si no se encontró ninguna coincidencia, retornar "No encontrado"
-        return 12, TIPO_DISPOSITIVO_DESCONOCIDO  # Categoría "No encontrado", Tipo Dispositivo Desconocido
+        return CATEGORIA_NO_ENCONTRADO, TIPO_DISPOSITIVO_NO_ENCONTRADO
 
     @staticmethod
     async def build(datos_pdf: DatosExtraidosPDF, info_sucursal: SucursalDTO,
