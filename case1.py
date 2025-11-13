@@ -189,24 +189,23 @@ def extract_repair_data(text, logger):
             data['telefono_cliente'] = match.group(1).strip()
 
         # ============================================================================
-        # EXTRACCIÓN DE CORREO ELECTRÓNICO - VERSIÓN ROBUSTA
+        # EXTRACCIÓN DE CORREO ELECTRÓNICO - VERSIÓN ULTRA ROBUSTA
         # ============================================================================
-        # Estrategia: Buscar CUALQUIER texto con "@" en todo el documento
-        # sin importar su ubicación, ya que el correo siempre contiene arroba
+        # Estrategia multi-nivel:
+        # 1. Regex estándar (para correos bien formados)
+        # 2. Búsqueda de "@" + reconstrucción de tokens adyacentes (para OCR fragmentado)
+        # 3. Búsqueda sin puntos en extensión
+        # 4. Búsqueda con espacios internos
         # ============================================================================
 
         correo_encontrado = None
-        logger.info("🔍 Iniciando búsqueda robusta de correo electrónico...")
+        logger.info("🔍 Iniciando búsqueda ULTRA ROBUSTA de correo electrónico...")
 
-        # Buscar TODOS los patrones que contengan "@" en todo el documento
-        # Patrón flexible que captura:
-        # - Parte local: letras, números, puntos, guiones, guiones bajos
-        # - @ (puede tener espacios alrededor por OCR)
-        # - Dominio: letras, números, puntos, guiones
-        # - Extensión: 2-6 caracteres
+        # ============================================================================
+        # NIVEL 1: Regex estándar (método rápido para correos bien formados)
+        # ============================================================================
+        logger.info("📍 NIVEL 1: Búsqueda con regex estándar...")
         patron_email = r'([a-zA-Z0-9][a-zA-Z0-9\.\-_]{0,63})\s*@\s*([a-zA-Z0-9][a-zA-Z0-9\.\-]{0,253})\s*\.\s*([a-zA-Z]{2,6})'
-
-        # Buscar todas las coincidencias en el texto
         matches = re.findall(patron_email, text, re.IGNORECASE)
 
         if matches:
@@ -301,10 +300,130 @@ def extract_repair_data(text, logger):
                 if len(correos_candidatos) > 1:
                     logger.info(f"ℹ️ Se encontraron {len(correos_candidatos)} correos válidos, se seleccionó el primero")
 
+        # ============================================================================
+        # NIVEL 2: Reconstrucción de tokens fragmentados (para OCR que separa el correo)
+        # ============================================================================
+        # Si el NIVEL 1 no encontró nada, buscar "@" aislados y reconstruir tokens
+        if not correo_encontrado:
+            logger.info("📍 NIVEL 2: Reconstruyendo correos de tokens fragmentados...")
+            logger.info("   Buscando símbolos '@' en el documento...")
+
+            # Buscar TODAS las posiciones del símbolo "@" en el texto
+            arroba_positions = [m.start() for m in re.finditer(r'@', text)]
+
+            if arroba_positions:
+                logger.info(f"   ✓ Encontrados {len(arroba_positions)} símbolos '@' en el documento")
+
+                for arroba_pos in arroba_positions:
+                    # Definir ventana de búsqueda alrededor del "@"
+                    WINDOW_SIZE_BEFORE = 80  # caracteres antes del @
+                    WINDOW_SIZE_AFTER = 80   # caracteres después del @
+
+                    # Extraer ventana de texto alrededor del "@"
+                    start = max(0, arroba_pos - WINDOW_SIZE_BEFORE)
+                    end = min(len(text), arroba_pos + WINDOW_SIZE_AFTER)
+                    window_text = text[start:end]
+
+                    logger.info(f"   🔍 Analizando ventana alrededor de '@' en posición {arroba_pos}")
+                    logger.info(f"      Ventana: ...{window_text[:30]}...@...{window_text[-30:]}...")
+
+                    # Buscar parte local (antes del @) en la ventana
+                    # Buscar hacia atrás desde el "@" hasta encontrar un espacio o inicio
+                    local_pattern = r'([a-zA-Z0-9][a-zA-Z0-9\.\-_]*)\s*$'
+                    text_before_arroba = text[start:arroba_pos]
+                    match_local = re.search(local_pattern, text_before_arroba)
+
+                    if not match_local:
+                        # Si no se encontró con patrón estricto, intentar con más flexibilidad
+                        # Capturar CUALQUIER secuencia alfanumérica antes del @
+                        local_pattern_flexible = r'([a-zA-Z0-9]+(?:[\.\-_][a-zA-Z0-9]+)*)\s*$'
+                        match_local = re.search(local_pattern_flexible, text_before_arroba)
+
+                    if match_local:
+                        local_part = match_local.group(1).strip()
+                        logger.info(f"      ✓ Parte local encontrada: {local_part}")
+                    else:
+                        logger.info(f"      ✗ No se encontró parte local válida")
+                        continue
+
+                    # Buscar dominio + extensión (después del @) en la ventana
+                    # Buscar hacia adelante desde el "@" hasta encontrar un espacio o final
+                    text_after_arroba = text[arroba_pos+1:end]
+
+                    # Intentar primero con punto en la extensión
+                    domain_pattern = r'^\s*([a-zA-Z0-9][a-zA-Z0-9\.\-]*)\s*\.\s*([a-zA-Z]{2,6})'
+                    match_domain = re.search(domain_pattern, text_after_arroba)
+
+                    if match_domain:
+                        domain_part = match_domain.group(1).strip()
+                        extension_part = match_domain.group(2).strip()
+                        logger.info(f"      ✓ Dominio encontrado: {domain_part}.{extension_part}")
+
+                        # Reconstruir el correo
+                        correo_temp = f"{local_part}@{domain_part}.{extension_part}"
+                        correo_temp = re.sub(r'\s+', '', correo_temp).lower()
+
+                        logger.info(f"      ✓ Correo reconstruido: {correo_temp}")
+
+                        # Validar el correo reconstruido
+                        if '@' in correo_temp and '.' in correo_temp.split('@')[1]:
+                            if 6 <= len(correo_temp) <= 254:
+                                # Validaciones adicionales
+                                if correo_temp.count('@') == 1 and not '..' in correo_temp:
+                                    correo_encontrado = correo_temp
+                                    logger.info(f"✅ NIVEL 2 exitoso: Correo reconstruido de tokens fragmentados: {correo_encontrado}")
+                                    break
+                    else:
+                        # Intentar buscar dominio SIN punto (ej: "gmailcom")
+                        logger.info(f"      🔍 No se encontró dominio con punto, buscando sin punto...")
+
+                        # Buscar dominio+extensión juntos (sin punto)
+                        # Lista de extensiones comunes
+                        extensiones_comunes = ['com', 'net', 'org', 'es', 'mx', 'co', 'ar', 'cl', 'pe', 'ec']
+                        dominios_base = ['gmail', 'hotmail', 'outlook', 'yahoo', 'live', 'icloud', 'aol', 'gollo', 'fruno']
+
+                        # Intentar detectar dominio+extensión sin punto
+                        domain_pattern_no_dot = r'^\s*([a-zA-Z0-9][a-zA-Z0-9\-]{1,50})'
+                        match_domain_no_dot = re.search(domain_pattern_no_dot, text_after_arroba)
+
+                        if match_domain_no_dot:
+                            dominio_ext_junto = match_domain_no_dot.group(1).strip().lower()
+                            logger.info(f"      ✓ Cadena después de '@': {dominio_ext_junto}")
+
+                            # Intentar separar el dominio de la extensión
+                            for ext in extensiones_comunes:
+                                if dominio_ext_junto.endswith(ext):
+                                    # Separar dominio de extensión
+                                    dominio_parte = dominio_ext_junto[:-len(ext)]
+                                    if len(dominio_parte) >= 2:  # El dominio debe tener al menos 2 caracteres
+                                        # Reconstruir con punto
+                                        correo_temp = f"{local_part}@{dominio_parte}.{ext}"
+                                        correo_temp = re.sub(r'\s+', '', correo_temp).lower()
+
+                                        logger.info(f"      ✓ Correo reconstruido (sin punto original): {correo_temp}")
+
+                                        # Validar
+                                        if '@' in correo_temp and '.' in correo_temp.split('@')[1]:
+                                            if 6 <= len(correo_temp) <= 254:
+                                                if correo_temp.count('@') == 1 and not '..' in correo_temp:
+                                                    correo_encontrado = correo_temp
+                                                    logger.info(f"✅ NIVEL 2 exitoso: Correo reconstruido sin punto: {correo_encontrado}")
+                                                    break
+
+                            if correo_encontrado:
+                                break
+                        else:
+                            logger.info(f"      ✗ No se encontró dominio válido después de '@'")
+            else:
+                logger.info("   ✗ No se encontró ningún símbolo '@' en el documento")
+
+        # ============================================================================
+        # NIVEL 3: Búsqueda de patrones sin punto antes de la extensión
+        # ============================================================================
         # Si no se encontró correo, buscar patrones SIN punto antes de la extensión
         # Ejemplo: "maxjoca_200S@hotmailcom" → "maxjoca_200S@hotmail.com"
         if not correo_encontrado:
-            logger.info("🔍 Patrón con punto no encontró correos, buscando patrones sin punto...")
+            logger.info("📍 NIVEL 3: Buscando patrones sin punto en extensión...")
 
             # Lista de extensiones comunes a buscar
             extensiones_comunes = [
@@ -384,9 +503,12 @@ def extract_repair_data(text, logger):
                         correo_encontrado = correo_temp
                         logger.info(f"✅ Correo extraído con patrón genérico: {correo_encontrado}")
 
-        # Si no se encontró correo con el patrón robusto, intentar búsqueda con espacios
+        # ============================================================================
+        # NIVEL 4: Búsqueda con espacios internos (para OCR muy deteriorado)
+        # ============================================================================
+        # Si no se encontró correo con patrones anteriores, intentar con espacios
         if not correo_encontrado:
-            logger.info("🔍 Patrón robusto no encontró correos, intentando búsqueda con espacios...")
+            logger.info("📍 NIVEL 4: Búsqueda con espacios internos (OCR deteriorado)...")
             # Patrón que permite más espacios (para OCR muy deteriorado)
             patron_espacios = r'([a-zA-Z0-9][a-zA-Z0-9\.\-_\s]{2,63})\s*@\s*([a-zA-Z0-9][a-zA-Z0-9\.\-\s]{2,253})\s*\.\s*([a-zA-Z]{2,6})'
             match = re.search(patron_espacios, text, re.IGNORECASE)
@@ -397,8 +519,10 @@ def extract_repair_data(text, logger):
                 correo_encontrado = re.sub(r'\s+', '', correo_encontrado).lower()
                 logger.info(f"✓ Correo encontrado con espacios internos: {correo_encontrado}")
             else:
-                # Último intento: buscar secuencia de letras/números con muchos espacios seguida de @
-                logger.info("🔍 Intentando patrón extremo para OCR muy deteriorado...")
+                # ============================================================================
+                # NIVEL 5: Patrón extremo (letras individuales separadas por espacios)
+                # ============================================================================
+                logger.info("📍 NIVEL 5: Patrón extremo (letras muy separadas)...")
                 # Buscar patrones como: m a r i a @ g m a i l . c o m
                 patron_extremo = r'([a-z]\s+){3,}@\s+([a-z]\s+){3,}\.\s*[a-z]{2,6}'
                 match_extremo = re.search(patron_extremo, text, re.IGNORECASE)
@@ -406,7 +530,7 @@ def extract_repair_data(text, logger):
                 if match_extremo:
                     correo_encontrado = match_extremo.group(0)
                     correo_encontrado = re.sub(r'\s+', '', correo_encontrado).lower()
-                    logger.info(f"✓ Correo encontrado con patrón extremo: {correo_encontrado}")
+                    logger.info(f"✅ NIVEL 5 exitoso: {correo_encontrado}")
 
         # Validación final y asignación
         if correo_encontrado:
