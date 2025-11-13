@@ -10,79 +10,18 @@ class ConfigManager:
     def __init__(self, config_file="config.json"):
         """Inicializa el gestor de configuración"""
         self.config_file = config_file
-        # Asegurar que existe un archivo de configuración válido al inicializar
-        self._ensure_valid_config()
-
-    def _ensure_valid_config(self):
-        """Asegura que existe un archivo de configuración válido"""
-        try:
-            # Si el archivo no existe o está vacío, crear uno limpio
-            if not os.path.exists(self.config_file) or os.path.getsize(self.config_file) == 0:
-                print(f"⚠️  Archivo de configuración no encontrado o vacío. Creando uno nuevo...")
-                self._create_clean_config()
-                return
-
-            # Intentar cargar el archivo para verificar que es JSON válido
-            with open(self.config_file, 'r', encoding='utf-8') as file:
-                json.load(file)
-        except json.JSONDecodeError as e:
-            print(f"⚠️  Archivo de configuración corrupto: {str(e)}")
-            print(f"   Creando nuevo archivo de configuración limpio...")
-            self._create_clean_config()
-        except Exception as e:
-            print(f"⚠️  Error al verificar configuración: {str(e)}")
-            print(f"   Creando nuevo archivo de configuración limpio...")
-            self._create_clean_config()
-
-    def _create_clean_config(self):
-        """Crea un archivo de configuración limpio con valores por defecto"""
-        default_config = {
-            'provider': '',
-            'email': '',
-            'password': '',
-            'search_params': {
-                'caso1': '',
-                'titular_correo': ''
-            },
-            'cc_users': []
-        }
-        try:
-            with open(self.config_file, 'w', encoding='utf-8') as file:
-                json.dump(default_config, file, indent=4, ensure_ascii=False)
-            print(f"✅ Archivo de configuración creado: {self.config_file}")
-        except Exception as e:
-            print(f"❌ Error al crear archivo de configuración: {str(e)}")
 
     def load_config(self):
         """Carga la configuración desde el archivo JSON"""
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as file:
-                    config = json.load(file)
-                    # Asegurar que tiene las claves necesarias
-                    if 'search_params' not in config:
-                        config['search_params'] = {}
-                    if 'cc_users' not in config:
-                        config['cc_users'] = []
-                    return config
+                    return json.load(file)
             else:
-                # Si no existe, crear uno limpio y devolverlo
-                self._create_clean_config()
-                return self.load_config()
-        except json.JSONDecodeError as e:
-            print(f"Error: JSON corrupto - {str(e)}")
-            print("Creando nuevo archivo de configuración...")
-            self._create_clean_config()
-            return self.load_config()
+                return {}
         except Exception as e:
             print(f"Error al cargar la configuración: {str(e)}")
-            return {
-                'provider': '',
-                'email': '',
-                'password': '',
-                'search_params': {},
-                'cc_users': []
-            }
+            return {}
 
     def save_config(self, config):
         """Guarda la configuración en el archivo JSON"""
