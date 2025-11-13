@@ -179,6 +179,9 @@ def _generate_formatted_text_for_cc(data):
             lines.append(f"Teléfono Adicional: {data['telefono_adicional']}")
         if 'correo_cliente' in data:
             lines.append(f"Correo: {data['correo_cliente']}")
+        # NUEVO: Mostrar cómo se extrajo el correo con OCR (para diagnóstico)
+        if 'correo_ocr_raw' in data:
+            lines.append(f"Correo (OCR Raw): {data['correo_ocr_raw']}")
         if 'direccion_cliente' in data:
             lines.append(f"Dirección: {data['direccion_cliente']}")
         lines.append("")
