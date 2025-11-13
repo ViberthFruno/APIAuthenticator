@@ -108,6 +108,22 @@ class ConfigManager:
 
         return validation_result
 
+    def get_categorias_dispositivo(self):
+        """Obtiene el mapeo de categorías a tipos de dispositivo"""
+        config = self.load_config()
+        return config.get('categorias_dispositivo', {})
+
+    def set_categorias_dispositivo(self, categorias_map):
+        """Establece el mapeo de categorías a tipos de dispositivo"""
+        config = self.load_config()
+        config['categorias_dispositivo'] = categorias_map
+        return self.save_config(config)
+
+    def get_tipo_dispositivo_for_categoria(self, categoria_nombre):
+        """Obtiene el tipo_dispositivo_id para una categoría específica"""
+        categorias_map = self.get_categorias_dispositivo()
+        return categorias_map.get(categoria_nombre, 7)  # Default: 7 (Desconocido)
+
     def reset_config(self):
         """Resetea la configuración a valores por defecto"""
         default_config = {
@@ -115,6 +131,7 @@ class ConfigManager:
             'email': '',
             'password': '',
             'search_params': {},
-            'cc_users': []
+            'cc_users': [],
+            'categorias_dispositivo': {}
         }
         return self.save_config(default_config)
