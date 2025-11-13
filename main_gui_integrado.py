@@ -710,6 +710,46 @@ class IntegratedGUI(LoggerMixin):
             "No encontrado": {"id": 12, "palabras_clave": []}
         }
 
+        # Tipos de dispositivo hardcodeados para el dropdown
+        tipos_dispositivo = {
+            "Celulares y Tablets": 1,
+            "Monitores": 2,
+            "Cocinas": 3,
+            "Refrigeradoras": 4,
+            "Licuadoras": 6,
+            "Desconocido": 7,
+            "Audífonos": 8,
+            "Relojes": 9,
+            "Cubo": 11,
+            "Proyector": 13,
+            "Parlante": 15,
+            "Mouse": 16,
+            "Scooter": 17,
+            "Robot de Limpieza": 18,
+            "Pantallas": 19,
+            "Impresora": 20,
+            "Laptop": 21,
+            "Cámaras de seguridad": 23,
+            "Router": 24,
+            "Drones": 25,
+            "Baterías": 26,
+            "Gaming": 27,
+            "Teclado": 28,
+            "Estuches": 29,
+            "Audio/video": 32,
+            "Internet Satelital": 33,
+            "Tarjeta de memoria externa": 34,
+            "No encontrado": 36
+        }
+
+        # Función helper para obtener nombre de tipo de dispositivo por ID
+        def get_tipo_dispositivo_nombre(tipo_id):
+            """Retorna el nombre del tipo de dispositivo dado su ID"""
+            for nombre, id_valor in tipos_dispositivo.items():
+                if id_valor == tipo_id:
+                    return nombre
+            return "Desconocido"
+
         # Cargar palabras clave existentes del archivo si existe
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
@@ -720,14 +760,16 @@ class IntegratedGUI(LoggerMixin):
                 for nombre_cat, datos_cat in categorias_guardadas.items():
                     if nombre_cat in categorias_hardcoded:
                         palabras_guardadas = datos_cat.get('palabras_clave', [])
-                        # Convertir palabras clave a formato simple (solo strings)
-                        palabras_simples = []
+                        # Mantener el formato completo con tipo_dispositivo_id
+                        palabras_completas = []
                         for palabra_data in palabras_guardadas:
                             if isinstance(palabra_data, str):
-                                palabras_simples.append(palabra_data)
+                                # Si es string simple, convertir a formato completo con tipo_dispositivo_id por defecto
+                                palabras_completas.append({"palabra": palabra_data, "tipo_dispositivo_id": 7})
                             elif isinstance(palabra_data, dict):
-                                palabras_simples.append(palabra_data.get('palabra', ''))
-                        categorias_hardcoded[nombre_cat]['palabras_clave'] = palabras_simples
+                                # Si ya tiene el formato correcto, mantenerlo
+                                palabras_completas.append(palabra_data)
+                        categorias_hardcoded[nombre_cat]['palabras_clave'] = palabras_completas
         except (FileNotFoundError, json.JSONDecodeError):
             # Si no existe el archivo o hay error, usar categorías vacías
             pass
@@ -819,9 +861,16 @@ class IntegratedGUI(LoggerMixin):
             palabras_listbox.delete(0, tk.END)
             palabras_clave = categorias_dict[nombre_categoria].get('palabras_clave', [])
 
-            # Mostrar palabras clave (formato simple sin tipo_dispositivo_id)
-            for palabra in palabras_clave:
-                palabras_listbox.insert(tk.END, palabra)
+            # Mostrar palabras clave con tipo de dispositivo
+            for palabra_data in palabras_clave:
+                if isinstance(palabra_data, dict):
+                    palabra = palabra_data.get('palabra', '')
+                    tipo_id = palabra_data.get('tipo_dispositivo_id', 7)
+                    tipo_nombre = get_tipo_dispositivo_nombre(tipo_id)
+                    palabras_listbox.insert(tk.END, f"{palabra} - {tipo_nombre}")
+                else:
+                    # Backward compatibility para strings simples
+                    palabras_listbox.insert(tk.END, f"{palabra_data} - Desconocido")
 
         def agregar_palabra():
             """Agrega una nueva palabra clave a la categoría seleccionada"""
@@ -832,7 +881,7 @@ class IntegratedGUI(LoggerMixin):
             # Crear ventana para ingresar la palabra
             palabra_modal = tk.Toplevel(modal)
             palabra_modal.title("Agregar Palabra Clave")
-            palabra_modal.geometry("400x150")
+            palabra_modal.geometry("450x200")
             palabra_modal.transient(modal)
             palabra_modal.grab_set()
 
@@ -854,21 +903,35 @@ class IntegratedGUI(LoggerMixin):
             entrada.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
             entrada.focus_set()
 
+            # Dropdown de tipo de dispositivo
+            ttk.Label(frame, text="Tipo de dispositivo:").grid(row=1, column=0, sticky="w", pady=(0, 15))
+            tipos_nombres = sorted(tipos_dispositivo.keys())
+            tipo_combo = ttk.Combobox(frame, values=tipos_nombres, state="readonly", width=28)
+            tipo_combo.grid(row=1, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+            tipo_combo.set("Desconocido")  # Valor por defecto
+
             def guardar_palabra():
                 palabra = entrada.get().strip().upper()  # Convertir a mayúsculas
                 if not palabra:
                     messagebox.showwarning("Advertencia", "La palabra clave no puede estar vacía")
                     return
 
-                # Agregar a la categoría como string simple
-                categorias_dict[categoria_seleccionada[0]]['palabras_clave'].append(palabra)
+                tipo_nombre = tipo_combo.get()
+                tipo_id = tipos_dispositivo.get(tipo_nombre, 7)
+
+                # Agregar a la categoría con formato completo
+                palabra_completa = {
+                    "palabra": palabra,
+                    "tipo_dispositivo_id": tipo_id
+                }
+                categorias_dict[categoria_seleccionada[0]]['palabras_clave'].append(palabra_completa)
 
                 # Actualizar listbox
-                palabras_listbox.insert(tk.END, palabra)
+                palabras_listbox.insert(tk.END, f"{palabra} - {tipo_nombre}")
                 palabra_modal.destroy()
 
             button_frame = ttk.Frame(frame)
-            button_frame.grid(row=1, column=0, columnspan=2, pady=(10, 0))
+            button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
 
             ttk.Button(button_frame, text="Guardar", command=guardar_palabra).pack(side=tk.LEFT, expand=True, padx=5)
             ttk.Button(button_frame, text="Cancelar", command=palabra_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
@@ -890,15 +953,16 @@ class IntegratedGUI(LoggerMixin):
                 return
 
             idx = selection[0]
-            palabra = palabras_listbox.get(idx)
+            palabra_display = palabras_listbox.get(idx)
 
             # Confirmar eliminación
-            if messagebox.askyesno("Confirmar", f"¿Eliminar la palabra clave '{palabra}'?"):
-                # Eliminar de la lista en memoria
+            if messagebox.askyesno("Confirmar", f"¿Eliminar la palabra clave '{palabra_display}'?"):
+                # Eliminar de la lista en memoria usando el índice directamente
                 palabras_clave = categorias_dict[categoria_seleccionada[0]]['palabras_clave']
 
-                if palabra in palabras_clave:
-                    palabras_clave.remove(palabra)
+                # Eliminar por índice ya que el índice del listbox coincide con el índice del array
+                if idx < len(palabras_clave):
+                    palabras_clave.pop(idx)
 
                 palabras_listbox.delete(idx)
 
@@ -914,12 +978,24 @@ class IntegratedGUI(LoggerMixin):
                 return
 
             idx = selection[0]
-            palabra_actual = palabras_listbox.get(idx)
+            palabra_display = palabras_listbox.get(idx)
+
+            # Obtener los datos actuales de la palabra
+            palabras_clave = categorias_dict[categoria_seleccionada[0]]['palabras_clave']
+            palabra_data = palabras_clave[idx]
+
+            # Extraer valores actuales
+            if isinstance(palabra_data, dict):
+                palabra_actual = palabra_data.get('palabra', '')
+                tipo_id_actual = palabra_data.get('tipo_dispositivo_id', 7)
+            else:
+                palabra_actual = palabra_data
+                tipo_id_actual = 7
 
             # Crear ventana para editar
             editar_modal = tk.Toplevel(modal)
             editar_modal.title("Editar Palabra Clave")
-            editar_modal.geometry("400x150")
+            editar_modal.geometry("450x200")
             editar_modal.transient(modal)
             editar_modal.grab_set()
 
@@ -943,32 +1019,42 @@ class IntegratedGUI(LoggerMixin):
             entrada.focus_set()
             entrada.select_range(0, tk.END)
 
+            # Dropdown de tipo de dispositivo
+            ttk.Label(frame, text="Tipo de dispositivo:").grid(row=1, column=0, sticky="w", pady=(0, 15))
+            tipos_nombres = sorted(tipos_dispositivo.keys())
+            tipo_combo = ttk.Combobox(frame, values=tipos_nombres, state="readonly", width=28)
+            tipo_combo.grid(row=1, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+
+            # Seleccionar el tipo actual
+            tipo_nombre_actual = get_tipo_dispositivo_nombre(tipo_id_actual)
+            tipo_combo.set(tipo_nombre_actual)
+
             def guardar_edicion():
                 nueva_palabra = entrada.get().strip().upper()  # Convertir a mayúsculas
                 if not nueva_palabra:
                     messagebox.showwarning("Advertencia", "La palabra clave no puede estar vacía")
                     return
 
-                # Obtener la lista de palabras clave
-                palabras_clave = categorias_dict[categoria_seleccionada[0]]['palabras_clave']
+                tipo_nombre = tipo_combo.get()
+                tipo_id = tipos_dispositivo.get(tipo_nombre, 7)
 
-                # Buscar el índice de la palabra actual y reemplazarla
-                if palabra_actual in palabras_clave:
-                    palabra_idx = palabras_clave.index(palabra_actual)
-                    palabras_clave[palabra_idx] = nueva_palabra
+                # Actualizar en la lista
+                palabra_completa = {
+                    "palabra": nueva_palabra,
+                    "tipo_dispositivo_id": tipo_id
+                }
+                palabras_clave[idx] = palabra_completa
 
-                    # Actualizar listbox
-                    palabras_listbox.delete(idx)
-                    palabras_listbox.insert(idx, nueva_palabra)
-                    palabras_listbox.selection_set(idx)
+                # Actualizar listbox
+                palabras_listbox.delete(idx)
+                palabras_listbox.insert(idx, f"{nueva_palabra} - {tipo_nombre}")
+                palabras_listbox.selection_set(idx)
 
-                    messagebox.showinfo("Éxito", f"✅ Palabra clave actualizada correctamente")
-                    editar_modal.destroy()
-                else:
-                    messagebox.showerror("Error", "No se pudo encontrar la palabra clave")
+                messagebox.showinfo("Éxito", f"✅ Palabra clave actualizada correctamente")
+                editar_modal.destroy()
 
             button_frame = ttk.Frame(frame)
-            button_frame.grid(row=1, column=0, columnspan=2, pady=(10, 0))
+            button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
 
             ttk.Button(button_frame, text="Guardar", command=guardar_edicion).pack(side=tk.LEFT, expand=True, padx=5)
             ttk.Button(button_frame, text="Cancelar", command=editar_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
