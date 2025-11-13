@@ -281,11 +281,11 @@ def extract_repair_data(text, logger):
             else:
                 logger.warning(f"⚠️ Correo con formato inválido: {correo_encontrado}")
                 # Si el formato es inválido, usar correo por defecto
-                data['correo_cliente'] = "sin-correo@gollo.com"
+                data['correo_cliente'] = "correo_no_encontrado@gollo.com"
         else:
             logger.warning("⚠️ No se pudo extraer el correo del cliente - usando correo por defecto")
             # Asignar correo por defecto cuando no se encuentra ninguno
-            data['correo_cliente'] = "sin-correo@gollo.com"
+            data['correo_cliente'] = "correo_no_encontrado@gollo.com"
 
         # Dirección (más flexible)
         match = re.search(r'Direcc\s*:?\s*(.+?)(?=\s*No\.\s*Factura|\s*Factura)', text, re.IGNORECASE)
