@@ -283,10 +283,10 @@ class IntegratedGUI(LoggerMixin):
         )
         self.api_config_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
-        # Botón para configurar categorías
+        # Botón para editar categorías
         self.categorias_button = ttk.Button(
             self.bottom_left_panel,
-            text="Categorías",
+            text="Editar Categorias",
             command=self.open_categorias_modal
         )
         self.categorias_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
