@@ -5,7 +5,7 @@ API Integration Context - Use Cases (Application Layer)
 Casos de uso para crear un preingreso
 """
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 
 from api_integration.application.dtos import CreatePreingresoInput, CreatePreingresoOutput, SucursalDTO
 from api_integration.domain.builders.crear_preingreso_builder import CrearPreingresoBuilder
@@ -37,10 +37,12 @@ class CreatePreingresoUseCase:
     def __init__(
             self,
             api_ifrpro_repository: IApiIfrProRepository,
-            retry_policy: Optional[IRetryPolicy] = None
+            retry_policy: Optional[IRetryPolicy] = None,
+            categorias_dispositivo_map: Optional[Dict[str, int]] = None
     ):
         self.repository = api_ifrpro_repository
         self.retry_policy = retry_policy
+        self.categorias_dispositivo_map = categorias_dispositivo_map
         self.logger = logger.bind(use_case="CreatePreingreso")
 
     @log_execution_time
@@ -78,7 +80,8 @@ class CreatePreingresoUseCase:
             preingreso_data = await CrearPreingresoBuilder.build(
                 input_dto.datos_pdf,
                 tienda,
-                input_dto.archivo_adjunto
+                input_dto.archivo_adjunto,
+                self.categorias_dispositivo_map
             )
 
             # Debug - datos enviados a la API:
