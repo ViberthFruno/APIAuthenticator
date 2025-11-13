@@ -1,0 +1,146 @@
+{
+  "_comentario": "Configuración de palabras clave para detección automática de categorías de productos",
+  "_instrucciones": "Agrega palabras clave que aparecen en la 'Descripción' del producto. La búsqueda es case-insensitive y busca coincidencias parciales.",
+
+  "categorias": {
+    "Móviles": {
+      "id": 1,
+      "palabras_clave": [
+        "TELEFONO CELULAR",
+        "MOBILE",
+        "SMARTPHONE",
+        "CELULAR",
+        "MOVIL",
+        "PHONE",
+        "IPHONE",
+        "SAMSUNG GALAXY",
+        "XIAOMI",
+        "HUAWEI"
+      ]
+    },
+    "Electrodoméstico": {
+      "id": 2,
+      "palabras_clave": [
+        "REFRIGERADOR",
+        "LAVADORA",
+        "SECADORA",
+        "MICROONDAS",
+        "HORNO",
+        "ESTUFA",
+        "COCINA",
+        "NEVERA",
+        "LICUADORA",
+        "BATIDORA"
+      ]
+    },
+    "Hogar": {
+      "id": 3,
+      "palabras_clave": [
+        "LAMPARA",
+        "VENTILADOR",
+        "PLANCHA",
+        "ASPIRADORA",
+        "AIRE ACONDICIONADO",
+        "CALEFACTOR",
+        "HUMIDIFICADOR"
+      ]
+    },
+    "Cómputo": {
+      "id": 4,
+      "palabras_clave": [
+        "LAPTOP",
+        "COMPUTADORA",
+        "PC",
+        "ORDENADOR",
+        "MONITOR",
+        "TECLADO",
+        "MOUSE",
+        "RATON",
+        "IMPRESORA",
+        "SCANNER",
+        "DISCO DURO",
+        "SSD",
+        "RAM",
+        "PROCESADOR"
+      ]
+    },
+    "Desconocido": {
+      "id": 5,
+      "palabras_clave": []
+    },
+    "Accesorios": {
+      "id": 6,
+      "palabras_clave": [
+        "CARGADOR",
+        "CABLE",
+        "AURICULAR",
+        "AUDIFONOS",
+        "FUNDA",
+        "PROTECTOR",
+        "ADAPTADOR",
+        "MEMORIA USB",
+        "POWER BANK",
+        "BATERIA EXTERNA"
+      ]
+    },
+    "Transporte": {
+      "id": 7,
+      "palabras_clave": [
+        "GPS",
+        "NAVEGADOR",
+        "DASHCAM",
+        "CAMARA VEHICULAR",
+        "SENSOR ESTACIONAMIENTO"
+      ]
+    },
+    "Seguridad": {
+      "id": 8,
+      "palabras_clave": [
+        "CAMARA",
+        "CCTV",
+        "DVR",
+        "NVR",
+        "ALARMA",
+        "SENSOR",
+        "CERRADURA INTELIGENTE",
+        "VIDEOPORTERO"
+      ]
+    },
+    "Entretenimiento": {
+      "id": 10,
+      "palabras_clave": [
+        "TELEVISION",
+        "TV",
+        "SMART TV",
+        "REPRODUCTOR",
+        "CONSOLA",
+        "PLAYSTATION",
+        "XBOX",
+        "NINTENDO",
+        "BOCINA",
+        "PARLANTE",
+        "ALTAVOZ",
+        "SOUNDBAR",
+        "HOME THEATER"
+      ]
+    },
+    "Telecomunicaciones": {
+      "id": 11,
+      "palabras_clave": [
+        "ROUTER",
+        "MODEM",
+        "REPETIDOR",
+        "EXTENSOR WIFI",
+        "SWITCH",
+        "ACCESS POINT",
+        "TELEFONO FIJO",
+        "CENTRAL TELEFONICA",
+        "MOBILE TECH INTLA SA"
+      ]
+    },
+    "No encontrado": {
+      "id": 12,
+      "palabras_clave": []
+    }
+  }
+}
