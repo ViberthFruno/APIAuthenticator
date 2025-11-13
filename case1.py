@@ -325,16 +325,21 @@ def extract_repair_data(text, logger):
             data['distribuidor'] = match.group(2).strip()
 
         # Número de factura (más flexible - captura STOCK)
-        match = re.search(r'No\s*\.?\s*Factura\s*:?\s*([^\s]+(?:\s+[^\s]+){0,5}?)(?=\s+Correo|\s+Fechas?)', text,
+        # Actualizado para detenerse también antes de "Fecha de Compra:"
+        match = re.search(r'No\s*\.?\s*Factura\s*:?\s*([^\s]+(?:\s+[^\s]+){0,5}?)(?=\s+Correo|\s+Fecha\s+de\s+Compra)', text,
                           re.IGNORECASE)
         if match:
             data['numero_factura'] = re.sub(r'\s+', ' ', match.group(1).strip())
 
-        # Fecha de compra (más flexible)
-        match = re.search(r'(?:Fechas?|Compra)\s*[-:>]*\s*(?:Garantia|Garant[ií]a)?\s*(\d{2}/\d{2}/\d{4})', text,
-                          re.IGNORECASE)
+        # Fecha de compra (específico - debe tener el campo explícito "Fecha de Compra:")
+        # Solo extrae si el campo "Fecha de Compra:" está presente en el PDF
+        match = re.search(r'Fecha\s+de\s+Compra\s*:?\s*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
         if match:
             data['fecha_compra'] = match.group(1).strip()
+            logger.info(f"✓ Fecha de compra encontrada: {data['fecha_compra']}")
+        else:
+            # Si no hay campo "Fecha de Compra:" explícito, no extraer ninguna fecha
+            logger.info("ℹ️ No se encontró campo 'Fecha de Compra:' en el PDF - no se extraerá fecha")
 
         # Fecha de garantía (más flexible)
         match = re.search(r'Garant[ií]a\s*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
