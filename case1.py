@@ -17,6 +17,7 @@ from api_integration.infrastructure.api_ifrpro_repository import create_ifrpro_r
 from api_integration.infrastructure.authenticator_adapter import create_api_authenticator
 from api_integration.infrastructure.http_client import create_api_client, TenacityRetryPolicy
 from base_case import BaseCase
+from config_manager import ConfigManager
 from gui_async_helper import run_async_from_sync
 from settings import Settings
 
@@ -1355,12 +1356,25 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         # Crear caso de uso
         use_case = CreatePreingresoUseCase(repository, retry_policy)
 
+        # Obtener categoría personalizada default del ConfigManager
+        config_manager = ConfigManager()
+        categoria_default = config_manager.get_categoria_default()
+
+        # Extraer categoria_id y tipo_dispositivo_id si existe configuración
+        categoria_id = None
+        tipo_dispositivo_id = None
+        if categoria_default:
+            categoria_id = categoria_default.get('tipo_dispositivo_id')
+            tipo_dispositivo_id = categoria_default.get('tipo_dispositivo_id')
+
         # Crear input para el use case
         input_dto = CreatePreingresoInput(
             datos_pdf=datos_pdf,
             retry_on_failure=True,
             validate_before_send=True,
-            archivo_adjunto=archivo_adjunto
+            archivo_adjunto=archivo_adjunto,
+            categoria_id=categoria_id,
+            tipo_dispositivo_id=tipo_dispositivo_id
         )
 
         logger.info(f"🔍 Paso 4/4: Creando preingreso en la API...")
