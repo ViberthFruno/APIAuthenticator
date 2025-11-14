@@ -622,7 +622,7 @@ class EmailManager:
 
                         attachments = _extract_attachments(email_message, logger)
 
-                        matching_case = self.case_handler.find_matching_case(subject, logger)
+                        matching_case = self.case_handler.find_matching_case(subject, sender, logger)
 
                         if matching_case:
                             logger.info(f"Email encontrado para caso: {matching_case}")
