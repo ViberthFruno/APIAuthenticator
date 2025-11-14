@@ -535,8 +535,18 @@ class EmailManager:
                 print(f"Error al enviar correo: {str(e)}")
             return False
 
-    def check_and_process_emails(self, provider, email_addr, password, search_titles, logger, cc_list=None):
-        """Función principal que revisa emails y procesa los que coinciden"""
+    def check_and_process_emails(self, provider, email_addr, password, search_titles, logger, cc_list=None, allowed_domains=None):
+        """Función principal que revisa emails y procesa los que coinciden
+
+        Args:
+            provider: Proveedor de correo (Gmail, Outlook, etc.)
+            email_addr: Dirección de correo
+            password: Contraseña
+            search_titles: Lista de palabras clave para buscar en el asunto
+            logger: Logger para mensajes
+            cc_list: Lista de correos para CC
+            allowed_domains: Lista de dominios permitidos (ej: ['@fruno.com', '@unicomer.com'])
+        """
         try:
             config = self.get_provider_config(provider)
             server = config['imap_server']
@@ -563,7 +573,13 @@ class EmailManager:
 
                 search_criteria = ['(UNSEEN)', f'(SINCE "{yesterday}")']
 
-                if search_titles:
+                # Si hay dominios permitidos, no filtramos por SUBJECT en IMAP (se hará en Python)
+                # Esto permite buscar por dominio O por título
+                if allowed_domains:
+                    logger.info(f"🔍 Filtrado flexible activado: dominios={allowed_domains}, títulos={search_titles}")
+                    # Solo buscar correos no leídos desde ayer, filtraremos en Python
+                elif search_titles:
+                    # Solo hay palabras clave, usar búsqueda tradicional por SUBJECT
                     subject_queries = [f'(SUBJECT "{title.strip()}")' for title in search_titles if title.strip()]
 
                     if len(subject_queries) > 1:
@@ -610,6 +626,32 @@ class EmailManager:
                         sender = email_message.get('From', '')
 
                         logger.info(f"📧 Email leído: Asunto='{subject}' | Remitente={sender}")
+
+                        # Aplicar filtrado OR lógico cuando hay dominios permitidos
+                        if allowed_domains:
+                            # Verificar si el correo cumple con alguna de las condiciones
+                            matches_title = False
+                            matches_domain = False
+
+                            # Verificar si el asunto contiene alguna palabra clave
+                            if search_titles:
+                                for keyword in search_titles:
+                                    if keyword.lower() in subject.lower():
+                                        matches_title = True
+                                        logger.info(f"✅ Correo coincide por título: '{keyword}' encontrado en '{subject}'")
+                                        break
+
+                            # Verificar si el remitente tiene alguno de los dominios permitidos
+                            for domain in allowed_domains:
+                                if domain.lower() in sender.lower():
+                                    matches_domain = True
+                                    logger.info(f"✅ Correo coincide por dominio: '{domain}' encontrado en '{sender}'")
+                                    break
+
+                            # Si no cumple ninguna condición, saltar este correo
+                            if not matches_title and not matches_domain:
+                                logger.info(f"⏭️ Correo ignorado (no cumple condiciones): Asunto='{subject}' | Remitente={sender}")
+                                continue
 
                         # Extraer cuerpo del correo
                         body_text = _extract_body_text(email_message)

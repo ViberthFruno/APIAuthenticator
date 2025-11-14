@@ -569,7 +569,7 @@ class IntegratedGUI(LoggerMixin):
 
         modal = tk.Toplevel(self.root)
         modal.title("Parámetros de Búsqueda")
-        modal.geometry("400x220")
+        modal.geometry("400x280")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -585,27 +585,39 @@ class IntegratedGUI(LoggerMixin):
         params_frame = ttk.Frame(modal, padding="10")
         params_frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(params_frame, text="Palabra clave del Caso 1:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        ttk.Label(params_frame, text="Palabra clave del Caso 1 (opcional):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         caso1_var = tk.StringVar(value=search_params.get('caso1', ''))
         caso1_entry = ttk.Entry(params_frame, textvariable=caso1_var)
         caso1_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
 
-        ttk.Label(params_frame, text="Titular de correo (dominio):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        ttk.Label(params_frame, text="Dominios permitidos (opcional):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
         titular_var = tk.StringVar(value=search_params.get('titular_correo', ''))
         titular_entry = ttk.Entry(params_frame, textvariable=titular_var)
         titular_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
 
-        # Ayuda para el campo titular
+        # Ayuda para el campo dominios
         help_label = ttk.Label(
             params_frame,
-            text="Ejemplo: @fruno.com (solo procesa correos de ese dominio)",
+            text="Ejemplo: @fruno.com, @unicomer.com",
             font=("Arial", 8),
             foreground="gray"
         )
         help_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 5))
 
+        # Nota sobre el filtrado OR
+        info_label = ttk.Label(
+            params_frame,
+            text="ℹ️ Se procesarán correos que cumplan CUALQUIERA de las condiciones:\n"
+                 "• Título contenga la palabra clave, O\n"
+                 "• Remitente tenga uno de los dominios permitidos",
+            font=("Arial", 8),
+            foreground="blue",
+            justify=tk.LEFT
+        )
+        info_label.grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 5))
+
         button_frame = ttk.Frame(params_frame)
-        button_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=20)
+        button_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=20)
 
         def save_search_params():
             current_config = self.config_manager.load_config()
@@ -1197,7 +1209,7 @@ class IntegratedGUI(LoggerMixin):
             # Log informativo sobre la configuración activa
             titular_correo = search_params.get('titular_correo', '').strip()
             if titular_correo:
-                self.log_api_message(f"✅ Monitoreo iniciado con filtro de dominio: {titular_correo}", level="INFO")
+                self.log_api_message(f"✅ Monitoreo iniciado con dominios permitidos: {titular_correo}", level="INFO")
             else:
                 self.log_api_message("✅ Monitoreo de emails iniciado (sin filtro de dominio)", level="INFO")
         else:
@@ -1218,7 +1230,15 @@ class IntegratedGUI(LoggerMixin):
                 if search_params.get('caso1', '').strip():
                     search_titles.append(search_params['caso1'].strip())
 
-                if search_titles:
+                # Parsear dominios permitidos (separados por comas)
+                allowed_domains = []
+                titular_correo_raw = search_params.get('titular_correo', '').strip()
+                if titular_correo_raw:
+                    # Separar por comas y limpiar espacios
+                    allowed_domains = [d.strip() for d in titular_correo_raw.split(',') if d.strip()]
+
+                # Solo ejecutar si hay al menos una condición configurada
+                if search_titles or allowed_domains:
                     self.log_api_message(f"Revisando correos... ({datetime.now().strftime('%H:%M:%S')})")
 
                     self.email_manager.check_and_process_emails(
@@ -1227,7 +1247,8 @@ class IntegratedGUI(LoggerMixin):
                         config['password'],
                         search_titles,
                         self.logger,
-                        cc_list
+                        cc_list,
+                        allowed_domains
                     )
 
                 time.sleep(30)
