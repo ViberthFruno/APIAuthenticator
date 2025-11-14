@@ -82,10 +82,16 @@ dist/
 - `config_categorias.json` - Configuración de categorías de productos (NO editable por usuario)
 - Todos los módulos Python y dependencias
 - Modelos de EasyOCR y PyTorch
+- **Casos (case1.py, case2.py, etc.)** - Importados explícitamente
 
 ### 📝 Archivos EXTERNOS (al lado del .exe):
 - `config.json` - Configuración del bot (EDITABLE por usuario)
 - Este archivo DEBE estar en el mismo directorio que el ejecutable
+
+### ➕ Para Agregar Nuevos Casos:
+Los casos NO se cargan dinámicamente. Deben ser importados explícitamente en `case_handler.py`.
+
+Ver `COMO_AGREGAR_CASOS.md` para instrucciones detalladas.
 
 ---
 

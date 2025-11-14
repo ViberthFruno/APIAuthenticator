@@ -2,9 +2,18 @@
 # Ubicación: raíz del proyecto
 # Descripción: Manejador principal para cargar y ejecutar casos de respuesta automática
 
-import os
 import sys
-import importlib.util
+
+# Importar casos explícitamente (necesario para PyInstaller)
+try:
+    import case1
+    AVAILABLE_CASES = {
+        'case1': case1
+    }
+    print("[DEBUG CaseHandler] Casos importados explícitamente:", list(AVAILABLE_CASES.keys()))
+except ImportError as e:
+    print(f"[DEBUG CaseHandler] ⚠️ Error al importar casos: {e}")
+    AVAILABLE_CASES = {}
 
 
 class CaseHandler:
@@ -14,35 +23,31 @@ class CaseHandler:
         self.load_cases()
 
     def load_cases(self):
-        """Carga todos los archivos de casos disponibles"""
+        """Carga todos los casos disponibles desde imports explícitos"""
         try:
-            if getattr(sys, 'frozen', False):
-                current_dir = sys._MEIPASS
-            else:
-                current_dir = os.path.dirname(os.path.abspath(__file__))
+            print(f"[DEBUG CaseHandler] Iniciando carga de casos...")
+            print(f"[DEBUG CaseHandler] AVAILABLE_CASES: {list(AVAILABLE_CASES.keys())}")
 
-            case_files = [f for f in os.listdir(current_dir) if
-                          f.startswith('case') and f.endswith('.py') and f != 'case_handler.py']
-
-            for case_file in case_files:
+            for case_name, case_module in AVAILABLE_CASES.items():
                 try:
-                    case_name = case_file[:-3]
-                    case_path = os.path.join(current_dir, case_file)
-                    spec = importlib.util.spec_from_file_location(case_name, case_path)
-                    case_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(case_module)
-
                     if hasattr(case_module, 'Case'):
                         self.cases[case_name] = case_module.Case()
-                        print(f"Caso cargado: {case_name}")
+                        print(f"[DEBUG CaseHandler] ✓ Caso cargado: {case_name}")
                     else:
-                        print(f"Error: {case_file} no tiene la clase Case")
+                        print(f"[DEBUG CaseHandler] ❌ Error: {case_name} no tiene la clase Case")
 
                 except Exception as e:
-                    print(f"Error al cargar caso {case_file}: {str(e)}")
+                    print(f"[DEBUG CaseHandler] ❌ Error al cargar caso {case_name}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+
+            print(f"[DEBUG CaseHandler] Total de casos cargados: {len(self.cases)}")
+            print(f"[DEBUG CaseHandler] Casos en self.cases: {list(self.cases.keys())}")
 
         except Exception as e:
-            print(f"Error al cargar casos: {str(e)}")
+            print(f"[DEBUG CaseHandler] ❌ Error al cargar casos: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def get_available_cases(self):
         """Obtiene la lista de casos disponibles"""
