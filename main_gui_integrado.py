@@ -67,6 +67,7 @@ class IntegratedGUI(LoggerMixin):
         self.retry_policy = None
         self.case_handler = None
         self.recursos_button = None
+        self.distribuidores_button = None
         self.preingreso_button = None
         self.marca_button = None
         self.search_button = None
@@ -360,7 +361,15 @@ class IntegratedGUI(LoggerMixin):
             text="Consultar Recursos",
             command=self.consultar_recursos
         )
-        self.recursos_button.pack(fill=tk.X)
+        self.recursos_button.pack(fill=tk.X, pady=(0, 5))
+
+        # Botón consultar distribuidores
+        self.distribuidores_button = ttk.Button(
+            marca_frame,
+            text="Distribuidores",
+            command=self.consultar_distribuidores
+        )
+        self.distribuidores_button.pack(fill=tk.X)
 
     def setup_api_right_panel(self):
         """Configura el panel derecho de la pestaña API con el log"""
@@ -934,7 +943,8 @@ class IntegratedGUI(LoggerMixin):
             button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
 
             ttk.Button(button_frame, text="Guardar", command=guardar_palabra).pack(side=tk.LEFT, expand=True, padx=5)
-            ttk.Button(button_frame, text="Cancelar", command=palabra_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=palabra_modal.destroy).pack(side=tk.LEFT, expand=True,
+                                                                                          padx=5)
 
             frame.columnconfigure(1, weight=1)
 
@@ -1057,7 +1067,8 @@ class IntegratedGUI(LoggerMixin):
             button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
 
             ttk.Button(button_frame, text="Guardar", command=guardar_edicion).pack(side=tk.LEFT, expand=True, padx=5)
-            ttk.Button(button_frame, text="Cancelar", command=editar_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=editar_modal.destroy).pack(side=tk.LEFT, expand=True,
+                                                                                         padx=5)
 
             frame.columnconfigure(1, weight=1)
 
@@ -1446,6 +1457,72 @@ class IntegratedGUI(LoggerMixin):
             self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
             self.log_api_message("=" * 60)
             self.recursos_button.config(state=tk.NORMAL, text="Consultar Recursos")
+
+        # Ejecutar operación async
+        run_async_with_callback(
+            consultar(),
+            on_success=on_success,
+            on_error=on_error
+        )
+
+    def consultar_distribuidores(self):
+        """Consulta distribuidores desde recursos iniciales"""
+        self.log_api_message("=" * 60)
+        self.log_api_message("🏢 Consultando Distribuidores")
+        self.log_api_message("=" * 60)
+
+        # Deshabilitar botón
+        self.distribuidores_button.config(state=tk.DISABLED, text="Consultando...")
+
+        async def consultar():
+            """Operación asíncrona"""
+            self.log_api_message("🔄 Iniciando consulta de distribuidores...")
+            endpoint = "/v1/preingreso/recursos_iniciales"
+            self.log_api_message(f"📡 Endpoint: {endpoint}")
+            self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
+            self.log_api_message("")
+
+            # Llamar al repositorio
+            response = await self.repository.listar_recursos_iniciales()
+            return response
+
+        def on_success(response):
+            """Callback de éxito"""
+            self.log_api_message(f"📥 Status Code: {response.status_code}")
+            self.log_api_message("")
+
+            if response.status_code == 200:
+                self.log_api_message("✅ Respuesta exitosa - Distribuidores")
+                try:
+                    import json
+                    # Extraer solo los distribuidores del response (el campo es "distribuidor" en singular)
+                    distribuidores = response.body.get("data", {}).get("distribuidor", [])
+
+                    if distribuidores:
+                        distribuidores_data = {"distribuidor": distribuidores}
+                        formatted_json = json.dumps(distribuidores_data, indent=2, ensure_ascii=False)
+                        self.log_api_message("📄 Lista de Distribuidores:")
+                        self.log_api_message(formatted_json)
+                        self.log_api_message(f"\n📊 Total de distribuidores: {len(distribuidores)}")
+                    else:
+                        self.log_api_message("⚠️ No se encontraron distribuidores en la respuesta")
+
+                except Exception as e:
+                    self.log_api_message(f"❌ Error procesando respuesta: {str(e)}", "ERROR")
+                    self.log_api_message("📄 Respuesta completa:")
+                    self.log_api_message(response.raw_content)
+            else:
+                self.log_api_message(f"⚠️ Error: {response.status_code}")
+                self.log_api_message(response.body if response.body else "(vacío)")
+
+            self.log_api_message("=" * 60)
+            self.distribuidores_button.config(state=tk.NORMAL, text="Distribuidores")
+
+        def on_error(error):
+            """Callback de error"""
+            self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
+            self.log_api_message("=" * 60)
+            self.distribuidores_button.config(state=tk.NORMAL, text="Distribuidores")
 
         # Ejecutar operación async
         run_async_with_callback(
