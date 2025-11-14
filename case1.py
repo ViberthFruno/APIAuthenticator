@@ -1230,7 +1230,39 @@ def _strip_if_string(value):
     return str(value).strip() if value else None
 
 
-def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=None, proveedor_correo_id=None):
+def _normalizar_cuerpo_correo(body_text):
+    """
+    Normaliza el cuerpo del correo eliminando espacios extras y caracteres innecesarios
+
+    Args:
+        body_text: Texto del cuerpo del correo
+
+    Returns:
+        str: Texto normalizado o None si está vacío
+    """
+    if not body_text:
+        return None
+
+    # Eliminar espacios al inicio y final
+    texto = body_text.strip()
+
+    # Reemplazar múltiples saltos de línea por uno solo
+    texto = re.sub(r'\n\s*\n+', '\n', texto)
+
+    # Reemplazar múltiples espacios por uno solo
+    texto = re.sub(r' {2,}', ' ', texto)
+
+    # Reemplazar tabulaciones por espacios
+    texto = texto.replace('\t', ' ')
+
+    # Limitar la longitud a 1000 caracteres para no exceder límites de la API
+    if len(texto) > 1000:
+        texto = texto[:1000] + "..."
+
+    return texto if texto else None
+
+
+def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=None, proveedor_correo_id=None, cuerpo_correo=None):
     """
     Crea un preingreso en la API a partir del contenido de un PDF
 
@@ -1240,6 +1272,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
         logger: Logger para registrar eventos
         garantia_correo: Garantía recibida del cuerpo del correo (opcional)
         proveedor_correo_id: ID del distribuidor (proveedor) recibido del cuerpo del correo (opcional)
+        cuerpo_correo: Cuerpo del correo normalizado (opcional)
 
     Returns:
         dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
@@ -1343,7 +1376,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
             danos=_strip_if_string(extracted_data.get('danos')),
             observaciones=_strip_if_string(extracted_data.get('observaciones')),
             hecho_por=_strip_if_string(extracted_data.get('hecho_por')),
-            distribuidor_id=_strip_if_string(distribuidor_id_a_usar)  # proveedor = distribuidor
+            distribuidor_id=_strip_if_string(distribuidor_id_a_usar),  # proveedor = distribuidor
+            cuerpo_correo=cuerpo_correo  # Cuerpo del correo normalizado
         )
 
         # Crear archivo adjunto
@@ -1569,13 +1603,23 @@ class Case(BaseCase):
 
             logger.info(f"Procesando PDF: {pdf_filename}")
 
-            # Crear preingreso desde el PDF (pasando garantía y proveedor del correo si existen)
+            # Normalizar el cuerpo del correo
+            body_text = email_data.get('body_text', '')
+            cuerpo_normalizado = _normalizar_cuerpo_correo(body_text)
+
+            if cuerpo_normalizado:
+                logger.info(f"📧 Cuerpo del correo normalizado ({len(cuerpo_normalizado)} caracteres) - Se incluirá en el detalle")
+            else:
+                logger.info("📧 No hay cuerpo de correo para incluir")
+
+            # Crear preingreso desde el PDF (pasando garantía, proveedor y cuerpo del correo si existen)
             result = _crear_preingreso_desde_pdf(
                 pdf_content,
                 pdf_filename,
                 logger,
                 garantia_correo=garantia_del_correo,
-                proveedor_correo_id=proveedor_id_del_correo  # proveedor = distribuidor
+                proveedor_correo_id=proveedor_id_del_correo,  # proveedor = distribuidor
+                cuerpo_correo=cuerpo_normalizado  # Cuerpo del correo normalizado
             )
 
             preingreso_results = []
