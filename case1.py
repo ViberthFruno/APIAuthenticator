@@ -753,6 +753,94 @@ def extract_repair_data(text, logger):
         return data
 
 
+def extract_garantia_from_email_body(email_body, logger):
+    """
+    Extrae la garantía del cuerpo del correo electrónico de forma robusta.
+
+    Busca la palabra "Garantia" (con variantes) seguida de una de las opciones válidas:
+    - Normal
+    - No
+    - C.S.R (o CSR sin puntos)
+    - DOA
+    - STOCK
+    - DAP
+
+    Todas las variantes son case-insensitive y robustas ante errores de escritura.
+
+    Args:
+        email_body: Texto del cuerpo del correo
+        logger: Logger para registrar eventos
+
+    Returns:
+        str: La garantía encontrada normalizada (ej: "Normal", "C.S.R", "DOA", etc.)
+        None: Si no se encuentra una garantía válida
+    """
+    try:
+        if not email_body:
+            logger.info("📧 Cuerpo del correo vacío, no se puede extraer garantía")
+            return None
+
+        logger.info("=" * 80)
+        logger.info("📧 INICIANDO EXTRACCIÓN DE GARANTÍA DEL CORREO")
+        logger.info("=" * 80)
+
+        # Normalizar el texto del correo
+        email_body_normalized = re.sub(r'\s+', ' ', email_body)
+
+        # Buscar la palabra "Garantia" con variantes (case-insensitive)
+        # Patrones para "Garantia": garantia, GARANTIA, Garantía, etc.
+        garantia_pattern = r'garant[ií]a'
+
+        # Encontrar todas las coincidencias de "Garantia" en el correo
+        garantia_matches = list(re.finditer(garantia_pattern, email_body_normalized, re.IGNORECASE))
+
+        if not garantia_matches:
+            logger.info("❌ No se encontró la palabra 'Garantia' en el correo")
+            return None
+
+        logger.info(f"✓ Se encontraron {len(garantia_matches)} coincidencias de 'Garantia' en el correo")
+
+        # Opciones válidas de garantía con sus variantes
+        # Cada opción tiene: (nombre_normalizado, [patrones])
+        opciones_garantia = [
+            ('Normal', [r'normal']),
+            ('No', [r'\bno\b']),  # \b para evitar coincidencias parciales
+            ('C.S.R', [r'c\.?s\.?r\.?']),  # C.S.R o CSR o csr
+            ('DOA', [r'd\.?o\.?a\.?']),  # DOA o doa
+            ('STOCK', [r'stock']),
+            ('DAP', [r'd\.?a\.?p\.?'])  # DAP o dap
+        ]
+
+        # Buscar después de cada coincidencia de "Garantia"
+        for match in garantia_matches:
+            # Obtener el texto después de "Garantia" (siguiente 100 caracteres)
+            start_pos = match.end()
+            texto_despues = email_body_normalized[start_pos:start_pos + 100]
+
+            logger.info(f"🔍 Analizando texto después de 'Garantia': '{texto_despues[:50]}...'")
+
+            # Buscar cada opción válida
+            for nombre_normalizado, patrones in opciones_garantia:
+                for patron in patrones:
+                    # Buscar el patrón cerca del inicio del texto (primeros 50 caracteres)
+                    match_opcion = re.search(patron, texto_despues[:50], re.IGNORECASE)
+                    if match_opcion:
+                        logger.info("=" * 80)
+                        logger.info(f"✅ GARANTÍA ENCONTRADA EN EL CORREO: {nombre_normalizado}")
+                        logger.info(f"   Texto detectado: '{match_opcion.group()}'")
+                        logger.info(f"   Normalizado a: '{nombre_normalizado}'")
+                        logger.info("=" * 80)
+                        return nombre_normalizado
+
+        logger.info("❌ No se encontró ninguna opción válida de garantía después de 'Garantia'")
+        logger.info("   Opciones válidas: Normal, No, C.S.R, DOA, STOCK, DAP")
+        return None
+
+    except Exception as e:
+        logger.exception(f"❌ Error extrayendo garantía del correo: {e}")
+        return None
+
+
 def _is_oracle_reports_pdf(pdf_data):
     """
     Detecta si el PDF es generado por Oracle Reports
@@ -1042,7 +1130,7 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     Genera el mensaje de éxito con el preingreso creado
 
     Args:
-        preingreso_results: Lista con 1 elemento dict con {filename, boleta, preingreso_id, numero_transaccion}
+        preingreso_results: Lista con 1 elemento dict con {filename, boleta, preingreso_id, numero_transaccion, garantia_recibida_por_correo}
         failed_files: Lista de dicts con {filename, error} (vacía si fue exitoso)
         non_pdf_files: Lista de nombres de archivos que no son PDF
         api_base_url: URL base de la API para generar links de consulta
@@ -1071,7 +1159,11 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
         if result.get('tipo_preingreso_nombre'):
             message_lines.append(f"   Tipo de preingreso: {result['tipo_preingreso_nombre']}")
         if result.get('garantia_nombre'):
-            message_lines.append(f"   Garantía de preingreso: {result['garantia_nombre']}")
+            # Cambiar el texto según si la garantía fue recibida por correo o extraída del PDF
+            if result.get('garantia_recibida_por_correo', False):
+                message_lines.append(f"   Garantía de preingreso recibida: {result['garantia_nombre']}")
+            else:
+                message_lines.append(f"   Garantía de preingreso: {result['garantia_nombre']}")
 
         message_lines.append("")
 
@@ -1219,7 +1311,7 @@ def _strip_if_string(value):
     return str(value).strip() if value else None
 
 
-def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
+def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_from_email=None):
     """
     Crea un preingreso en la API a partir del contenido de un PDF
 
@@ -1227,9 +1319,10 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         pdf_content: Bytes del archivo PDF
         pdf_filename: Nombre del archivo PDF
         logger: Logger para registrar eventos
+        garantia_from_email: Garantía extraída del cuerpo del correo (opcional)
 
     Returns:
-        dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
+        dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, garantia_recibida_por_correo, error}
     """
     try:
         logger.info("=" * 80)
@@ -1272,6 +1365,28 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         if 'nombre_cliente' in extracted_data:
             logger.info(f"   👤 Cliente: {extracted_data['nombre_cliente']}")
 
+        # Procesar garantía: priorizar la del correo sobre la del PDF
+        garantia_final = None
+        garantia_recibida_por_correo = False
+
+        if garantia_from_email:
+            # Si hay garantía en el correo, usarla
+            garantia_final = garantia_from_email
+            garantia_recibida_por_correo = True
+            logger.info("=" * 80)
+            logger.info(f"✅ USANDO GARANTÍA DEL CORREO: {garantia_final}")
+            logger.info(f"   Garantía del PDF ignorada: {extracted_data.get('tipo_garantia', 'N/A')}")
+            logger.info("=" * 80)
+            # Actualizar extracted_data con la garantía del correo
+            extracted_data['tipo_garantia'] = garantia_final
+            extracted_data['garantia_recibida_por_correo'] = True
+        else:
+            # Si no hay garantía en el correo, usar la del PDF
+            garantia_final = extracted_data.get('tipo_garantia', '')
+            if garantia_final:
+                logger.info(f"   📄 Garantía del PDF: {garantia_final}")
+            extracted_data['garantia_recibida_por_correo'] = False
+
         # Crear archivo temporal para el PDF
         logger.info(f"🔍 Paso 3/4: Preparando archivo temporal para envío a API...")
         temp_pdf = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
@@ -1280,6 +1395,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         logger.info(f"   📁 Archivo temporal creado: {temp_pdf.name}")
 
         # Crear DTO con los datos extraídos
+        # NOTA: garantia_nombre usa garantia_final (prioriza correo sobre PDF)
         datos_pdf = DatosExtraidosPDF(
             numero_boleta=_strip_if_string(extracted_data.get('numero_boleta', '')),
             referencia=_strip_if_string(extracted_data.get('referencia', '')),
@@ -1290,7 +1406,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
             cliente_telefono=_strip_if_string(extracted_data.get('telefono_cliente', '')),
             cliente_correo=_strip_if_string(extracted_data.get('correo_cliente', '')),
             serie=_strip_if_string(extracted_data.get('serie', '')),
-            garantia_nombre=_strip_if_string(extracted_data.get('tipo_garantia', '')),
+            garantia_nombre=_strip_if_string(garantia_final),  # <-- USA GARANTÍA FINAL (correo o PDF)
             fecha_compra=_strip_if_string(extracted_data.get('fecha_compra')),
             factura=_strip_if_string(extracted_data.get('numero_factura')),
             cliente_cedula=_strip_if_string(extracted_data.get('cedula_cliente')),
@@ -1416,6 +1532,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                     'consultar_guia': result.consultar_guia,
                     'tipo_preingreso_nombre': result.tipo_preingreso_nombre,
                     'garantia_nombre': result.garantia_nombre,
+                    'garantia_recibida_por_correo': garantia_recibida_por_correo,  # <-- FLAG NUEVO
                     'filename': pdf_filename,
                     'extracted_data': extracted_data  # Incluir todos los datos extraídos
                 }
@@ -1464,8 +1581,16 @@ class Case(BaseCase):
             sender = email_data.get('sender', '')
             subject = email_data.get('subject', 'Sin asunto')
             attachments = email_data.get('attachments', [])
+            email_body = email_data.get('body', '')
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
+
+            # Extraer garantía del cuerpo del correo (NUEVA FUNCIONALIDAD)
+            garantia_from_email = extract_garantia_from_email_body(email_body, logger)
+            if garantia_from_email:
+                logger.info(f"✅ Se detectó garantía en el correo: {garantia_from_email}")
+            else:
+                logger.info("ℹ️ No se detectó garantía en el correo, se usará la del PDF")
 
             # Clasificar archivos adjuntos
             pdf_attachments = []
@@ -1514,8 +1639,8 @@ class Case(BaseCase):
 
             logger.info(f"Procesando PDF: {pdf_filename}")
 
-            # Crear preingreso desde el PDF
-            result = _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger)
+            # Crear preingreso desde el PDF (pasando garantía del correo si existe)
+            result = _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_from_email)
 
             preingreso_results = []
             failed_files = []
@@ -1530,7 +1655,8 @@ class Case(BaseCase):
                     'consultar_reparacion': result.get('consultar_reparacion'),
                     'consultar_guia': result.get('consultar_guia'),
                     'tipo_preingreso_nombre': result.get('tipo_preingreso_nombre'),
-                    'garantia_nombre': result.get('garantia_nombre')
+                    'garantia_nombre': result.get('garantia_nombre'),
+                    'garantia_recibida_por_correo': result.get('garantia_recibida_por_correo', False)  # <-- FLAG NUEVO
                 })
                 # Guardar los datos extraídos para enviar a usuarios CC
                 extracted_data = result.get('extracted_data')

@@ -219,7 +219,11 @@ def _generate_formatted_text_for_cc(data):
         if 'fecha_garantia' in data:
             lines.append(f"Fecha de Garantía: {data['fecha_garantia']}")
         if 'tipo_garantia' in data:
-            lines.append(f"Tipo de Garantía: {data['tipo_garantia']}")
+            # Cambiar el texto según si la garantía fue recibida por correo o extraída del PDF
+            if data.get('garantia_recibida_por_correo', False):
+                lines.append(f"Tipo de Garantía Recibida: {data['tipo_garantia']}")
+            else:
+                lines.append(f"Tipo de Garantía: {data['tipo_garantia']}")
         if 'distribuidor' in data:
             lines.append(f"Distribuidor: {data['distribuidor']}")
         lines.append("")
