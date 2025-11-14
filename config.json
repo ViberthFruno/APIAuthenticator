@@ -1,9 +1,7 @@
 {
     "search_params": {
-        "caso1": {
-            "keywords": ["Gollo"],
-            "senders": ["@fruno.com"]
-        }
+        "caso1": "Gollo",
+        "titular_correo": "@fruno.com"
     },
     "provider": "Gmail",
     "email": "optimizacion.procesos@fruno.com",
