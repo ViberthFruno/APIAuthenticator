@@ -67,6 +67,84 @@ def _decode_header_value(header_value):
         return str(header_value)
 
 
+def _extract_body_text(email_message):
+    """Extrae el texto del cuerpo del correo"""
+    body_text = ""
+
+    try:
+        if email_message.is_multipart():
+            for part in email_message.walk():
+                content_type = part.get_content_type()
+                content_disposition = str(part.get("Content-Disposition", ""))
+
+                # Solo extraer texto plano, no adjuntos
+                if content_type == "text/plain" and "attachment" not in content_disposition:
+                    try:
+                        body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                    except:
+                        pass
+        else:
+            # Correo simple, no multipart
+            try:
+                body_text = email_message.get_payload(decode=True).decode('utf-8', errors='ignore')
+            except:
+                body_text = str(email_message.get_payload())
+    except Exception as e:
+        print(f"Error al extraer cuerpo del correo: {str(e)}")
+
+    return body_text
+
+
+def _detectar_garantia_en_correo(body_text, logger):
+    """
+    Detecta si en el cuerpo del correo viene la palabra 'Garantia' y una opción válida
+
+    Retorna:
+        dict con {'encontrada': bool, 'garantia': str o None}
+    """
+    if not body_text:
+        return {'encontrada': False, 'garantia': None}
+
+    # Opciones válidas de garantía (case insensitive)
+    opciones_validas = {
+        'NORMAL': 'Normal',
+        'NO': 'No',
+        'C.S.R': 'C.S.R',
+        'CSR': 'C.S.R',
+        'DOA': 'DOA',
+        'STOCK': 'Stock',
+        'DAP': 'DAP'
+    }
+
+    try:
+        # Buscar la palabra "Garantia" o "Garantía" (case insensitive)
+        import re
+
+        # Normalizar el texto a mayúsculas para búsqueda
+        body_upper = body_text.upper()
+
+        # Buscar "GARANTIA" en el texto
+        if re.search(r'GARANT[IÍ]A', body_upper):
+            logger.info("✓ Palabra 'Garantia' encontrada en el cuerpo del correo")
+
+            # Buscar una de las opciones válidas
+            for opcion_upper, opcion_normalizada in opciones_validas.items():
+                # Buscar la opción con límites de palabra
+                pattern = r'\b' + re.escape(opcion_upper) + r'\b'
+                if re.search(pattern, body_upper):
+                    logger.info(f"✓ Garantía detectada en correo: '{opcion_normalizada}'")
+                    return {'encontrada': True, 'garantia': opcion_normalizada}
+
+            logger.info("⚠ Se encontró 'Garantia' pero sin opción válida")
+            return {'encontrada': False, 'garantia': None}
+        else:
+            return {'encontrada': False, 'garantia': None}
+
+    except Exception as e:
+        logger.error(f"Error al detectar garantía en correo: {str(e)}")
+        return {'encontrada': False, 'garantia': None}
+
+
 def _extract_attachments(email_message, logger):
     """Extrae los archivos adjuntos de un email"""
     attachments = []
@@ -98,7 +176,8 @@ def _extract_attachments(email_message, logger):
                             'content_type': content_type
                         })
 
-                        logger.info(f"📎 Adjunto encontrado: {filename} | Tipo: {content_type} | Tamaño: {file_size_kb:.2f} KB")
+                        logger.info(
+                            f"📎 Adjunto encontrado: {filename} | Tipo: {content_type} | Tamaño: {file_size_kb:.2f} KB")
 
         if attachments:
             logger.info(f"✅ Total de adjuntos extraídos: {len(attachments)}")
@@ -326,7 +405,8 @@ class EmailManager:
             print(f"Error en la conexión IMAP: {str(e)}")
             return False
 
-    def send_email(self, provider, email_addr, password, to, subject, body, cc_list=None, attachments=None, logger=None):
+    def send_email(self, provider, email_addr, password, to, subject, body, cc_list=None, attachments=None,
+                   logger=None):
         """Envía un correo electrónico a través de SMTP"""
         try:
             # Si no se proporciona logger, usar print como fallback
@@ -445,7 +525,8 @@ class EmailManager:
 
                 for msg_id in message_ids:
                     try:
-                        logger.info(f"📨 Procesando email ID: {msg_id.decode() if isinstance(msg_id, bytes) else msg_id}")
+                        logger.info(
+                            f"📨 Procesando email ID: {msg_id.decode() if isinstance(msg_id, bytes) else msg_id}")
 
                         logger.info("📥 Descargando contenido del correo desde el servidor...")
                         status, email_data = imap.fetch(msg_id, '(RFC822)')
@@ -465,6 +546,12 @@ class EmailManager:
 
                         logger.info(f"📧 Email leído: Asunto='{subject}' | Remitente={sender}")
 
+                        # Extraer cuerpo del correo
+                        body_text = _extract_body_text(email_message)
+
+                        # Detectar si viene garantía en el correo
+                        garantia_correo = _detectar_garantia_en_correo(body_text, logger)
+
                         attachments = _extract_attachments(email_message, logger)
 
                         matching_case = self.case_handler.find_matching_case(subject, logger)
@@ -476,7 +563,9 @@ class EmailManager:
                                 'sender': sender,
                                 'subject': subject,
                                 'msg_id': msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id),
-                                'attachments': attachments
+                                'attachments': attachments,
+                                'body_text': body_text,
+                                'garantia_correo': garantia_correo
                             }
 
                             response_data = self.case_handler.execute_case(matching_case, email_data_for_case, logger)
@@ -527,7 +616,8 @@ class EmailManager:
 
             # CAMBIO: Enviar correo principal SIN CC
             logger.info("📤 Enviando correo principal al remitente (sin CC)...")
-            result = self.send_email(provider, email_addr, password, recipient, subject, body, None, attachments, logger)
+            result = self.send_email(provider, email_addr, password, recipient, subject, body, None, attachments,
+                                     logger)
 
             if not result:
                 logger.error("❌ Fallo al enviar correo principal")

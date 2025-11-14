@@ -273,8 +273,8 @@ def extract_repair_data(text, logger):
 
                 # Verificar si es un dominio común (mayor prioridad)
                 es_dominio_comun = any(correo_corregido.endswith('@' + dominio) or
-                                      correo_corregido.endswith(dominio)
-                                      for dominio in dominios_comunes)
+                                       correo_corregido.endswith(dominio)
+                                       for dominio in dominios_comunes)
 
                 correos_candidatos.append({
                     'correo': correo_corregido,
@@ -298,7 +298,8 @@ def extract_repair_data(text, logger):
 
                 # Si se encontraron múltiples, informar
                 if len(correos_candidatos) > 1:
-                    logger.info(f"ℹ️ Se encontraron {len(correos_candidatos)} correos válidos, se seleccionó el primero")
+                    logger.info(
+                        f"ℹ️ Se encontraron {len(correos_candidatos)} correos válidos, se seleccionó el primero")
 
         # ============================================================================
         # NIVEL 2: Reconstrucción de tokens fragmentados (para OCR que separa el correo)
@@ -317,7 +318,7 @@ def extract_repair_data(text, logger):
                 for arroba_pos in arroba_positions:
                     # Definir ventana de búsqueda alrededor del "@"
                     WINDOW_SIZE_BEFORE = 80  # caracteres antes del @
-                    WINDOW_SIZE_AFTER = 80   # caracteres después del @
+                    WINDOW_SIZE_AFTER = 80  # caracteres después del @
 
                     # Extraer ventana de texto alrededor del "@"
                     start = max(0, arroba_pos - WINDOW_SIZE_BEFORE)
@@ -348,7 +349,7 @@ def extract_repair_data(text, logger):
 
                     # Buscar dominio + extensión (después del @) en la ventana
                     # Buscar hacia adelante desde el "@" hasta encontrar un espacio o final
-                    text_after_arroba = text[arroba_pos+1:end]
+                    text_after_arroba = text[arroba_pos + 1:end]
 
                     # Intentar primero con punto en la extensión
                     domain_pattern = r'^\s*([a-zA-Z0-9][a-zA-Z0-9\.\-]*)\s*\.\s*([a-zA-Z]{2,6})'
@@ -371,7 +372,8 @@ def extract_repair_data(text, logger):
                                 # Validaciones adicionales
                                 if correo_temp.count('@') == 1 and not '..' in correo_temp:
                                     correo_encontrado = correo_temp
-                                    logger.info(f"✅ NIVEL 2 exitoso: Correo reconstruido de tokens fragmentados: {correo_encontrado}")
+                                    logger.info(
+                                        f"✅ NIVEL 2 exitoso: Correo reconstruido de tokens fragmentados: {correo_encontrado}")
                                     break
                     else:
                         # Intentar buscar dominio SIN punto (ej: "gmailcom")
@@ -380,7 +382,8 @@ def extract_repair_data(text, logger):
                         # Buscar dominio+extensión juntos (sin punto)
                         # Lista de extensiones comunes
                         extensiones_comunes = ['com', 'net', 'org', 'es', 'mx', 'co', 'ar', 'cl', 'pe', 'ec']
-                        dominios_base = ['gmail', 'hotmail', 'outlook', 'yahoo', 'live', 'icloud', 'aol', 'gollo', 'fruno']
+                        dominios_base = ['gmail', 'hotmail', 'outlook', 'yahoo', 'live', 'icloud', 'aol', 'gollo',
+                                         'fruno']
 
                         # Intentar detectar dominio+extensión sin punto
                         domain_pattern_no_dot = r'^\s*([a-zA-Z0-9][a-zA-Z0-9\-]{1,50})'
@@ -407,7 +410,8 @@ def extract_repair_data(text, logger):
                                             if 6 <= len(correo_temp) <= 254:
                                                 if correo_temp.count('@') == 1 and not '..' in correo_temp:
                                                     correo_encontrado = correo_temp
-                                                    logger.info(f"✅ NIVEL 2 exitoso: Correo reconstruido sin punto: {correo_encontrado}")
+                                                    logger.info(
+                                                        f"✅ NIVEL 2 exitoso: Correo reconstruido sin punto: {correo_encontrado}")
                                                     break
 
                             if correo_encontrado:
@@ -543,7 +547,8 @@ def extract_repair_data(text, logger):
                     data['correo_ocr_raw'] = correo_encontrado
                     logger.info(f"✅ Correo extraído y validado exitosamente: {correo_encontrado}")
                 else:
-                    logger.warning(f"⚠️ Correo con longitud inválida ({len(correo_encontrado)} caracteres): {correo_encontrado}")
+                    logger.warning(
+                        f"⚠️ Correo con longitud inválida ({len(correo_encontrado)} caracteres): {correo_encontrado}")
                     data['correo_cliente'] = "correo_no_encontrado@gollo.com"
                     data['correo_ocr_raw'] = f"INVALIDO (longitud {len(correo_encontrado)}): {correo_encontrado}"
             else:
@@ -599,7 +604,7 @@ def extract_repair_data(text, logger):
                 # Buscar descripción después del código
                 # Intentar capturar texto alfanumérico después del código hasta Serie/Marca/Modelo
                 pos_codigo = match_codigo.end()
-                texto_despues = text[pos_codigo:pos_codigo+200]  # Buscar en siguientes 200 caracteres
+                texto_despues = text[pos_codigo:pos_codigo + 200]  # Buscar en siguientes 200 caracteres
 
                 match_desc = re.search(
                     r'^\s*([A-Z][A-Z0-9\s]+?)(?=\s+(?:Serie|Marca|Modelo))',
@@ -630,7 +635,8 @@ def extract_repair_data(text, logger):
                 if match:
                     codigo_encontrado = match.group(1).strip()
                     descripcion_encontrada = re.sub(r'\s+', ' ', match.group(2).strip())
-                    logger.info(f"✓ [NIVEL 3] Código y descripción encontrados antes de Marca: {codigo_encontrado} - {descripcion_encontrada}")
+                    logger.info(
+                        f"✓ [NIVEL 3] Código y descripción encontrados antes de Marca: {codigo_encontrado} - {descripcion_encontrada}")
                 else:
                     # Solo buscar código
                     match_codigo = re.search(r'C[óo]digo\s*:?\s*(\d{6,14})', texto_busqueda, re.IGNORECASE)
@@ -700,7 +706,8 @@ def extract_repair_data(text, logger):
 
         # Número de factura (más flexible - captura STOCK)
         # Actualizado para detenerse también antes de "Fecha de Compra:"
-        match = re.search(r'No\s*\.?\s*Factura\s*:?\s*([^\s]+(?:\s+[^\s]+){0,5}?)(?=\s+Correo|\s+Fecha\s+de\s+Compra)', text,
+        match = re.search(r'No\s*\.?\s*Factura\s*:?\s*([^\s]+(?:\s+[^\s]+){0,5}?)(?=\s+Correo|\s+Fecha\s+de\s+Compra)',
+                          text,
                           re.IGNORECASE)
         if match:
             data['numero_factura'] = re.sub(r'\s+', ' ', match.group(1).strip())
@@ -1042,7 +1049,7 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     Genera el mensaje de éxito con el preingreso creado
 
     Args:
-        preingreso_results: Lista con 1 elemento dict con {filename, boleta, preingreso_id, numero_transaccion}
+        preingreso_results: Lista con 1 elemento dict con {filename, boleta, preingreso_id, numero_transaccion, garantia_viene_de_correo}
         failed_files: Lista de dicts con {filename, error} (vacía si fue exitoso)
         non_pdf_files: Lista de nombres de archivos que no son PDF
         api_base_url: URL base de la API para generar links de consulta
@@ -1071,7 +1078,11 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
         if result.get('tipo_preingreso_nombre'):
             message_lines.append(f"   Tipo de preingreso: {result['tipo_preingreso_nombre']}")
         if result.get('garantia_nombre'):
-            message_lines.append(f"   Garantía de preingreso: {result['garantia_nombre']}")
+            # Si la garantía viene del correo, mostrar "recibida"
+            if result.get('garantia_viene_de_correo'):
+                message_lines.append(f"   Garantía de preingreso recibida: {result['garantia_nombre']}")
+            else:
+                message_lines.append(f"   Garantía de preingreso: {result['garantia_nombre']}")
 
         message_lines.append("")
 
@@ -1219,7 +1230,7 @@ def _strip_if_string(value):
     return str(value).strip() if value else None
 
 
-def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
+def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=None):
     """
     Crea un preingreso en la API a partir del contenido de un PDF
 
@@ -1227,6 +1238,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         pdf_content: Bytes del archivo PDF
         pdf_filename: Nombre del archivo PDF
         logger: Logger para registrar eventos
+        garantia_correo: Garantía recibida del cuerpo del correo (opcional)
 
     Returns:
         dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
@@ -1255,7 +1267,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         extracted_data = extract_repair_data(pdf_text, logger)
 
         if not extracted_data or len(extracted_data) < 3:
-            logger.error(f"❌ PDF sin información válida (solo {len(extracted_data) if extracted_data else 0} campos extraídos)")
+            logger.error(
+                f"❌ PDF sin información válida (solo {len(extracted_data) if extracted_data else 0} campos extraídos)")
             return {
                 'success': False,
                 'error': 'PDF sin información válida (menos de 3 campos extraídos)',
@@ -1279,6 +1292,18 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
         temp_pdf.close()
         logger.info(f"   📁 Archivo temporal creado: {temp_pdf.name}")
 
+        # Determinar qué garantía usar (prioridad: correo > PDF)
+        garantia_a_usar = None
+        garantia_viene_de_correo = False
+
+        if garantia_correo:
+            garantia_a_usar = garantia_correo
+            garantia_viene_de_correo = True
+            logger.info(f"   ✓ Usando garantía del correo: '{garantia_correo}'")
+        else:
+            garantia_a_usar = extracted_data.get('tipo_garantia', '')
+            logger.info(f"   ℹ Usando garantía del PDF: '{garantia_a_usar}'")
+
         # Crear DTO con los datos extraídos
         datos_pdf = DatosExtraidosPDF(
             numero_boleta=_strip_if_string(extracted_data.get('numero_boleta', '')),
@@ -1290,7 +1315,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
             cliente_telefono=_strip_if_string(extracted_data.get('telefono_cliente', '')),
             cliente_correo=_strip_if_string(extracted_data.get('correo_cliente', '')),
             serie=_strip_if_string(extracted_data.get('serie', '')),
-            garantia_nombre=_strip_if_string(extracted_data.get('tipo_garantia', '')),
+            garantia_nombre=_strip_if_string(garantia_a_usar),
             fecha_compra=_strip_if_string(extracted_data.get('fecha_compra')),
             factura=_strip_if_string(extracted_data.get('numero_factura')),
             cliente_cedula=_strip_if_string(extracted_data.get('cedula_cliente')),
@@ -1417,7 +1442,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger):
                     'tipo_preingreso_nombre': result.tipo_preingreso_nombre,
                     'garantia_nombre': result.garantia_nombre,
                     'filename': pdf_filename,
-                    'extracted_data': extracted_data  # Incluir todos los datos extraídos
+                    'extracted_data': extracted_data,  # Incluir todos los datos extraídos
+                    'garantia_viene_de_correo': garantia_viene_de_correo  # Flag para indicar origen de la garantía
                 }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
@@ -1464,8 +1490,16 @@ class Case(BaseCase):
             sender = email_data.get('sender', '')
             subject = email_data.get('subject', 'Sin asunto')
             attachments = email_data.get('attachments', [])
+            garantia_correo_info = email_data.get('garantia_correo', {})
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
+
+            # Extraer garantía del correo si existe
+            garantia_del_correo = None
+            if garantia_correo_info.get('encontrada'):
+                garantia_del_correo = garantia_correo_info.get('garantia')
+                logger.info(
+                    f"🛡️ Garantía del correo detectada: '{garantia_del_correo}' - Se usará en lugar de la del PDF")
 
             # Clasificar archivos adjuntos
             pdf_attachments = []
@@ -1514,8 +1548,8 @@ class Case(BaseCase):
 
             logger.info(f"Procesando PDF: {pdf_filename}")
 
-            # Crear preingreso desde el PDF
-            result = _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger)
+            # Crear preingreso desde el PDF (pasando garantía del correo si existe)
+            result = _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=garantia_del_correo)
 
             preingreso_results = []
             failed_files = []
@@ -1530,7 +1564,8 @@ class Case(BaseCase):
                     'consultar_reparacion': result.get('consultar_reparacion'),
                     'consultar_guia': result.get('consultar_guia'),
                     'tipo_preingreso_nombre': result.get('tipo_preingreso_nombre'),
-                    'garantia_nombre': result.get('garantia_nombre')
+                    'garantia_nombre': result.get('garantia_nombre'),
+                    'garantia_viene_de_correo': result.get('garantia_viene_de_correo', False)
                 })
                 # Guardar los datos extraídos para enviar a usuarios CC
                 extracted_data = result.get('extracted_data')
