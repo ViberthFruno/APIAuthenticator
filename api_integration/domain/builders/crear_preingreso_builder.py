@@ -254,14 +254,23 @@ class CrearPreingresoBuilder:
                 # Si la fecha de compra excede un año, entonces ingresa como "Sin Garantía".
                 msg_fecha_compra = f"La fecha de compra '{fecha_compra}' excede un año, ingresa 'Sin Garantía'"
 
-        # detalle_recepcion = nombre marca + nombre modelo + Daños + observaciones.
+        # detalle_recepcion = nombre marca + nombre modelo + Daños + observaciones + cuerpo del correo.
         # Usar el nombre canónico de la marca (no el del PDF que puede venir en mayúsculas/minúsculas)
         modelo_nombre = CrearPreingresoBuilder._limpiar_texto(datos_pdf.modelo_nombre)
         danos = CrearPreingresoBuilder._limpiar_texto(datos_pdf.danos)
         observaciones = CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
+        cuerpo_correo = CrearPreingresoBuilder._limpiar_texto(datos_pdf.cuerpo_correo)
 
+        # Construir detalle base
         detalle_recepcion = f"Marca:{marca_nombre_canonico} | Modelo:{modelo_nombre} | Daño:{danos} | Obs:{observaciones} | {msg_fecha_compra}".rstrip(
-            ' |') + "."
+            ' |')
+
+        # Agregar cuerpo del correo si existe
+        if cuerpo_correo:
+            detalle_recepcion += f" | Correo:{cuerpo_correo}"
+
+        # Agregar punto final
+        detalle_recepcion += "."
 
         # Obtener nombres y apellidos del propietario
         propietario = CrearPreingresoBuilder._extraer_nombres_apellidos(

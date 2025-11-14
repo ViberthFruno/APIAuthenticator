@@ -39,6 +39,7 @@ class DatosExtraidosPDF:
     observaciones: Optional[str] = None
     hecho_por: Optional[str] = None
     distribuidor_id: Optional[str] = None  # proveedor = distribuidor (ID del distribuidor detectado en correo)
+    cuerpo_correo: Optional[str] = None  # Cuerpo del correo electrónico normalizado
 
 
 @dataclass
