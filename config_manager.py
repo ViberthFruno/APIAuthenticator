@@ -39,15 +39,37 @@ class ConfigManager:
     def load_config(self):
         """Carga la configuración desde el archivo JSON"""
         try:
+            # Debug: Mostrar información del sistema
+            is_frozen = getattr(sys, 'frozen', False)
+            print(f"[DEBUG ConfigManager] Sistema frozen: {is_frozen}")
+            print(f"[DEBUG ConfigManager] Base dir: {self.base_dir}")
+            print(f"[DEBUG ConfigManager] Buscando config en: {self.config_file}")
+            print(f"[DEBUG ConfigManager] ¿Existe el archivo? {os.path.exists(self.config_file)}")
+
             if os.path.exists(self.config_file):
+                print(f"[DEBUG ConfigManager] ✓ Archivo encontrado, cargando...")
                 with open(self.config_file, 'r', encoding='utf-8') as file:
-                    return json.load(file)
+                    config_data = json.load(file)
+                    print(f"[DEBUG ConfigManager] ✓ Config cargada: {list(config_data.keys())}")
+                    if 'search_params' in config_data:
+                        print(f"[DEBUG ConfigManager] ✓ search_params: {config_data['search_params']}")
+                    return config_data
             else:
-                print(f"⚠️  Archivo de configuración no encontrado: {self.config_file}")
-                print(f"   Buscando en: {self.base_dir}")
+                print(f"[DEBUG ConfigManager] ❌ Archivo NO encontrado")
+                print(f"   ⚠️  Archivo de configuración no encontrado: {self.config_file}")
+                print(f"   📁 Directorio actual: {os.getcwd()}")
+                print(f"   📁 Archivos en base_dir:")
+                try:
+                    files_in_dir = os.listdir(self.base_dir)
+                    for f in files_in_dir[:10]:  # Mostrar solo primeros 10
+                        print(f"      - {f}")
+                except Exception as list_err:
+                    print(f"      Error al listar: {list_err}")
                 return {}
         except Exception as e:
-            print(f"Error al cargar la configuración: {str(e)}")
+            print(f"[DEBUG ConfigManager] ❌ Error al cargar la configuración: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {}
 
     def save_config(self, config):

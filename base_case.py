@@ -25,11 +25,23 @@ class BaseCase:
     def get_search_keywords(self):
         """Obtiene las palabras clave de búsqueda desde la configuración"""
         try:
+            print(f"[DEBUG {self._config_key}] Obteniendo palabras clave...")
             config = ConfigManager().load_config()
-            keyword = config.get('search_params', {}).get(self._config_key, '').strip()
-            return [keyword] if keyword else []
+            print(f"[DEBUG {self._config_key}] Config keys: {list(config.keys())}")
+
+            search_params = config.get('search_params', {})
+            print(f"[DEBUG {self._config_key}] search_params: {search_params}")
+
+            keyword = search_params.get(self._config_key, '').strip()
+            print(f"[DEBUG {self._config_key}] Keyword para '{self._config_key}': '{keyword}'")
+
+            result = [keyword] if keyword else []
+            print(f"[DEBUG {self._config_key}] Retornando keywords: {result}")
+            return result
         except Exception as e:
-            print(f"Error al cargar palabras clave para {self._config_key}: {e}")
+            print(f"[DEBUG {self._config_key}] ❌ Error al cargar palabras clave: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def get_response_message(self):

@@ -74,17 +74,29 @@ class CaseHandler:
 
     def find_matching_case(self, subject, logger):
         """Busca el primer caso que coincida con el asunto del email"""
+        print(f"[DEBUG CaseHandler] Buscando caso para asunto: '{subject}'")
+        print(f"[DEBUG CaseHandler] Casos disponibles: {list(self.cases.keys())}")
+
         for case_name, case_obj in self.cases.items():
             try:
+                print(f"[DEBUG CaseHandler] Verificando caso: {case_name}")
                 keywords = case_obj.get_search_keywords()
+                print(f"[DEBUG CaseHandler] Keywords para {case_name}: {keywords}")
+
                 for keyword in keywords:
+                    print(f"[DEBUG CaseHandler] ¿'{keyword.lower()}' en '{subject.lower()}'?")
                     if keyword.lower() in subject.lower():
-                        logger.info(f"Caso encontrado: {case_name} para palabra clave: {keyword}")
+                        logger.info(f"✓ Caso encontrado: {case_name} para palabra clave: {keyword}")
+                        print(f"[DEBUG CaseHandler] ✓ MATCH encontrado!")
                         return case_name
+                    else:
+                        print(f"[DEBUG CaseHandler] ✗ No coincide")
             except Exception as e:
                 logger.exception(f"Error al verificar caso {case_name}: {str(e)}")
+                print(f"[DEBUG CaseHandler] ❌ Error en caso {case_name}: {e}")
                 continue
 
+        print(f"[DEBUG CaseHandler] ❌ No se encontró ningún caso que coincida")
         return None
 
     def reload_cases(self):
