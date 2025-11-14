@@ -579,6 +579,7 @@ class PreingresoData:
     fecha_compra: Optional[str] = None
     otro_telefono_propietario: Optional[str] = None
     numero_factura: Optional[str] = None
+    distribuidor_id: Optional[str] = None
 
     # Archivos adjuntos
     pdf_filename: str = ""
@@ -711,6 +712,7 @@ class PreingresoData:
             "propietario_contactos_ids": "[]",
             "imei_prestamo": "",
             "numero_factura": self.numero_factura or "N/A",
+            "distribuidor_id": self.distribuidor_id or "",
             "fecha_compra": self.fecha_compra,
             "imei": "",
             "serie": self.serie,

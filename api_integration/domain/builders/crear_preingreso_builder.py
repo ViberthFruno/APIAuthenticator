@@ -273,6 +273,11 @@ class CrearPreingresoBuilder:
         if tipo_preingreso_id == 8:
             numero_factura = ""
 
+        # TODO distribuidor_id no debe venir de datos_pdf, ya que se está mezclando lógica de negocios
+        # entre la capa gui/pdf y la de crear preingreso (código espagueti).
+        # La función _detectar_proveedor_en_correo que está en email_manager.py debe ir en este archivo.
+        distribuidor_id = datos_pdf.distribuidor_id
+
         # Extraer contenido del pdf que será enviado al request
         pdf_content = await archivo_adjunto.leer_contenido()
 
@@ -299,6 +304,7 @@ class CrearPreingresoBuilder:
             boleta_tienda=datos_pdf.numero_boleta,
 
             fecha_compra=fecha_compra,
+            distribuidor_id=distribuidor_id,
             otro_telefono_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_telefono2, True),
             numero_factura=numero_factura,
 
