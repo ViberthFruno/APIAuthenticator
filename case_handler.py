@@ -72,15 +72,61 @@ class CaseHandler:
             logger.error(f"Caso no encontrado: {case_name}")
             return False
 
-    def find_matching_case(self, subject, logger):
-        """Busca el primer caso que coincida con el asunto del email"""
+    def find_matching_case(self, subject, sender, logger):
+        """
+        Busca el primer caso que coincida con el asunto y/o remitente del email.
+
+        Lógica de coincidencia:
+        - Si el caso tiene keywords Y senders: valida AMBOS (AND)
+        - Si solo tiene keywords: valida solo keywords
+        - Si solo tiene senders: valida solo senders
+        - Si no tiene ninguno: no coincide
+        """
         for case_name, case_obj in self.cases.items():
             try:
                 keywords = case_obj.get_search_keywords()
-                for keyword in keywords:
-                    if keyword.lower() in subject.lower():
-                        logger.info(f"Caso encontrado: {case_name} para palabra clave: {keyword}")
+                senders = case_obj.get_search_senders() if hasattr(case_obj, 'get_search_senders') else []
+
+                # Validar si coincide con alguna keyword
+                keyword_match = False
+                matched_keyword = None
+                if keywords:
+                    for keyword in keywords:
+                        if keyword and keyword.lower() in subject.lower():
+                            keyword_match = True
+                            matched_keyword = keyword
+                            break
+
+                # Validar si coincide con algún sender/dominio
+                sender_match = False
+                matched_sender = None
+                if senders:
+                    for allowed_sender in senders:
+                        if allowed_sender and allowed_sender.lower() in sender.lower():
+                            sender_match = True
+                            matched_sender = allowed_sender
+                            break
+
+                # Determinar si el caso coincide
+                has_keywords = bool(keywords)
+                has_senders = bool(senders)
+
+                if has_keywords and has_senders:
+                    # Ambos configurados: validar AMBOS (AND)
+                    if keyword_match and sender_match:
+                        logger.info(f"Caso encontrado: {case_name} | Keyword: '{matched_keyword}' | Sender: '{matched_sender}'")
                         return case_name
+                elif has_keywords:
+                    # Solo keywords: validar solo keywords
+                    if keyword_match:
+                        logger.info(f"Caso encontrado: {case_name} | Keyword: '{matched_keyword}'")
+                        return case_name
+                elif has_senders:
+                    # Solo senders: validar solo senders
+                    if sender_match:
+                        logger.info(f"Caso encontrado: {case_name} | Sender: '{matched_sender}'")
+                        return case_name
+
             except Exception as e:
                 logger.exception(f"Error al verificar caso {case_name}: {str(e)}")
                 continue
