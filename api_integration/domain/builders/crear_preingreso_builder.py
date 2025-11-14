@@ -3,6 +3,7 @@
 import re
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 from uuid import UUID
@@ -117,8 +118,15 @@ class CrearPreingresoBuilder:
         Returns:
             Dict: Configuración de categorías con IDs y palabras clave
         """
-        # Buscar el archivo config_categorias.json en el directorio raíz del proyecto
-        archivo_config = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config_categorias.json')
+        # Buscar el archivo config_categorias.json (empaquetado con PyInstaller)
+        if getattr(sys, 'frozen', False):
+            # Si es ejecutable con PyInstaller
+            base_path = sys._MEIPASS
+        else:
+            # Si es desarrollo, usar directorio raíz del proyecto
+            base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')
+
+        archivo_config = os.path.join(base_path, 'config_categorias.json')
 
         # Crear una copia de las categorías hardcodeadas
         categorias = {nombre: {"id": datos["id"], "palabras_clave": datos["palabras_clave"].copy()}

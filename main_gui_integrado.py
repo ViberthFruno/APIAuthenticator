@@ -701,9 +701,10 @@ class IntegratedGUI(LoggerMixin):
         """Abre una ventana modal para configurar las categorías y sus palabras clave"""
         import json
         import os
+        from config_manager import ConfigManager
 
-        # Ruta del archivo de configuración de categorías
-        config_file = os.path.join(os.path.dirname(__file__), 'config_categorias.json')
+        # Ruta del archivo de configuración de categorías (empaquetado con PyInstaller)
+        config_file = ConfigManager.get_bundled_resource_path('config_categorias.json')
 
         # Categorías hardcodeadas (solo categoria_id, sin tipo_dispositivo_id)
         categorias_hardcoded = {
