@@ -1230,7 +1230,7 @@ def _strip_if_string(value):
     return str(value).strip() if value else None
 
 
-def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=None):
+def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=None, proveedor_correo_id=None):
     """
     Crea un preingreso en la API a partir del contenido de un PDF
 
@@ -1239,6 +1239,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
         pdf_filename: Nombre del archivo PDF
         logger: Logger para registrar eventos
         garantia_correo: Garantía recibida del cuerpo del correo (opcional)
+        proveedor_correo_id: ID del distribuidor (proveedor) recibido del cuerpo del correo (opcional)
 
     Returns:
         dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
@@ -1304,6 +1305,16 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
             garantia_a_usar = extracted_data.get('tipo_garantia', '')
             logger.info(f"   ℹ Usando garantía del PDF: '{garantia_a_usar}'")
 
+        # Determinar qué distribuidor usar (proveedor = distribuidor)
+        # Si viene proveedor_correo_id, usarlo; si no, dejar como None
+        distribuidor_id_a_usar = None
+
+        if proveedor_correo_id:
+            distribuidor_id_a_usar = proveedor_correo_id
+            logger.info(f"   ✓ Usando proveedor (distribuidor) del correo - ID: '{proveedor_correo_id}'")
+        else:
+            logger.info(f"   ℹ No se detectó proveedor en el correo - distribuidor_id será None")
+
         # Crear DTO con los datos extraídos
         datos_pdf = DatosExtraidosPDF(
             numero_boleta=_strip_if_string(extracted_data.get('numero_boleta', '')),
@@ -1331,7 +1342,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
             garantia_fecha=_strip_if_string(extracted_data.get('fecha_garantia')),
             danos=_strip_if_string(extracted_data.get('danos')),
             observaciones=_strip_if_string(extracted_data.get('observaciones')),
-            hecho_por=_strip_if_string(extracted_data.get('hecho_por'))
+            hecho_por=_strip_if_string(extracted_data.get('hecho_por')),
+            distribuidor_id=_strip_if_string(distribuidor_id_a_usar)  # proveedor = distribuidor
         )
 
         # Crear archivo adjunto
@@ -1491,6 +1503,7 @@ class Case(BaseCase):
             subject = email_data.get('subject', 'Sin asunto')
             attachments = email_data.get('attachments', [])
             garantia_correo_info = email_data.get('garantia_correo', {})
+            proveedor_correo_info = email_data.get('proveedor_correo', {})  # proveedor = distribuidor
 
             logger.info(f"Procesando {self._config_key} para email de {sender}")
 
@@ -1500,6 +1513,14 @@ class Case(BaseCase):
                 garantia_del_correo = garantia_correo_info.get('garantia')
                 logger.info(
                     f"🛡️ Garantía del correo detectada: '{garantia_del_correo}' - Se usará en lugar de la del PDF")
+
+            # Extraer proveedor (distribuidor) del correo si existe
+            proveedor_id_del_correo = None
+            if proveedor_correo_info.get('encontrado'):
+                proveedor_id_del_correo = proveedor_correo_info.get('distribuidor_id')
+                proveedor_nombre = proveedor_correo_info.get('distribuidor_nombre')
+                logger.info(
+                    f"📦 Proveedor (distribuidor) del correo detectado: '{proveedor_nombre}' (ID: {proveedor_id_del_correo}) - Se enviará a la API")
 
             # Clasificar archivos adjuntos
             pdf_attachments = []
@@ -1548,8 +1569,14 @@ class Case(BaseCase):
 
             logger.info(f"Procesando PDF: {pdf_filename}")
 
-            # Crear preingreso desde el PDF (pasando garantía del correo si existe)
-            result = _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=garantia_del_correo)
+            # Crear preingreso desde el PDF (pasando garantía y proveedor del correo si existen)
+            result = _crear_preingreso_desde_pdf(
+                pdf_content,
+                pdf_filename,
+                logger,
+                garantia_correo=garantia_del_correo,
+                proveedor_correo_id=proveedor_id_del_correo  # proveedor = distribuidor
+            )
 
             preingreso_results = []
             failed_files = []

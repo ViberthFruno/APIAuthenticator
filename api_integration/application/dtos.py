@@ -38,6 +38,7 @@ class DatosExtraidosPDF:
     danos: Optional[str] = None
     observaciones: Optional[str] = None
     hecho_por: Optional[str] = None
+    distribuidor_id: Optional[str] = None  # proveedor = distribuidor (ID del distribuidor detectado en correo)
 
 
 @dataclass

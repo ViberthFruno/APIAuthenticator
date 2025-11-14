@@ -145,6 +145,71 @@ def _detectar_garantia_en_correo(body_text, logger):
         return {'encontrada': False, 'garantia': None}
 
 
+def _detectar_proveedor_en_correo(body_text, logger):
+    """
+    Detecta si en el cuerpo del correo viene la palabra 'Proveedor' (que representa distribuidor)
+    y busca un match con los distribuidores disponibles
+
+    Retorna:
+        dict con {'encontrado': bool, 'distribuidor_id': str o None, 'distribuidor_nombre': str o None}
+    """
+    if not body_text:
+        return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
+
+    # Nota: En el correo viene como "proveedor" pero internamente representa "distribuidor"
+    # Lista de distribuidores disponibles (key = ID, value = nombre)
+    distribuidores = {
+        "235b222e-ad2d-4493-9e0d-24eae244f8f9": "CTC GROUP",
+        "b24941fa-955f-4a66-9326-da6aaf8b18d1": "Distribuidor Mobiltech",
+        "66e20464-0afa-4d7e-9e33-8cb7a358731f": "Distribuidor INTCOMEX",
+        "796b6e10-539d-479b-89d8-644c564308c6": "Distribuidor MAJICAL",
+        "88f9f5fd-4569-40dd-bc20-9a34097dcedd": "Distribuidor OSL",
+        "497c7e40-7e8a-45bd-962f-a79f5f5fe641": "Distribuidor CTC GRUP",
+        "560600c2-60d5-42a7-9478-e9d1fef48a97": "Distribuidor Liberty",
+        "af3e8a46-cd6a-4eae-a1d1-8b6c1a8111d7": "Distribuidor Suplidora Movil",
+        "4d368873-4488-416f-9996-a95c416eaec2": "MobilePro"
+    }
+
+    try:
+        import re
+
+        # Normalizar el texto a mayúsculas para búsqueda
+        body_upper = body_text.upper()
+
+        # Buscar la palabra "PROVEEDOR" en el texto
+        if re.search(r'PROVEEDOR', body_upper):
+            logger.info("✓ Palabra 'Proveedor' encontrada en el cuerpo del correo")
+
+            # Buscar match con algún distribuidor (case insensitive, matching flexible)
+            for distribuidor_id, distribuidor_nombre in distribuidores.items():
+                # Normalizar nombre del distribuidor para comparación
+                nombre_normalizado = distribuidor_nombre.upper()
+
+                # Crear variantes del nombre para buscar (sin prefijo "Distribuidor", solo nombre base)
+                nombre_base = nombre_normalizado.replace("DISTRIBUIDOR ", "").strip()
+
+                # Buscar el nombre base en el cuerpo del correo
+                # Usar \b para límites de palabra y hacer matching flexible
+                pattern = r'\b' + re.escape(nombre_base) + r'\b'
+
+                if re.search(pattern, body_upper):
+                    logger.info(f"✓ Proveedor (distribuidor) detectado en correo: '{distribuidor_nombre}' (ID: {distribuidor_id})")
+                    return {
+                        'encontrado': True,
+                        'distribuidor_id': distribuidor_id,
+                        'distribuidor_nombre': distribuidor_nombre
+                    }
+
+            logger.info("⚠ Se encontró 'Proveedor' pero no coincide con ningún distribuidor conocido")
+            return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
+        else:
+            return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
+
+    except Exception as e:
+        logger.error(f"Error al detectar proveedor en correo: {str(e)}")
+        return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
+
+
 def _extract_attachments(email_message, logger):
     """Extrae los archivos adjuntos de un email"""
     attachments = []
@@ -552,6 +617,9 @@ class EmailManager:
                         # Detectar si viene garantía en el correo
                         garantia_correo = _detectar_garantia_en_correo(body_text, logger)
 
+                        # Detectar si viene proveedor (distribuidor) en el correo
+                        proveedor_correo = _detectar_proveedor_en_correo(body_text, logger)
+
                         attachments = _extract_attachments(email_message, logger)
 
                         matching_case = self.case_handler.find_matching_case(subject, logger)
@@ -565,7 +633,8 @@ class EmailManager:
                                 'msg_id': msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id),
                                 'attachments': attachments,
                                 'body_text': body_text,
-                                'garantia_correo': garantia_correo
+                                'garantia_correo': garantia_correo,
+                                'proveedor_correo': proveedor_correo  # proveedor = distribuidor
                             }
 
                             response_data = self.case_handler.execute_case(matching_case, email_data_for_case, logger)
