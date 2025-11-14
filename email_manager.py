@@ -147,8 +147,9 @@ def _detectar_garantia_en_correo(body_text, logger):
 
 def _detectar_proveedor_en_correo(body_text, logger):
     """
-    Detecta si en el cuerpo del correo viene la palabra 'Proveedor' (que representa distribuidor)
-    y busca un match con los distribuidores disponibles
+    Detecta si en el cuerpo del correo viene algún distribuidor (proveedor)
+    Busca directamente los nombres de distribuidores sin necesitar la palabra "Proveedor"
+    La búsqueda es case-insensitive y flexible
 
     Retorna:
         dict con {'encontrado': bool, 'distribuidor_id': str o None, 'distribuidor_nombre': str o None}
@@ -156,7 +157,7 @@ def _detectar_proveedor_en_correo(body_text, logger):
     if not body_text:
         return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
 
-    # Nota: En el correo viene como "proveedor" pero internamente representa "distribuidor"
+    # Nota: En el correo puede venir como "proveedor" pero internamente representa "distribuidor"
     # Lista de distribuidores disponibles (key = ID, value = nombre)
     distribuidores = {
         "235b222e-ad2d-4493-9e0d-24eae244f8f9": "CTC GROUP",
@@ -173,37 +174,48 @@ def _detectar_proveedor_en_correo(body_text, logger):
     try:
         import re
 
-        # Normalizar el texto a mayúsculas para búsqueda
+        # Normalizar el texto a mayúsculas para búsqueda case-insensitive
         body_upper = body_text.upper()
 
-        # Buscar la palabra "PROVEEDOR" en el texto
-        if re.search(r'PROVEEDOR', body_upper):
-            logger.info("✓ Palabra 'Proveedor' encontrada en el cuerpo del correo")
+        logger.info("🔍 Buscando distribuidores (proveedores) en el cuerpo del correo...")
 
-            # Buscar match con algún distribuidor (case insensitive, matching flexible)
-            for distribuidor_id, distribuidor_nombre in distribuidores.items():
-                # Normalizar nombre del distribuidor para comparación
-                nombre_normalizado = distribuidor_nombre.upper()
+        # Buscar match con algún distribuidor (case insensitive, matching flexible)
+        # Se busca directamente el nombre sin necesitar la palabra "Proveedor"
+        for distribuidor_id, distribuidor_nombre in distribuidores.items():
+            # Normalizar nombre del distribuidor para comparación
+            nombre_normalizado = distribuidor_nombre.upper()
 
-                # Crear variantes del nombre para buscar (sin prefijo "Distribuidor", solo nombre base)
-                nombre_base = nombre_normalizado.replace("DISTRIBUIDOR ", "").strip()
+            # Crear variantes de búsqueda:
+            # 1. Nombre completo (ej: "DISTRIBUIDOR MOBILTECH")
+            # 2. Nombre base sin prefijo (ej: "MOBILTECH")
+            variantes_busqueda = []
 
-                # Buscar el nombre base en el cuerpo del correo
-                # Usar \b para límites de palabra y hacer matching flexible
-                pattern = r'\b' + re.escape(nombre_base) + r'\b'
+            # Variante 1: Nombre completo
+            variantes_busqueda.append(nombre_normalizado)
+
+            # Variante 2: Nombre base (sin "DISTRIBUIDOR ")
+            nombre_base = nombre_normalizado.replace("DISTRIBUIDOR ", "").strip()
+            if nombre_base != nombre_normalizado:  # Solo agregar si es diferente
+                variantes_busqueda.append(nombre_base)
+
+            # Buscar cada variante en el cuerpo del correo
+            for variante in variantes_busqueda:
+                # Usar \b para límites de palabra (word boundaries)
+                # Esto evita matches parciales como "TECH" dentro de "MOBILTECH"
+                pattern = r'\b' + re.escape(variante) + r'\b'
 
                 if re.search(pattern, body_upper):
-                    logger.info(f"✓ Proveedor (distribuidor) detectado en correo: '{distribuidor_nombre}' (ID: {distribuidor_id})")
+                    logger.info(f"✓ Distribuidor (proveedor) detectado: '{distribuidor_nombre}' (ID: {distribuidor_id})")
+                    logger.info(f"   Variante encontrada: '{variante}'")
                     return {
                         'encontrado': True,
                         'distribuidor_id': distribuidor_id,
                         'distribuidor_nombre': distribuidor_nombre
                     }
 
-            logger.info("⚠ Se encontró 'Proveedor' pero no coincide con ningún distribuidor conocido")
-            return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
-        else:
-            return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
+        # No se encontró ningún distribuidor
+        logger.info("ℹ️ No se detectó ningún distribuidor en el correo")
+        return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
 
     except Exception as e:
         logger.error(f"Error al detectar proveedor en correo: {str(e)}")
