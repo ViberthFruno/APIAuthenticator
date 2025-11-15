@@ -598,7 +598,7 @@ class IntegratedGUI(LoggerMixin):
         # Ayuda para el campo titular
         help_label = ttk.Label(
             params_frame,
-            text="Ejemplo: @fruno.com (solo procesa correos de ese dominio)",
+            text="Ejemplo: @fruno.com o múltiples: @fruno.com, @unicomer.com",
             font=("Arial", 8),
             foreground="gray"
         )
@@ -1182,9 +1182,14 @@ class IntegratedGUI(LoggerMixin):
                 return
 
             search_params = config.get('search_params', {})
-            if not search_params.get('caso1', '').strip():
-                self.log_api_message("❌ Error: Configure primero los parámetros de búsqueda", level="ERROR")
-                messagebox.showwarning("Advertencia", "Configure los parámetros de búsqueda")
+            palabra_clave = search_params.get('caso1', '').strip()
+            titular_correo = search_params.get('titular_correo', '').strip()
+
+            # Validar que haya al menos palabra clave O dominio configurado
+            if not palabra_clave and not titular_correo:
+                self.log_api_message("❌ Error: Configure al menos una palabra clave o un dominio", level="ERROR")
+                messagebox.showwarning("Advertencia",
+                                       "Configure al menos una palabra clave o un dominio en Parámetros de Búsqueda")
                 return
 
             self.monitoring = True
@@ -1195,11 +1200,13 @@ class IntegratedGUI(LoggerMixin):
             self.monitor_thread.start()
 
             # Log informativo sobre la configuración activa
-            titular_correo = search_params.get('titular_correo', '').strip()
+            config_info = []
+            if palabra_clave:
+                config_info.append(f"palabra clave: '{palabra_clave}'")
             if titular_correo:
-                self.log_api_message(f"✅ Monitoreo iniciado con filtro de dominio: {titular_correo}", level="INFO")
-            else:
-                self.log_api_message("✅ Monitoreo de emails iniciado (sin filtro de dominio)", level="INFO")
+                config_info.append(f"dominios: {titular_correo}")
+
+            self.log_api_message(f"✅ Monitoreo iniciado con {' y '.join(config_info)}", level="INFO")
         else:
             self.monitoring = False
             self.monitor_button.config(text="Iniciar Monitoreo")
@@ -1214,11 +1221,14 @@ class IntegratedGUI(LoggerMixin):
                 search_params = config.get('search_params', {})
                 cc_list = config.get('cc_users', [])
 
+                # Obtener dominios permitidos
+                allowed_domains = search_params.get('titular_correo', '').strip()
+
                 search_titles = []
                 if search_params.get('caso1', '').strip():
                     search_titles.append(search_params['caso1'].strip())
 
-                if search_titles:
+                if search_titles or allowed_domains:
                     self.log_api_message(f"Revisando correos... ({datetime.now().strftime('%H:%M:%S')})")
 
                     self.email_manager.check_and_process_emails(
@@ -1227,7 +1237,8 @@ class IntegratedGUI(LoggerMixin):
                         config['password'],
                         search_titles,
                         self.logger,
-                        cc_list
+                        cc_list,
+                        allowed_domains  # Pasar dominios permitidos
                     )
 
                 time.sleep(30)

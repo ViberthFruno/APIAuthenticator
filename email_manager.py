@@ -193,7 +193,8 @@ def _detectar_proveedor_en_correo(body_text, logger):
                 pattern = r'\b' + re.escape(nombre_base) + r'\b'
 
                 if re.search(pattern, body_upper):
-                    logger.info(f"✓ Proveedor (distribuidor) detectado en correo: '{distribuidor_nombre}' (ID: {distribuidor_id})")
+                    logger.info(
+                        f"✓ Proveedor (distribuidor) detectado en correo: '{distribuidor_nombre}' (ID: {distribuidor_id})")
                     return {
                         'encontrado': True,
                         'distribuidor_id': distribuidor_id,
@@ -535,8 +536,20 @@ class EmailManager:
                 print(f"Error al enviar correo: {str(e)}")
             return False
 
-    def check_and_process_emails(self, provider, email_addr, password, search_titles, logger, cc_list=None):
-        """Función principal que revisa emails y procesa los que coinciden"""
+    def check_and_process_emails(self, provider, email_addr, password, search_titles, logger, cc_list=None,
+                                 allowed_domains=None):
+        """
+        Función principal que revisa emails y procesa los que coinciden
+
+        Args:
+            provider: Proveedor de correo
+            email_addr: Dirección de correo
+            password: Contraseña
+            search_titles: Lista de palabras clave para buscar en asunto
+            logger: Logger
+            cc_list: Lista de correos para CC
+            allowed_domains: String con dominios permitidos separados por comas (ej: "@fruno.com, @unicomer.com")
+        """
         try:
             config = self.get_provider_config(provider)
             server = config['imap_server']
@@ -622,7 +635,8 @@ class EmailManager:
 
                         attachments = _extract_attachments(email_message, logger)
 
-                        matching_case = self.case_handler.find_matching_case(subject, logger)
+                        # Pasar sender y allowed_domains a find_matching_case
+                        matching_case = self.case_handler.find_matching_case(subject, sender, allowed_domains, logger)
 
                         if matching_case:
                             logger.info(f"Email encontrado para caso: {matching_case}")

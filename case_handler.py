@@ -7,6 +7,7 @@ import sys
 # Importar casos explícitamente (necesario para PyInstaller)
 try:
     import case1
+
     AVAILABLE_CASES = {
         'case1': case1
     }
@@ -77,10 +78,41 @@ class CaseHandler:
             logger.error(f"Caso no encontrado: {case_name}")
             return False
 
-    def find_matching_case(self, subject, logger):
-        """Busca el primer caso que coincida con el asunto del email"""
+    def find_matching_case(self, subject, sender, allowed_domains, logger):
+        """
+        Busca el primer caso que coincida con el asunto O dominio del email (lógica OR)
+
+        Args:
+            subject: Asunto del correo
+            sender: Remitente del correo (puede incluir nombre y email)
+            allowed_domains: String con dominios permitidos separados por comas o None
+            logger: Logger para mensajes
+
+        Returns:
+            Nombre del caso si coincide, None si no
+        """
         print(f"[DEBUG CaseHandler] Buscando caso para asunto: '{subject}'")
+        print(f"[DEBUG CaseHandler] Sender: '{sender}'")
+        print(f"[DEBUG CaseHandler] Dominios permitidos: '{allowed_domains}'")
         print(f"[DEBUG CaseHandler] Casos disponibles: {list(self.cases.keys())}")
+
+        # Extraer dominio del sender
+        sender_domain = None
+        if sender and '@' in sender:
+            # El sender puede venir como "Nombre <email@domain.com>" o "email@domain.com"
+            import re
+            email_match = re.search(r'[\w\.-]+@[\w\.-]+', sender)
+            if email_match:
+                email_address = email_match.group(0)
+                sender_domain = '@' + email_address.split('@')[1]
+                print(f"[DEBUG CaseHandler] Dominio extraído del sender: '{sender_domain}'")
+
+        # Parsear dominios permitidos
+        domains_list = []
+        if allowed_domains and allowed_domains.strip():
+            # Separar por comas y limpiar espacios
+            domains_list = [d.strip() for d in allowed_domains.split(',') if d.strip()]
+            print(f"[DEBUG CaseHandler] Dominios parseados: {domains_list}")
 
         for case_name, case_obj in self.cases.items():
             try:
@@ -88,14 +120,31 @@ class CaseHandler:
                 keywords = case_obj.get_search_keywords()
                 print(f"[DEBUG CaseHandler] Keywords para {case_name}: {keywords}")
 
+                # VERIFICACIÓN 1: Buscar por palabra clave en el asunto
+                keyword_match = False
                 for keyword in keywords:
                     print(f"[DEBUG CaseHandler] ¿'{keyword.lower()}' en '{subject.lower()}'?")
                     if keyword.lower() in subject.lower():
-                        logger.info(f"✓ Caso encontrado: {case_name} para palabra clave: {keyword}")
-                        print(f"[DEBUG CaseHandler] ✓ MATCH encontrado!")
+                        keyword_match = True
+                        logger.info(f"✓ Caso encontrado por PALABRA CLAVE: {case_name} ('{keyword}')")
+                        print(f"[DEBUG CaseHandler] ✓ MATCH por palabra clave!")
                         return case_name
-                    else:
-                        print(f"[DEBUG CaseHandler] ✗ No coincide")
+
+                # VERIFICACIÓN 2: Buscar por dominio del remitente (si hay dominios configurados)
+                domain_match = False
+                if sender_domain and domains_list:
+                    for allowed_domain in domains_list:
+                        # Normalizar para comparación (case insensitive)
+                        if sender_domain.lower() == allowed_domain.lower():
+                            domain_match = True
+                            logger.info(f"✓ Caso encontrado por DOMINIO: {case_name} ('{sender_domain}')")
+                            print(f"[DEBUG CaseHandler] ✓ MATCH por dominio!")
+                            return case_name
+
+                # Si no hubo match ni por keyword ni por dominio
+                if not keyword_match and not domain_match:
+                    print(f"[DEBUG CaseHandler] ✗ No coincide (ni keyword ni dominio)")
+
             except Exception as e:
                 logger.exception(f"Error al verificar caso {case_name}: {str(e)}")
                 print(f"[DEBUG CaseHandler] ❌ Error en caso {case_name}: {e}")

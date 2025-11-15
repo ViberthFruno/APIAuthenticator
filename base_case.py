@@ -1,18 +1,28 @@
 # Archivo: base_case.py
 # Ubicación: raíz del proyecto
-# Descripción: Clase base reutilizable para los casos de respuesta automática
+# Descripción: Clase base para todos los casos de procesamiento de correo
 
 from config_manager import ConfigManager
 
 
 class BaseCase:
-    """Implementa comportamiento común para los casos"""
+    """Clase base para todos los casos de procesamiento de emails"""
 
     def __init__(self, name, description, config_key, response_message):
+        """
+        Inicializa un caso base
+
+        Args:
+            name: Nombre del caso
+            description: Descripción del caso
+            config_key: Clave para buscar configuración en config.json
+            response_message: Mensaje de respuesta por defecto
+        """
         self._name = name
         self._description = description
         self._config_key = config_key
         self._response_message = response_message
+        self._config_manager = ConfigManager()
 
     def get_name(self):
         """Retorna el nombre del caso"""
@@ -23,55 +33,33 @@ class BaseCase:
         return self._description
 
     def get_search_keywords(self):
-        """Obtiene las palabras clave de búsqueda desde la configuración"""
+        """
+        Retorna las palabras clave de búsqueda desde config.json
+        Lee la configuración guardada en search_params[config_key]
+        """
         try:
-            print(f"[DEBUG {self._config_key}] Obteniendo palabras clave...")
-            config = ConfigManager().load_config()
-            print(f"[DEBUG {self._config_key}] Config keys: {list(config.keys())}")
+            search_params = self._config_manager.get_search_params()
+            keyword = search_params.get(self._config_key, '')
 
-            search_params = config.get('search_params', {})
-            print(f"[DEBUG {self._config_key}] search_params: {search_params}")
-
-            keyword = search_params.get(self._config_key, '').strip()
-            print(f"[DEBUG {self._config_key}] Keyword para '{self._config_key}': '{keyword}'")
-
-            result = [keyword] if keyword else []
-            print(f"[DEBUG {self._config_key}] Retornando keywords: {result}")
-            return result
+            if keyword and keyword.strip():
+                # Retornar como lista con un solo elemento
+                return [keyword.strip()]
+            else:
+                # Retornar lista vacía si no hay keyword configurado
+                return []
         except Exception as e:
-            print(f"[DEBUG {self._config_key}] ❌ Error al cargar palabras clave: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error al obtener keywords para {self._config_key}: {e}")
             return []
-
-    def get_response_message(self):
-        """Retorna el mensaje de respuesta"""
-        return self._response_message
-
-    def set_response_message(self, message):
-        """Establece el mensaje de respuesta"""
-        self._response_message = message
 
     def process_email(self, email_data, logger):
         """
-        Procesa un email y genera una respuesta.
-        Los casos específicos pueden hacer override de este método.
+        Procesa un email (debe ser implementado por las subclases)
+
+        Args:
+            email_data: Diccionario con datos del email
+            logger: Logger para mensajes
+
+        Returns:
+            Diccionario con respuesta o None si falla
         """
-        try:
-            sender = email_data.get('sender', '')
-            subject = email_data.get('subject', '')
-
-            logger.info(f"Procesando {self._config_key} para email de {sender}")
-
-            response = {
-                'recipient': sender,
-                'subject': f"Re: {subject}",
-                'body': self._response_message
-            }
-
-            logger.info(f"Respuesta generada para {self._config_key}")
-            return response
-
-        except Exception as e:
-            logger.exception(f"Error al procesar email en {self._config_key}: {str(e)}")
-            return None
+        raise NotImplementedError("Las subclases deben implementar process_email()")
