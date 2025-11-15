@@ -48,14 +48,14 @@ class CaseHandler:
         """Obtiene la lista de casos disponibles"""
         return list(self.cases.keys())
 
-    def get_case_info(self, case_name):
+    def get_case_info(self, case_name, logger=None):
         """Obtiene información de un caso específico"""
         if case_name in self.cases:
             case_obj = self.cases[case_name]
             return {
                 'name': case_obj.get_name(),
                 'description': case_obj.get_description(),
-                'search_keywords': case_obj.get_search_keywords()
+                'search_keywords': case_obj.get_search_keywords(logger=logger)
             }
         return None
 
@@ -74,17 +74,31 @@ class CaseHandler:
 
     def find_matching_case(self, subject, logger):
         """Busca el primer caso que coincida con el asunto del email"""
+        logger.info(f"🔍 Buscando caso para asunto: '{subject}'")
+        logger.info(f"📋 Casos disponibles: {list(self.cases.keys())}")
+
         for case_name, case_obj in self.cases.items():
             try:
-                keywords = case_obj.get_search_keywords()
+                # Pasar el logger a get_search_keywords para mejor debugging
+                keywords = case_obj.get_search_keywords(logger=logger)
+                logger.info(f"🔑 Palabras clave para {case_name}: {keywords}")
+
+                if not keywords:
+                    logger.warning(f"⚠️ {case_name} no tiene palabras clave configuradas")
+                    continue
+
                 for keyword in keywords:
-                    if keyword.lower() in subject.lower():
-                        logger.info(f"Caso encontrado: {case_name} para palabra clave: {keyword}")
+                    if keyword and keyword.lower() in subject.lower():
+                        logger.info(f"✅ Caso encontrado: {case_name} para palabra clave: '{keyword}'")
                         return case_name
+                    else:
+                        logger.info(f"⏭️ '{keyword}' NO encontrado en '{subject}'")
+
             except Exception as e:
-                logger.exception(f"Error al verificar caso {case_name}: {str(e)}")
+                logger.exception(f"❌ Error al verificar caso {case_name}: {str(e)}")
                 continue
 
+        logger.warning(f"⚠️ No se encontró ningún caso que coincida con el asunto: '{subject}'")
         return None
 
     def reload_cases(self):

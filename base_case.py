@@ -22,14 +22,44 @@ class BaseCase:
         """Retorna la descripción del caso"""
         return self._description
 
-    def get_search_keywords(self):
+    def get_search_keywords(self, logger=None):
         """Obtiene las palabras clave de búsqueda desde la configuración"""
+        def log(msg, level='info'):
+            """Helper para loggear tanto con logger como con print"""
+            if logger:
+                getattr(logger, level)(msg)
+            else:
+                print(msg)
+
         try:
-            config = ConfigManager().load_config()
-            keyword = config.get('search_params', {}).get(self._config_key, '').strip()
-            return [keyword] if keyword else []
+            config_manager = ConfigManager()
+            config = config_manager.load_config()
+
+            if not config:
+                log(f"⚠️ ADVERTENCIA: Configuración vacía para {self._config_key}", 'warning')
+                return []
+
+            search_params = config.get('search_params', {})
+            if not search_params:
+                log(f"⚠️ ADVERTENCIA: 'search_params' vacío en config.json para {self._config_key}", 'warning')
+                return []
+
+            keyword = search_params.get(self._config_key, '').strip()
+
+            if keyword:
+                log(f"✅ Palabra clave cargada para {self._config_key}: '{keyword}'", 'info')
+                return [keyword]
+            else:
+                log(f"⚠️ ADVERTENCIA: No hay palabra clave configurada para {self._config_key} en config.json", 'warning')
+                return []
+
         except Exception as e:
-            print(f"Error al cargar palabras clave para {self._config_key}: {e}")
+            log(f"❌ ERROR al cargar palabras clave para {self._config_key}: {e}", 'error')
+            if logger:
+                logger.exception(f"Traceback completo:")
+            else:
+                import traceback
+                traceback.print_exc()
             return []
 
     def get_response_message(self):

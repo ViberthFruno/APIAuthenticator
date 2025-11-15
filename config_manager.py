@@ -22,6 +22,27 @@ class ConfigManager:
         # Ruta completa al archivo de configuración
         self.config_file = os.path.join(self.base_dir, config_file)
 
+        # Si estamos en PyInstaller y el config no existe al lado del .exe, copiarlo desde el bundle
+        if getattr(sys, 'frozen', False) and not os.path.exists(self.config_file):
+            self._copy_config_from_bundle(config_file)
+
+    def _copy_config_from_bundle(self, config_file):
+        """Copia el config.json desde el bundle de PyInstaller al directorio del ejecutable"""
+        try:
+            bundled_config = os.path.join(sys._MEIPASS, config_file)
+            if os.path.exists(bundled_config):
+                import shutil
+                shutil.copy2(bundled_config, self.config_file)
+                print(f"✅ Config.json copiado desde bundle a: {self.config_file}")
+            else:
+                print(f"⚠️ Config.json no encontrado en bundle: {bundled_config}")
+                # Crear un config vacío por defecto
+                self.reset_config()
+        except Exception as e:
+            print(f"❌ Error al copiar config desde bundle: {e}")
+            import traceback
+            traceback.print_exc()
+
     @staticmethod
     def get_bundled_resource_path(resource_name):
         """
@@ -41,13 +62,23 @@ class ConfigManager:
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as file:
-                    return json.load(file)
+                    config_data = json.load(file)
+                    # Log detallado para debugging
+                    print(f"✅ Config cargado desde: {self.config_file}")
+                    if 'search_params' in config_data:
+                        print(f"📝 search_params encontrados: {config_data['search_params']}")
+                    else:
+                        print(f"⚠️ 'search_params' NO encontrado en config.json")
+                    return config_data
             else:
-                print(f"⚠️  Archivo de configuración no encontrado: {self.config_file}")
+                print(f"⚠️ Archivo de configuración no encontrado: {self.config_file}")
                 print(f"   Buscando en: {self.base_dir}")
+                print(f"   Archivos en directorio: {os.listdir(self.base_dir) if os.path.exists(self.base_dir) else 'directorio no existe'}")
                 return {}
         except Exception as e:
-            print(f"Error al cargar la configuración: {str(e)}")
+            print(f"❌ Error al cargar la configuración: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {}
 
     def save_config(self, config):
