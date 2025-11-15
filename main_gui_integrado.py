@@ -703,8 +703,12 @@ class IntegratedGUI(LoggerMixin):
         import os
         from config_manager import ConfigManager
 
-        # Ruta del archivo de configuración de categorías (empaquetado con PyInstaller)
-        config_file = ConfigManager.get_bundled_resource_path('config_categorias.json')
+        # Usar ConfigManager para manejar el archivo de categorías
+        categorias_manager = ConfigManager()
+
+        # Cargar configuración de categorías (crea el archivo si no existe)
+        config_data = categorias_manager.load_categorias_config()
+        categorias_guardadas = config_data.get('categorias', {})
 
         # Categorías hardcodeadas (solo categoria_id, sin tipo_dispositivo_id)
         categorias_hardcoded = {
@@ -760,29 +764,20 @@ class IntegratedGUI(LoggerMixin):
                     return nombre
             return "Desconocido"
 
-        # Cargar palabras clave existentes del archivo si existe
-        try:
-            with open(config_file, 'r', encoding='utf-8') as f:
-                config_data = json.load(f)
-                categorias_guardadas = config_data.get('categorias', {})
-
-                # Importar palabras clave de las categorías guardadas
-                for nombre_cat, datos_cat in categorias_guardadas.items():
-                    if nombre_cat in categorias_hardcoded:
-                        palabras_guardadas = datos_cat.get('palabras_clave', [])
-                        # Mantener el formato completo con tipo_dispositivo_id
-                        palabras_completas = []
-                        for palabra_data in palabras_guardadas:
-                            if isinstance(palabra_data, str):
-                                # Si es string simple, convertir a formato completo con tipo_dispositivo_id por defecto
-                                palabras_completas.append({"palabra": palabra_data, "tipo_dispositivo_id": 7})
-                            elif isinstance(palabra_data, dict):
-                                # Si ya tiene el formato correcto, mantenerlo
-                                palabras_completas.append(palabra_data)
-                        categorias_hardcoded[nombre_cat]['palabras_clave'] = palabras_completas
-        except (FileNotFoundError, json.JSONDecodeError):
-            # Si no existe el archivo o hay error, usar categorías vacías
-            pass
+        # Importar palabras clave de las categorías guardadas
+        for nombre_cat, datos_cat in categorias_guardadas.items():
+            if nombre_cat in categorias_hardcoded:
+                palabras_guardadas = datos_cat.get('palabras_clave', [])
+                # Mantener el formato completo con tipo_dispositivo_id
+                palabras_completas = []
+                for palabra_data in palabras_guardadas:
+                    if isinstance(palabra_data, str):
+                        # Si es string simple, convertir a formato completo con tipo_dispositivo_id por defecto
+                        palabras_completas.append({"palabra": palabra_data, "tipo_dispositivo_id": 7})
+                    elif isinstance(palabra_data, dict):
+                        # Si ya tiene el formato correcto, mantenerlo
+                        palabras_completas.append(palabra_data)
+                categorias_hardcoded[nombre_cat]['palabras_clave'] = palabras_completas
 
         # Usar las categorías hardcodeadas
         categorias_dict = categorias_hardcoded
@@ -1099,13 +1094,14 @@ class IntegratedGUI(LoggerMixin):
                     "categorias": categorias_dict
                 }
 
-                # Guardar en el archivo
-                with open(config_file, 'w', encoding='utf-8') as f:
-                    json.dump(config_data, f, indent=2, ensure_ascii=False)
+                # Guardar usando ConfigManager
+                if categorias_manager.save_categorias_config(config_data):
+                    messagebox.showinfo("Éxito", "✅ Configuración de categorías guardada correctamente")
+                    self.log_api_message("✅ Configuración de categorías actualizada", level="INFO")
+                    modal.destroy()
+                else:
+                    messagebox.showerror("Error", "Error al guardar la configuración")
 
-                messagebox.showinfo("Éxito", "✅ Configuración de categorías guardada correctamente")
-                self.log_api_message("✅ Configuración de categorías actualizada", level="INFO")
-                modal.destroy()
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar la configuración:\n{e}")
 

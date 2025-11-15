@@ -167,3 +167,68 @@ class ConfigManager:
             'cc_users': []
         }
         return self.save_config(default_config)
+
+    def get_categorias_config_path(self):
+        """Obtiene la ruta al archivo de configuración de categorías"""
+        return os.path.join(self.base_dir, "config_categorias.json")
+
+    def load_categorias_config(self):
+        """Carga la configuración de categorías desde el archivo JSON"""
+        categorias_file = self.get_categorias_config_path()
+
+        # Categorías por defecto
+        default_categorias = {
+            "categorias": {
+                "Móviles": {"id": 1, "palabras_clave": []},
+                "Hogar": {"id": 3, "palabras_clave": []},
+                "Cómputo": {"id": 4, "palabras_clave": []},
+                "Desconocido": {"id": 5, "palabras_clave": []},
+                "Accesorios": {"id": 6, "palabras_clave": []},
+                "Transporte": {"id": 7, "palabras_clave": []},
+                "Seguridad": {"id": 8, "palabras_clave": []},
+                "Entretenimiento": {"id": 10, "palabras_clave": []},
+                "Telecomunicaciones": {"id": 11, "palabras_clave": []},
+                "No encontrado": {"id": 12, "palabras_clave": []}
+            }
+        }
+
+        try:
+            print(f"[DEBUG ConfigManager] Buscando config_categorias.json en: {categorias_file}")
+            print(f"[DEBUG ConfigManager] ¿Existe el archivo? {os.path.exists(categorias_file)}")
+
+            if os.path.exists(categorias_file):
+                print(f"[DEBUG ConfigManager] ✓ Archivo encontrado, cargando...")
+                with open(categorias_file, 'r', encoding='utf-8') as file:
+                    config_data = json.load(file)
+                    print(
+                        f"[DEBUG ConfigManager] ✓ Categorías cargadas: {list(config_data.get('categorias', {}).keys())}")
+                    return config_data
+            else:
+                print(f"[DEBUG ConfigManager] ❌ Archivo NO encontrado, creando con valores por defecto...")
+                # Crear el archivo con valores por defecto
+                self.save_categorias_config(default_categorias)
+                print(f"[DEBUG ConfigManager] ✓ Archivo config_categorias.json creado en: {categorias_file}")
+                return default_categorias
+
+        except Exception as e:
+            print(f"[DEBUG ConfigManager] ❌ Error al cargar categorías: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Si hay error, intentar crear el archivo con valores por defecto
+            try:
+                self.save_categorias_config(default_categorias)
+                return default_categorias
+            except:
+                return default_categorias
+
+    def save_categorias_config(self, config):
+        """Guarda la configuración de categorías en el archivo JSON"""
+        categorias_file = self.get_categorias_config_path()
+        try:
+            with open(categorias_file, 'w', encoding='utf-8') as file:
+                json.dump(config, file, indent=2, ensure_ascii=False)
+            print(f"[DEBUG ConfigManager] ✓ Categorías guardadas en: {categorias_file}")
+            return True
+        except Exception as e:
+            print(f"[DEBUG ConfigManager] ❌ Error al guardar categorías: {str(e)}")
+            return False
