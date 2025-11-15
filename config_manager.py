@@ -232,3 +232,65 @@ class ConfigManager:
         except Exception as e:
             print(f"[DEBUG ConfigManager] ❌ Error al guardar categorías: {str(e)}")
             return False
+
+
+# ============================================================================
+# FUNCIONES GLOBALES - Para usar desde cualquier módulo sin instancia
+# ============================================================================
+
+def get_categorias_config_path():
+    """
+    Función global para obtener la ruta correcta a config_categorias.json
+    Compatible con PyInstaller y desarrollo.
+
+    IMPORTANTE: Usar esta función en lugar de rutas hardcodeadas.
+
+    Returns:
+        str: Ruta absoluta al archivo config_categorias.json
+    """
+    if getattr(sys, 'frozen', False):
+        # Si es ejecutable con PyInstaller
+        # config_categorias.json debe estar al lado del .exe
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Si es desarrollo, usar directorio del script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_dir, 'config_categorias.json')
+
+
+def get_categorias_config():
+    """
+    Función global para cargar la configuración de categorías.
+    Compatible con PyInstaller y desarrollo.
+
+    IMPORTANTE: Usar esta función en TODOS los módulos que necesiten
+    leer config_categorias.json (especialmente en api_integration/).
+
+    Returns:
+        Dict: Configuración de categorías con estructura:
+              {
+                  "categorias": {
+                      "Móviles": {"id": 1, "palabras_clave": [...]},
+                      ...
+                  }
+              }
+    """
+    # Usar la instancia del ConfigManager para aprovechar toda su lógica
+    manager = ConfigManager()
+    return manager.load_categorias_config()
+
+
+def save_categorias_config(config):
+    """
+    Función global para guardar la configuración de categorías.
+    Compatible con PyInstaller y desarrollo.
+
+    Args:
+        config (Dict): Configuración de categorías a guardar
+
+    Returns:
+        bool: True si se guardó correctamente, False en caso contrario
+    """
+    manager = ConfigManager()
+    return manager.save_categorias_config(config)
