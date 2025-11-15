@@ -13,6 +13,10 @@ from dateutil.relativedelta import relativedelta
 from api_integration.application.dtos import SucursalDTO, DatosExtraidosPDF, ArchivoAdjunto
 from api_integration.domain.entities import PreingresoData
 
+# Importar función global para cargar configuración de categorías
+# IMPORTANTE: Esta función maneja correctamente las rutas tanto en PyInstaller como en desarrollo
+from config_manager import get_categorias_config
+
 
 class CrearPreingresoBuilder:
     """Builder para construir PreingresoData paso a paso"""
@@ -113,45 +117,44 @@ class CrearPreingresoBuilder:
     @staticmethod
     def _cargar_config_categorias() -> Dict:
         """
-        Carga la configuración de categorías hardcodeadas y las palabras clave del JSON si existe.
+        Carga la configuración de categorías usando la función global de config_manager.
+        Compatible con PyInstaller y desarrollo.
 
         Returns:
             Dict: Configuración de categorías con IDs y palabras clave
         """
-        # Buscar el archivo config_categorias.json (empaquetado con PyInstaller)
-        if getattr(sys, 'frozen', False):
-            # Si es ejecutable con PyInstaller
-            base_path = sys._MEIPASS
-        else:
-            # Si es desarrollo, usar directorio raíz del proyecto
-            base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-
-        archivo_config = os.path.join(base_path, 'config_categorias.json')
-
-        # Crear una copia de las categorías hardcodeadas
+        # Crear una copia de las categorías hardcodeadas por defecto
         categorias = {nombre: {"id": datos["id"], "palabras_clave": datos["palabras_clave"].copy()}
                      for nombre, datos in CrearPreingresoBuilder._CATEGORIAS_CONFIG.items()}
 
         try:
-            with open(archivo_config, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                categorias_guardadas = config.get('categorias', {})
+            # Usar la función global que maneja correctamente las rutas en PyInstaller y desarrollo
+            config = get_categorias_config()
+            categorias_guardadas = config.get('categorias', {})
 
-                # Importar solo las palabras clave de las categorías guardadas
-                for nombre_cat, datos_cat in categorias_guardadas.items():
-                    if nombre_cat in categorias:
-                        palabras_guardadas = datos_cat.get('palabras_clave', [])
-                        # Convertir palabras clave a formato simple (solo strings)
-                        palabras_simples = []
-                        for palabra_data in palabras_guardadas:
-                            if isinstance(palabra_data, str):
-                                palabras_simples.append(palabra_data)
-                            elif isinstance(palabra_data, dict):
-                                palabras_simples.append(palabra_data.get('palabra', ''))
-                        categorias[nombre_cat]['palabras_clave'] = palabras_simples
-        except (FileNotFoundError, json.JSONDecodeError):
-            # Si no existe el archivo o hay error, usar categorías hardcodeadas sin palabras clave
-            pass
+            # Importar solo las palabras clave de las categorías guardadas
+            for nombre_cat, datos_cat in categorias_guardadas.items():
+                if nombre_cat in categorias:
+                    palabras_guardadas = datos_cat.get('palabras_clave', [])
+                    # Convertir palabras clave a formato simple (solo strings)
+                    palabras_simples = []
+                    for palabra_data in palabras_guardadas:
+                        if isinstance(palabra_data, str):
+                            palabras_simples.append(palabra_data)
+                        elif isinstance(palabra_data, dict):
+                            palabras_simples.append(palabra_data.get('palabra', ''))
+                    categorias[nombre_cat]['palabras_clave'] = palabras_simples
+
+            print(f"[DEBUG CrearPreingresoBuilder] ✓ Configuración de categorías cargada correctamente")
+            print(f"[DEBUG CrearPreingresoBuilder] Total categorías: {len(categorias)}")
+            for nombre_cat, datos_cat in categorias.items():
+                num_palabras = len(datos_cat.get('palabras_clave', []))
+                print(f"[DEBUG CrearPreingresoBuilder]   - {nombre_cat}: {num_palabras} palabras clave")
+
+        except Exception as e:
+            # Si hay error, usar categorías hardcodeadas sin palabras clave
+            print(f"[DEBUG CrearPreingresoBuilder] ⚠️ Error al cargar config: {str(e)}")
+            print(f"[DEBUG CrearPreingresoBuilder] Usando categorías hardcodeadas sin palabras clave")
 
         return categorias
 

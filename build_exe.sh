@@ -21,7 +21,6 @@ echo "[2/4] Ejecutando PyInstaller..."
 pyinstaller --onefile --console \
   --name="GolloBot" \
   --paths=. \
-  --add-data "config_categorias.json:." \
   --hidden-import=logger \
   --hidden-import=settings \
   --hidden-import=config_manager \
@@ -62,13 +61,19 @@ fi
 echo "    ✓ Build completado"
 echo ""
 
-# Copiar config.json de ejemplo al directorio dist
-echo "[3/4] Copiando archivo de configuración..."
+# Copiar archivos de configuración al directorio dist
+echo "[3/4] Copiando archivos de configuración..."
 if [ -f "config.json" ]; then
     cp config.json dist/config.json
     echo "    ✓ config.json copiado a dist/"
 else
     echo "    ⚠️  config.json no encontrado - crear manualmente"
+fi
+if [ -f "config_categorias.json" ]; then
+    cp config_categorias.json dist/config_categorias.json
+    echo "    ✓ config_categorias.json copiado a dist/"
+else
+    echo "    ⚠️  config_categorias.json no encontrado - se creará automáticamente"
 fi
 echo ""
 
@@ -88,11 +93,13 @@ echo ""
 echo "📋 Archivos necesarios para distribución:"
 echo "   - dist/GolloBot          (ejecutable)"
 echo "   - dist/config.json       (configuración editable)"
+echo "   - dist/config_categorias.json (palabras clave categorías - editable)"
 echo ""
 echo "💡 Instrucciones:"
-echo "   1. Copie GolloBot y config.json al directorio de destino"
+echo "   1. Copie los archivos de dist/ al directorio de destino"
 echo "   2. Configure config.json con los parámetros del usuario"
-echo "   3. Ejecute ./GolloBot"
+echo "   3. Configure config_categorias.json con las palabras clave (opcional)"
+echo "   4. Ejecute ./GolloBot"
 echo ""
 echo "================================================================"
 echo ""
