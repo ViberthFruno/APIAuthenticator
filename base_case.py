@@ -28,33 +28,35 @@ class BaseCase:
             """Helper para loggear tanto con logger como con print"""
             if logger:
                 getattr(logger, level)(msg)
-            else:
-                print(msg)
+            # Solo print en modo frozen (ejecutable) para debugging
+            import sys
+            if getattr(sys, 'frozen', False):
+                print(f"[DEBUG {self._config_key}] {msg}")
 
         try:
             config_manager = ConfigManager()
             config = config_manager.load_config()
 
             if not config:
-                log(f"⚠️ ADVERTENCIA: Configuración vacía para {self._config_key}", 'warning')
+                log(f"⚠️ Configuración vacía", 'warning')
                 return []
 
             search_params = config.get('search_params', {})
             if not search_params:
-                log(f"⚠️ ADVERTENCIA: 'search_params' vacío en config.json para {self._config_key}", 'warning')
+                log(f"⚠️ 'search_params' vacío en config.json", 'warning')
                 return []
 
             keyword = search_params.get(self._config_key, '').strip()
 
             if keyword:
-                log(f"✅ Palabra clave cargada para {self._config_key}: '{keyword}'", 'info')
+                log(f"✅ Keyword cargada: '{keyword}'", 'info')
                 return [keyword]
             else:
-                log(f"⚠️ ADVERTENCIA: No hay palabra clave configurada para {self._config_key} en config.json", 'warning')
+                log(f"⚠️ No hay keyword configurada en config.json", 'warning')
                 return []
 
         except Exception as e:
-            log(f"❌ ERROR al cargar palabras clave para {self._config_key}: {e}", 'error')
+            log(f"❌ ERROR al cargar keywords: {e}", 'error')
             if logger:
                 logger.exception(f"Traceback completo:")
             else:
