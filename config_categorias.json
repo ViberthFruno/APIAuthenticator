@@ -1,74 +1,145 @@
 {
   "categorias": {
-    "Laptop": {
+    "Móviles": {
       "id": 1,
       "palabras_clave": [
         {
-          "palabra": "LAPTOP",
-          "tipo_dispositivo_id": 1
-        },
-        {
-          "palabra": "NOTEBOOK",
-          "tipo_dispositivo_id": 1
-        },
-        {
-          "palabra": "PORTATIL",
-          "tipo_dispositivo_id": 1
-        }
-      ]
-    },
-    "Desktop": {
-      "id": 2,
-      "palabras_clave": [
-        {
-          "palabra": "DESKTOP",
-          "tipo_dispositivo_id": 1
-        },
-        {
-          "palabra": "PC",
-          "tipo_dispositivo_id": 1
-        },
-        {
-          "palabra": "COMPUTADORA",
-          "tipo_dispositivo_id": 1
-        }
-      ]
-    },
-    "Tablet": {
-      "id": 3,
-      "palabras_clave": [
-        {
-          "palabra": "TABLET",
-          "tipo_dispositivo_id": 1
-        },
-        {
-          "palabra": "IPAD",
-          "tipo_dispositivo_id": 1
-        }
-      ]
-    },
-    "Celular": {
-      "id": 4,
-      "palabras_clave": [
-        {
           "palabra": "CELULAR",
-          "tipo_dispositivo_id": 1
+          "tipo_dispositivo_id": 7
         },
         {
           "palabra": "MOVIL",
-          "tipo_dispositivo_id": 1
+          "tipo_dispositivo_id": 7
         },
         {
           "palabra": "TELEFONO",
-          "tipo_dispositivo_id": 1
+          "tipo_dispositivo_id": 7
         },
         {
           "palabra": "SMARTPHONE",
-          "tipo_dispositivo_id": 1
+          "tipo_dispositivo_id": 7
         },
         {
           "palabra": "IPHONE",
-          "tipo_dispositivo_id": 1
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "SAMSUNG",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "HUAWEI",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "XIAOMI",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "MOTOROLA",
+          "tipo_dispositivo_id": 7
+        }
+      ]
+    },
+    "Hogar": {
+      "id": 3,
+      "palabras_clave": [
+        {
+          "palabra": "ASPIRADORA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "LICUADORA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "MICROONDAS",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "REFRIGERADOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "LAVADORA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "SECADORA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "HORNO",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "ESTUFA",
+          "tipo_dispositivo_id": 7
+        }
+      ]
+    },
+    "Cómputo": {
+      "id": 4,
+      "palabras_clave": [
+        {
+          "palabra": "LAPTOP",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "NOTEBOOK",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PORTATIL",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "DESKTOP",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PC",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "COMPUTADORA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "TABLET",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "IPAD",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "MONITOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PANTALLA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "IMPRESORA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PRINTER",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "TECLADO",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "MOUSE",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "RATON",
+          "tipo_dispositivo_id": 7
         }
       ]
     },
@@ -76,48 +147,202 @@
       "id": 5,
       "palabras_clave": []
     },
-    "Cable USB": {
+    "Accesorios": {
       "id": 6,
       "palabras_clave": [
         {
           "palabra": "CABLE USB",
-          "tipo_dispositivo_id": 10
+          "tipo_dispositivo_id": 7
         },
         {
           "palabra": "CABLE",
-          "tipo_dispositivo_id": 10
+          "tipo_dispositivo_id": 7
         },
         {
           "palabra": "USB",
-          "tipo_dispositivo_id": 10
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "CARGADOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "ADAPTADOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "FUNDA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PROTECTOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "AUDIFONOS",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "AURICULARES",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "HEADPHONES",
+          "tipo_dispositivo_id": 7
         }
       ]
     },
-    "Monitor": {
+    "Transporte": {
       "id": 7,
       "palabras_clave": [
         {
-          "palabra": "MONITOR",
-          "tipo_dispositivo_id": 1
+          "palabra": "BICICLETA ELECTRICA",
+          "tipo_dispositivo_id": 7
         },
         {
-          "palabra": "PANTALLA",
-          "tipo_dispositivo_id": 1
+          "palabra": "SCOOTER",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PATINETA ELECTRICA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "MONOPATÍN",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "HOVERBOARD",
+          "tipo_dispositivo_id": 7
         }
       ]
     },
-    "Impresora": {
+    "Seguridad": {
       "id": 8,
       "palabras_clave": [
         {
-          "palabra": "IMPRESORA",
-          "tipo_dispositivo_id": 1
+          "palabra": "CAMARA",
+          "tipo_dispositivo_id": 7
         },
         {
-          "palabra": "PRINTER",
-          "tipo_dispositivo_id": 1
+          "palabra": "CAMERA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "VIGILANCIA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "CCTV",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "ALARMA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "SENSOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "DETECTOR",
+          "tipo_dispositivo_id": 7
         }
       ]
+    },
+    "Entretenimiento": {
+      "id": 10,
+      "palabras_clave": [
+        {
+          "palabra": "TV",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "TELEVISION",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "TELEVISOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PARLANTE",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "BOCINA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "SPEAKER",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "SOUNDBAR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "CONSOLA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PLAYSTATION",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "XBOX",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "NINTENDO",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "PROYECTOR",
+          "tipo_dispositivo_id": 7
+        }
+      ]
+    },
+    "Telecomunicaciones": {
+      "id": 11,
+      "palabras_clave": [
+        {
+          "palabra": "ROUTER",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "MODEM",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "ANTENA",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "REPETIDOR",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "SWITCH",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "ACCESS POINT",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "WIFI",
+          "tipo_dispositivo_id": 7
+        },
+        {
+          "palabra": "MESH",
+          "tipo_dispositivo_id": 7
+        }
+      ]
+    },
+    "No encontrado": {
+      "id": 12,
+      "palabras_clave": []
     }
   }
 }
