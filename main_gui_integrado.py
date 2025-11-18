@@ -70,6 +70,7 @@ class IntegratedGUI(LoggerMixin):
         self.distribuidores_button = None
         self.preingreso_button = None
         self.marca_button = None
+        self.garantias_button = None
         self.search_button = None
         self.api_config_button = None
         self.cc_users_button = None
@@ -369,7 +370,15 @@ class IntegratedGUI(LoggerMixin):
             text="Distribuidores",
             command=self.consultar_distribuidores
         )
-        self.distribuidores_button.pack(fill=tk.X)
+        self.distribuidores_button.pack(fill=tk.X, pady=(0, 5))
+
+        # Botón consultar garantías
+        self.garantias_button = ttk.Button(
+            marca_frame,
+            text="Garantías",
+            command=self.consultar_garantias
+        )
+        self.garantias_button.pack(fill=tk.X)
 
     def setup_api_right_panel(self):
         """Configura el panel derecho de la pestaña API con el log"""
@@ -1531,6 +1540,119 @@ class IntegratedGUI(LoggerMixin):
             self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
             self.log_api_message("=" * 60)
             self.distribuidores_button.config(state=tk.NORMAL, text="Distribuidores")
+
+        # Ejecutar operación async
+        run_async_with_callback(
+            consultar(),
+            on_success=on_success,
+            on_error=on_error
+        )
+
+    def consultar_garantias(self):
+        """Consulta garantías para todos los tipos de preingreso"""
+        self.log_api_message("=" * 60)
+        self.log_api_message("🛡️ Consultando Garantías para Todos los Tipos de Preingreso")
+        self.log_api_message("=" * 60)
+
+        # Deshabilitar botón
+        self.garantias_button.config(state=tk.DISABLED, text="Consultando...")
+
+        # Tipos de preingreso a consultar: Normal (7), DOA/STOCK (8), DAP (9), No/CSR (92)
+        tipos_preingreso = {
+            "7": "Normal",
+            "8": "DOA/STOCK",
+            "9": "DAP",
+            "92": "No/CSR"
+        }
+
+        async def consultar():
+            """Operación asíncrona - consulta múltiples tipos"""
+            import asyncio
+
+            self.log_api_message("🔄 Iniciando consulta de garantías para todos los tipos...")
+            self.log_api_message(f"📋 Tipos a consultar: {', '.join([f'{k} ({v})' for k, v in tipos_preingreso.items()])}")
+            self.log_api_message("")
+
+            # Realizar consultas para todos los tipos
+            resultados = {}
+            for tipo_id, tipo_nombre in tipos_preingreso.items():
+                try:
+                    self.log_api_message(f"📡 Consultando tipo {tipo_id} ({tipo_nombre})...")
+                    endpoint = f"/v1/preingreso/garantia/{tipo_id}"
+                    self.log_api_message(f"   URL: {self.settings.API_BASE_URL}{endpoint}")
+
+                    response = await self.repository.listar_garantias(tipo_id)
+                    resultados[tipo_id] = {
+                        "nombre": tipo_nombre,
+                        "response": response
+                    }
+
+                except Exception as e:
+                    self.log_api_message(f"   ⚠️ Error en tipo {tipo_id}: {str(e)}", "ERROR")
+                    resultados[tipo_id] = {
+                        "nombre": tipo_nombre,
+                        "error": str(e)
+                    }
+
+            self.log_api_message("")
+            return resultados
+
+        def on_success(resultados):
+            """Callback de éxito"""
+            self.log_api_message("=" * 60)
+            self.log_api_message("📊 RESULTADOS DE CONSULTA DE GARANTÍAS")
+            self.log_api_message("=" * 60)
+
+            import json
+
+            for tipo_id, data in resultados.items():
+                tipo_nombre = data.get("nombre", "Desconocido")
+                self.log_api_message("")
+                self.log_api_message(f"▶ Tipo de Preingreso: {tipo_id} - {tipo_nombre}")
+                self.log_api_message("-" * 60)
+
+                if "error" in data:
+                    self.log_api_message(f"   ❌ Error: {data['error']}", "ERROR")
+                    continue
+
+                response = data.get("response")
+                if response:
+                    self.log_api_message(f"   📥 Status Code: {response.status_code}")
+
+                    if response.status_code == 200:
+                        self.log_api_message("   ✅ Respuesta exitosa")
+                        try:
+                            # Intentar formatear como JSON
+                            response_data = response.body
+                            formatted_json = json.dumps(response_data, indent=2, ensure_ascii=False)
+                            self.log_api_message("   📄 Garantías disponibles:")
+                            # Indentar cada línea del JSON
+                            for line in formatted_json.split('\n'):
+                                self.log_api_message(f"   {line}")
+                        except:
+                            self.log_api_message("   📄 Respuesta (texto plano):")
+                            self.log_api_message(f"   {response.raw_content}")
+                    else:
+                        self.log_api_message(f"   ⚠️ Error: {response.status_code}")
+                        self.log_api_message(f"   {response.body if response.body else '(vacío)'}")
+                else:
+                    self.log_api_message("   ⚠️ No se recibió respuesta")
+
+            self.log_api_message("")
+            self.log_api_message("=" * 60)
+            self.log_api_message("✅ Consulta de garantías completada")
+            self.log_api_message("=" * 60)
+
+            # Rehabilitar botón
+            self.garantias_button.config(state=tk.NORMAL, text="Garantías")
+
+        def on_error(error):
+            """Callback de error"""
+            self.log_api_message(f"❌ Error general: {str(error)}", "ERROR")
+            self.log_api_message("=" * 60)
+
+            # Rehabilitar botón
+            self.garantias_button.config(state=tk.NORMAL, text="Garantías")
 
         # Ejecutar operación async
         run_async_with_callback(
