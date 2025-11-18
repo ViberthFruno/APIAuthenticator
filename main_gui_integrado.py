@@ -1143,11 +1143,12 @@ class IntegratedGUI(LoggerMixin):
         # Cargar configuración de proveedores
         config_data = get_proveedores_config()
         proveedores_dict = config_data.get('proveedores', {})
+        palabras_activacion = config_data.get('palabras_activacion', ['PROVEEDOR'])
 
-        # Crear ventana modal
+        # Crear ventana modal (más alta para incluir sección de palabras de activación)
         modal = tk.Toplevel(self.root)
         modal.title("Configurar Proveedores")
-        modal.geometry("800x500")
+        modal.geometry("800x650")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -1160,8 +1161,180 @@ class IntegratedGUI(LoggerMixin):
         y = (modal.winfo_screenheight() // 2) - (height // 2)
         modal.geometry(f"{width}x{height}+{x}+{y}")
 
-        # Frame principal con dos paneles
-        main_frame = ttk.Frame(modal, padding="10")
+        # Frame principal con padding
+        main_container = ttk.Frame(modal, padding="10")
+        main_container.pack(fill=tk.BOTH, expand=True)
+
+        # ========== PANEL SUPERIOR: Palabras de Activación ==========
+        activacion_frame = ttk.LabelFrame(main_container, text="Palabras de Activación (buscar en correo)", padding="10")
+        activacion_frame.pack(fill=tk.X, pady=(0, 10))
+
+        # Label explicativo
+        ttk.Label(
+            activacion_frame,
+            text="Estas son las palabras que el bot busca en el correo para activar la detección de proveedor:",
+            font=("Arial", 9, "italic"),
+            foreground="gray"
+        ).pack(anchor="w", pady=(0, 5))
+
+        # Frame para palabras de activación
+        activacion_content_frame = ttk.Frame(activacion_frame)
+        activacion_content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Listbox para palabras de activación
+        activacion_listbox = tk.Listbox(activacion_content_frame, height=4, width=60)
+        activacion_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+
+        # Scrollbar para palabras de activación
+        scrollbar_act = ttk.Scrollbar(activacion_content_frame, orient=tk.VERTICAL, command=activacion_listbox.yview)
+        scrollbar_act.pack(side=tk.RIGHT, fill=tk.Y)
+        activacion_listbox.config(yscrollcommand=scrollbar_act.set)
+
+        # Botones para palabras de activación
+        activacion_buttons_frame = ttk.Frame(activacion_frame)
+        activacion_buttons_frame.pack(fill=tk.X, pady=(5, 0))
+
+        # Funciones para gestionar palabras de activación
+        def cargar_palabras_activacion():
+            """Carga las palabras de activación en el listbox"""
+            activacion_listbox.delete(0, tk.END)
+            for palabra in palabras_activacion:
+                activacion_listbox.insert(tk.END, palabra)
+
+        def agregar_palabra_activacion():
+            """Agrega una nueva palabra de activación"""
+            # Crear ventana para ingresar la palabra
+            palabra_modal = tk.Toplevel(modal)
+            palabra_modal.title("Agregar Palabra de Activación")
+            palabra_modal.geometry("400x120")
+            palabra_modal.transient(modal)
+            palabra_modal.grab_set()
+
+            # Centrar ventana
+            palabra_modal.update_idletasks()
+            pw = palabra_modal.winfo_width()
+            ph = palabra_modal.winfo_height()
+            px = (palabra_modal.winfo_screenwidth() // 2) - (pw // 2)
+            py = (palabra_modal.winfo_screenheight() // 2) - (ph // 2)
+            palabra_modal.geometry(f"{pw}x{ph}+{px}+{py}")
+
+            # Frame
+            frame = ttk.Frame(palabra_modal, padding="20")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            # Entrada
+            ttk.Label(frame, text="Nueva palabra de activación:").grid(row=0, column=0, sticky="w", pady=(0, 15))
+            entrada = ttk.Entry(frame, width=30)
+            entrada.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+            entrada.focus_set()
+
+            def guardar_palabra():
+                palabra = entrada.get().strip().upper()
+                if not palabra:
+                    messagebox.showwarning("Advertencia", "La palabra no puede estar vacía")
+                    return
+                if palabra in palabras_activacion:
+                    messagebox.showwarning("Advertencia", "Esta palabra ya existe")
+                    return
+
+                palabras_activacion.append(palabra)
+                activacion_listbox.insert(tk.END, palabra)
+                palabra_modal.destroy()
+
+            button_frame = ttk.Frame(frame)
+            button_frame.grid(row=1, column=0, columnspan=2)
+            ttk.Button(button_frame, text="Guardar", command=guardar_palabra).pack(side=tk.LEFT, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=palabra_modal.destroy).pack(side=tk.LEFT, padx=5)
+
+            frame.columnconfigure(1, weight=1)
+            entrada.bind('<Return>', lambda e: guardar_palabra())
+
+        def eliminar_palabra_activacion():
+            """Elimina la palabra de activación seleccionada"""
+            selection = activacion_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona una palabra para eliminar")
+                return
+
+            if len(palabras_activacion) <= 1:
+                messagebox.showwarning("Advertencia", "Debe haber al menos una palabra de activación")
+                return
+
+            idx = selection[0]
+            palabra = activacion_listbox.get(idx)
+
+            if messagebox.askyesno("Confirmar", f"¿Eliminar la palabra '{palabra}'?"):
+                palabras_activacion.pop(idx)
+                activacion_listbox.delete(idx)
+
+        def editar_palabra_activacion():
+            """Edita la palabra de activación seleccionada"""
+            selection = activacion_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona una palabra para editar")
+                return
+
+            idx = selection[0]
+            palabra_actual = activacion_listbox.get(idx)
+
+            # Crear ventana para editar
+            editar_modal = tk.Toplevel(modal)
+            editar_modal.title("Editar Palabra de Activación")
+            editar_modal.geometry("400x120")
+            editar_modal.transient(modal)
+            editar_modal.grab_set()
+
+            # Centrar ventana
+            editar_modal.update_idletasks()
+            ew = editar_modal.winfo_width()
+            eh = editar_modal.winfo_height()
+            ex = (editar_modal.winfo_screenwidth() // 2) - (ew // 2)
+            ey = (editar_modal.winfo_screenheight() // 2) - (eh // 2)
+            editar_modal.geometry(f"{ew}x{eh}+{ex}+{ey}")
+
+            # Frame
+            frame = ttk.Frame(editar_modal, padding="20")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            # Entrada
+            ttk.Label(frame, text="Editar palabra:").grid(row=0, column=0, sticky="w", pady=(0, 15))
+            entrada = ttk.Entry(frame, width=30)
+            entrada.insert(0, palabra_actual)
+            entrada.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+            entrada.focus_set()
+            entrada.select_range(0, tk.END)
+
+            def guardar_edicion():
+                nueva_palabra = entrada.get().strip().upper()
+                if not nueva_palabra:
+                    messagebox.showwarning("Advertencia", "La palabra no puede estar vacía")
+                    return
+
+                palabras_activacion[idx] = nueva_palabra
+                activacion_listbox.delete(idx)
+                activacion_listbox.insert(idx, nueva_palabra)
+                activacion_listbox.selection_set(idx)
+                messagebox.showinfo("Éxito", "✅ Palabra actualizada correctamente")
+                editar_modal.destroy()
+
+            button_frame = ttk.Frame(frame)
+            button_frame.grid(row=1, column=0, columnspan=2)
+            ttk.Button(button_frame, text="Guardar", command=guardar_edicion).pack(side=tk.LEFT, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=editar_modal.destroy).pack(side=tk.LEFT, padx=5)
+
+            frame.columnconfigure(1, weight=1)
+            entrada.bind('<Return>', lambda e: guardar_edicion())
+
+        # Botones de palabras de activación
+        ttk.Button(activacion_buttons_frame, text="➕ Agregar", command=agregar_palabra_activacion).pack(side=tk.LEFT, padx=2)
+        ttk.Button(activacion_buttons_frame, text="✏️ Editar", command=editar_palabra_activacion).pack(side=tk.LEFT, padx=2)
+        ttk.Button(activacion_buttons_frame, text="🗑️ Eliminar", command=eliminar_palabra_activacion).pack(side=tk.LEFT, padx=2)
+
+        # Cargar palabras de activación iniciales
+        cargar_palabras_activacion()
+
+        # ========== PANEL MEDIO: Proveedores y Palabras Clave ==========
+        main_frame = ttk.Frame(main_container)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Panel izquierdo: Lista de proveedores
@@ -1397,8 +1570,9 @@ class IntegratedGUI(LoggerMixin):
         def guardar_configuracion():
             """Guarda la configuración de proveedores en el archivo JSON"""
             try:
-                # Crear el JSON completo con los proveedores
+                # Crear el JSON completo con palabras de activación y proveedores
                 config_data = {
+                    "palabras_activacion": palabras_activacion,
                     "proveedores": proveedores_dict
                 }
 

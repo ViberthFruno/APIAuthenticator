@@ -166,6 +166,7 @@ def _detectar_proveedor_en_correo(body_text, logger):
         # Cargar configuración de proveedores desde archivo JSON
         config_data = get_proveedores_config()
         proveedores = config_data.get('proveedores', {})
+        palabras_activacion = config_data.get('palabras_activacion', ['PROVEEDOR'])
 
         if not proveedores:
             logger.warning("⚠ No se pudieron cargar los proveedores desde config_proveedores.json")
@@ -174,9 +175,17 @@ def _detectar_proveedor_en_correo(body_text, logger):
         # Normalizar el texto a mayúsculas para búsqueda
         body_upper = body_text.upper()
 
-        # Buscar la palabra "PROVEEDOR" en el texto
-        if re.search(r'PROVEEDOR', body_upper):
-            logger.info("✓ Palabra 'Proveedor' encontrada en el cuerpo del correo")
+        # Buscar cualquiera de las palabras de activación configurables en el texto
+        palabra_encontrada = None
+        for palabra_activacion in palabras_activacion:
+            palabra_normalizada = palabra_activacion.upper().strip()
+            pattern = r'\b' + re.escape(palabra_normalizada) + r'\b'
+            if re.search(pattern, body_upper):
+                palabra_encontrada = palabra_activacion
+                break
+
+        if palabra_encontrada:
+            logger.info(f"✓ Palabra de activación '{palabra_encontrada}' encontrada en el cuerpo del correo")
 
             # Buscar match con algún proveedor usando sus palabras clave configuradas
             for nombre_proveedor, datos_proveedor in proveedores.items():
@@ -205,7 +214,7 @@ def _detectar_proveedor_en_correo(body_text, logger):
                             'distribuidor_nombre': nombre_proveedor
                         }
 
-            logger.info("⚠ Se encontró 'Proveedor' pero no coincide con ningún distribuidor conocido")
+            logger.info(f"⚠ Se encontró palabra de activación '{palabra_encontrada}' pero no coincide con ningún distribuidor conocido")
             return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
         else:
             return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}

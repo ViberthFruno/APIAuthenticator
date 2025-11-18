@@ -337,8 +337,14 @@ def get_proveedores_config():
     """
     proveedores_file = get_proveedores_config_path()
 
-    # Proveedores por defecto con sus UUIDs
+    # Proveedores por defecto con sus UUIDs y palabras de activación
     default_proveedores = {
+        "palabras_activacion": [
+            "PROVEEDOR",
+            "PROVEDOR",
+            "DISTRIBUIDOR",
+            "SUPLIDOR"
+        ],
         "proveedores": {
             "MobilePro": {
                 "id": "4d368873-4488-416f-9996-a95c416eaec2",
