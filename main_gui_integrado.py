@@ -1837,7 +1837,7 @@ class IntegratedGUI(LoggerMixin):
             modal.destroy()
             return
 
-        for label, valor in resultado_api.items():
+        for label, valor in resultado_api["data"].items():
             ttk.Label(
                 scrollable_frame,
                 text=f"{label.replace('_', ' ').title()}:"

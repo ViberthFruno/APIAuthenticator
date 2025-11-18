@@ -133,13 +133,17 @@ class CreatePreingresoUseCase:
             tipo_preingreso_nombre = None
             garantia_nombre = None
             if response.has_json_body():
-                consultar_reparacion = response.extract_data("consultar_reparacion", required=False)
-                consultar_guia = response.extract_data("guia", required=False)
-                tipo_preingreso_nombre = response.extract_data("tipo_preingreso", required=False)
-                garantia_nombre = response.extract_data("garantia", required=False)
-                preingreso_id = response.extract_data("boleta", required=False)
-                if not preingreso_id:
-                    preingreso_id = response.extract_data("orden_de_servicio", required=False)
+                consultar_reparacion = response.body["data"]["consultar_reparacion"]
+                consultar_guia = response.body["data"]["guia"]
+                tipo_preingreso_nombre = response.body["data"]["tipo_preingreso"]
+                garantia_nombre = response.body["data"]["garantia"]
+
+                try:
+                    preingreso_id = response.body["data"]["boleta"]
+                    if not preingreso_id:
+                        preingreso_id = response.body["data"]["orden_de_servicio"]
+                except Exception:
+                    preingreso_id = response.body["data"]["orden_de_servicio"]
 
             self.logger.info(
                 "✅ Preingreso creado correctamente",
