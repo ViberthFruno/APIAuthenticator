@@ -68,6 +68,7 @@ class IntegratedGUI(LoggerMixin):
         self.case_handler = None
         self.recursos_button = None
         self.distribuidores_button = None
+        self.garantias_button = None
         self.preingreso_button = None
         self.marca_button = None
         self.search_button = None
@@ -369,7 +370,15 @@ class IntegratedGUI(LoggerMixin):
             text="Distribuidores",
             command=self.consultar_distribuidores
         )
-        self.distribuidores_button.pack(fill=tk.X)
+        self.distribuidores_button.pack(fill=tk.X, pady=(0, 5))
+
+        # Botón consultar garantías
+        self.garantias_button = ttk.Button(
+            marca_frame,
+            text="Garantias",
+            command=self.consultar_garantias
+        )
+        self.garantias_button.pack(fill=tk.X)
 
     def setup_api_right_panel(self):
         """Configura el panel derecho de la pestaña API con el log"""
@@ -1538,6 +1547,115 @@ class IntegratedGUI(LoggerMixin):
             on_success=on_success,
             on_error=on_error
         )
+
+    def consultar_garantias(self):
+        """Consulta garantías para un tipo de preingreso"""
+        # Crear ventana modal para ingresar el ID
+        modal = tk.Toplevel(self.root)
+        modal.title("Consultar Garantías")
+        modal.geometry("400x150")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Frame
+        frame = ttk.Frame(modal, padding="20")
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        # Entrada para el ID
+        ttk.Label(frame, text="Tipo de Preingreso ID:").grid(row=0, column=0, sticky="w", pady=(0, 15))
+        id_entry = ttk.Entry(frame, width=20)
+        id_entry.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+        id_entry.focus_set()
+
+        def ejecutar_consulta():
+            """Ejecuta la consulta con el ID ingresado"""
+            tipo_preingreso_id = id_entry.get().strip()
+
+            if not tipo_preingreso_id:
+                messagebox.showwarning("Advertencia", "Debe ingresar un ID de tipo de preingreso")
+                return
+
+            modal.destroy()
+
+            self.log_api_message("=" * 60)
+            self.log_api_message("🛡️ Consultando Garantías")
+            self.log_api_message("=" * 60)
+
+            # Deshabilitar botón
+            self.garantias_button.config(state=tk.DISABLED, text="Consultando...")
+
+            async def consultar():
+                """Operación asíncrona"""
+                self.log_api_message(f"🔄 Iniciando consulta de garantías para tipo preingreso ID: {tipo_preingreso_id}")
+                endpoint = f"/v1/preingreso/garantia/{tipo_preingreso_id}"
+                self.log_api_message(f"📡 Endpoint: {endpoint}")
+                self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
+                self.log_api_message("")
+
+                # Llamar al repositorio
+                response = await self.repository.listar_garantias(tipo_preingreso_id)
+                return response
+
+            def on_success(response):
+                """Callback de éxito"""
+                self.log_api_message(f"📥 Status Code: {response.status_code}")
+                self.log_api_message("")
+
+                if response.status_code == 200:
+                    self.log_api_message("✅ Respuesta exitosa - Garantías")
+                    try:
+                        import json
+                        formatted_json = json.dumps(response.body, indent=2, ensure_ascii=False)
+                        self.log_api_message("📄 Lista de Garantías:")
+                        self.log_api_message(formatted_json)
+
+                        # Contar garantías si hay data
+                        garantias_data = response.body.get("data", [])
+                        if isinstance(garantias_data, list):
+                            self.log_api_message(f"\n📊 Total de garantías: {len(garantias_data)}")
+                    except Exception as e:
+                        self.log_api_message(f"❌ Error procesando respuesta: {str(e)}", "ERROR")
+                        self.log_api_message("📄 Respuesta completa:")
+                        self.log_api_message(response.raw_content)
+                else:
+                    self.log_api_message(f"⚠️ Error: {response.status_code}")
+                    self.log_api_message(response.body if response.body else "(vacío)")
+
+                self.log_api_message("=" * 60)
+                self.garantias_button.config(state=tk.NORMAL, text="Garantias")
+
+            def on_error(error):
+                """Callback de error"""
+                self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
+                self.log_api_message("=" * 60)
+                self.garantias_button.config(state=tk.NORMAL, text="Garantias")
+
+            # Ejecutar operación async
+            run_async_with_callback(
+                consultar(),
+                on_success=on_success,
+                on_error=on_error
+            )
+
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=1, column=0, columnspan=2, pady=(10, 0))
+
+        ttk.Button(button_frame, text="Consultar", command=ejecutar_consulta).pack(side=tk.LEFT, expand=True, padx=5)
+        ttk.Button(button_frame, text="Cancelar", command=modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+
+        frame.columnconfigure(1, weight=1)
+
+        # Permitir Enter para consultar
+        id_entry.bind('<Return>', lambda e: ejecutar_consulta())
 
     def log_api_message(self, message, level="INFO", exc_info=True, **kwargs):
 
