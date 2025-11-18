@@ -133,6 +133,12 @@ class CreatePreingresoUseCase:
             tipo_preingreso_nombre = None
             garantia_nombre = None
             if response.has_json_body():
+                # Debug: Mostrar todos los campos disponibles en la respuesta
+                self.logger.info("🔍 DEBUG: Campos disponibles en la respuesta de la API:")
+                self.logger.info(f"   Claves: {list(response.body.keys())}")
+                self.logger.info(f"   Respuesta completa: {response.body}")
+
+                # Intentar extraer desde el nivel raíz primero
                 consultar_reparacion = response.extract_data("consultar_reparacion", required=False)
                 consultar_guia = response.extract_data("guia", required=False)
                 tipo_preingreso_nombre = response.extract_data("tipo_preingreso", required=False)
@@ -140,6 +146,25 @@ class CreatePreingresoUseCase:
                 preingreso_id = response.extract_data("boleta", required=False)
                 if not preingreso_id:
                     preingreso_id = response.extract_data("orden_de_servicio", required=False)
+
+                # Si no se encontraron en el nivel raíz, intentar extraer desde "data"
+                if not preingreso_id and "data" in response.body:
+                    data = response.body.get("data", {})
+                    if isinstance(data, dict):
+                        self.logger.info("🔍 DEBUG: Intentando extraer desde response.body['data']")
+                        preingreso_id = data.get("boleta") or data.get("orden_de_servicio")
+                        consultar_reparacion = data.get("consultar_reparacion")
+                        consultar_guia = data.get("guia")
+                        tipo_preingreso_nombre = data.get("tipo_preingreso")
+                        garantia_nombre = data.get("garantia")
+
+                # Debug: Mostrar valores extraídos
+                self.logger.info("🔍 DEBUG: Valores extraídos de la respuesta:")
+                self.logger.info(f"   preingreso_id (boleta): {preingreso_id}")
+                self.logger.info(f"   consultar_reparacion: {consultar_reparacion}")
+                self.logger.info(f"   consultar_guia (guia): {consultar_guia}")
+                self.logger.info(f"   tipo_preingreso_nombre: {tipo_preingreso_nombre}")
+                self.logger.info(f"   garantia_nombre: {garantia_nombre}")
 
             self.logger.info(
                 "✅ Preingreso creado correctamente",
