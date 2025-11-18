@@ -765,25 +765,44 @@ class EmailManager:
 
                     # Asunto específico para usuarios CC
                     cc_subject = f"Notificación: {subject}"
-                    cc_body = f"""Estimado/a Usuario,
 
-Se le envía esta notificación automática como parte del proceso de gestión de la boleta de reparación.
+                    # Construir el cuerpo del correo con la sección del link de consulta
+                    cc_body_lines = [
+                        "Estimado/a Usuario,",
+                        "",
+                        "Se le envía esta notificación automática como parte del proceso de gestión de la boleta de reparación.",
+                        "",
+                        "Adjunto encontrará:",
+                        "• Archivo de texto con todos los datos extraídos del PDF procesado",
+                        "• PDF original de la boleta de reparación",
+                        "",
+                        "Detalles de la boleta:",
+                        f"- Número de Boleta: {extracted_data.get('numero_boleta', 'N/A')}",
+                        f"- Número de Transacción: {extracted_data.get('numero_transaccion', 'N/A')}",
+                        f"- Cliente: {extracted_data.get('nombre_cliente', 'N/A')}",
+                        f"- Fecha: {extracted_data.get('fecha', 'N/A')}",
+                        ""
+                    ]
 
-Adjunto encontrará:
-• Archivo de texto con todos los datos extraídos del PDF procesado
-• PDF original de la boleta de reparación
+                    # Agregar sección del link de consulta si está disponible
+                    if extracted_data.get('consultar_reparacion'):
+                        cc_body_lines.extend([
+                            "🔗 Consulta del estado:",
+                            "",
+                            "Puede verificar el progreso de la reparación en cualquier momento haciendo clic en el siguiente enlace:",
+                            "",
+                            f"👉 {extracted_data.get('consultar_reparacion')}",
+                            ""
+                        ])
 
-Detalles de la boleta:
-- Número de Boleta: {extracted_data.get('numero_boleta', 'N/A')}
-- Número de Transacción: {extracted_data.get('numero_transaccion', 'N/A')}
-- Cliente: {extracted_data.get('nombre_cliente', 'N/A')}
-- Fecha: {extracted_data.get('fecha', 'N/A')}
+                    cc_body_lines.extend([
+                        "Este es un correo automático generado por GolloBot.",
+                        "",
+                        "Atentamente,",
+                        "Sistema Automatizado de Gestión de Reparaciones"
+                    ])
 
-Este es un correo automático generado por GolloBot.
-
-Atentamente,
-Sistema Automatizado de Gestión de Reparaciones
-"""
+                    cc_body = "\n".join(cc_body_lines)
 
                     cc_result = self.send_email(
                         provider, email_addr, password,

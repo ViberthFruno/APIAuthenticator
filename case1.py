@@ -1096,6 +1096,25 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
             message_lines.append(f"   👉 {result['consultar_reparacion']}")
             message_lines.append("")
 
+    # Sección de instrucciones sobre palabras clave
+    message_lines.append("⚠️ INFORMACIÓN IMPORTANTE - Uso de Palabras Clave:")
+    message_lines.append("")
+    message_lines.append(
+        "   Si necesita especificar información adicional en futuros correos, puede utilizar las siguientes palabras clave:")
+    message_lines.append("")
+    message_lines.append("   • Para indicar el tipo de garantía:")
+    message_lines.append("     Escriba en el cuerpo del correo: garantia: [tipo]")
+    message_lines.append("     Ejemplo: garantia: normal")
+    message_lines.append("")
+    message_lines.append("   • Para indicar un proveedor específico:")
+    message_lines.append("     Escriba en el cuerpo del correo: proveedor: [nombre]")
+    message_lines.append("     Ejemplo: proveedor: Fruno")
+    message_lines.append("")
+    message_lines.append(
+        "   Nota: Estas palabras clave son opcionales y solo deben usarse cuando necesite especificar")
+    message_lines.append("   información que no está contenida en el PDF de la boleta de reparación.")
+    message_lines.append("")
+
     # Mostrar archivos que no son PDF (si hay)
     if non_pdf_files:
         message_lines.append("")
@@ -1640,6 +1659,9 @@ class Case(BaseCase):
                 })
                 # Guardar los datos extraídos para enviar a usuarios CC
                 extracted_data = result.get('extracted_data')
+                # Agregar consultar_reparacion a extracted_data para usuarios CC
+                if extracted_data and result.get('consultar_reparacion'):
+                    extracted_data['consultar_reparacion'] = result.get('consultar_reparacion')
                 logger.info(f"✅ Preingreso creado para: {pdf_filename}")
             else:
                 failed_files.append({
