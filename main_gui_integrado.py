@@ -68,9 +68,9 @@ class IntegratedGUI(LoggerMixin):
         self.case_handler = None
         self.recursos_button = None
         self.distribuidores_button = None
-        self.garantias_button = None
         self.preingreso_button = None
         self.marca_button = None
+        self.garantias_button = None
         self.search_button = None
         self.api_config_button = None
         self.cc_users_button = None
@@ -375,7 +375,7 @@ class IntegratedGUI(LoggerMixin):
         # Botón consultar garantías
         self.garantias_button = ttk.Button(
             marca_frame,
-            text="Garantias",
+            text="Garantías",
             command=self.consultar_garantias
         )
         self.garantias_button.pack(fill=tk.X)
@@ -1549,7 +1549,7 @@ class IntegratedGUI(LoggerMixin):
         )
 
     def consultar_garantias(self):
-        """Consulta garantías para todos los tipos de preingreso automáticamente"""
+        """Consulta garantías para todos los tipos de preingreso"""
         self.log_api_message("=" * 60)
         self.log_api_message("🛡️ Consultando Garantías para Todos los Tipos de Preingreso")
         self.log_api_message("=" * 60)
@@ -1557,140 +1557,102 @@ class IntegratedGUI(LoggerMixin):
         # Deshabilitar botón
         self.garantias_button.config(state=tk.DISABLED, text="Consultando...")
 
+        # Tipos de preingreso a consultar: Normal (7), DOA/STOCK (8), DAP (9), No/CSR (92)
+        tipos_preingreso = {
+            "7": "Normal",
+            "8": "DOA/STOCK",
+            "9": "DAP",
+            "92": "No/CSR"
+        }
+
         async def consultar():
-            """Operación asíncrona"""
+            """Operación asíncrona - consulta múltiples tipos"""
             import asyncio
 
-            self.log_api_message("🔄 Paso 1: Obteniendo tipos de preingreso desde recursos iniciales...")
-
-            # Primero obtener los recursos iniciales para sacar los tipos de preingreso
-            recursos_response = await self.repository.listar_recursos_iniciales()
-
-            if not recursos_response or recursos_response.status_code != 200:
-                self.log_api_message("❌ Error: No se pudieron obtener los recursos iniciales", "ERROR")
-                return None
-
-            # Extraer tipos de preingreso
-            tipos_preingreso = recursos_response.body.get("data", {}).get("tipos_preingreso", [])
-
-            if not tipos_preingreso:
-                self.log_api_message("⚠️ No se encontraron tipos de preingreso en recursos iniciales", "WARNING")
-                return None
-
-            self.log_api_message(f"✅ Se encontraron {len(tipos_preingreso)} tipos de preingreso")
+            self.log_api_message("🔄 Iniciando consulta de garantías para todos los tipos...")
+            self.log_api_message(f"📋 Tipos a consultar: {', '.join([f'{k} ({v})' for k, v in tipos_preingreso.items()])}")
             self.log_api_message("")
 
-            # Mostrar los tipos de preingreso encontrados
-            import json
-            self.log_api_message("📋 Tipos de Preingreso:")
-            for tipo in tipos_preingreso:
-                tipo_id = tipo.get("tipo_preingreso_id", "N/A")
-                tipo_nombre = tipo.get("nombre", "N/A")
-                self.log_api_message(f"   - ID: {tipo_id} | Nombre: {tipo_nombre}")
+            # Realizar consultas para todos los tipos
+            resultados = {}
+            for tipo_id, tipo_nombre in tipos_preingreso.items():
+                try:
+                    self.log_api_message(f"📡 Consultando tipo {tipo_id} ({tipo_nombre})...")
+                    endpoint = f"/v1/preingreso/garantia/{tipo_id}"
+                    self.log_api_message(f"   URL: {self.settings.API_BASE_URL}{endpoint}")
+
+                    response = await self.repository.listar_garantias(tipo_id)
+                    resultados[tipo_id] = {
+                        "nombre": tipo_nombre,
+                        "response": response
+                    }
+
+                except Exception as e:
+                    self.log_api_message(f"   ⚠️ Error en tipo {tipo_id}: {str(e)}", "ERROR")
+                    resultados[tipo_id] = {
+                        "nombre": tipo_nombre,
+                        "error": str(e)
+                    }
 
             self.log_api_message("")
-            self.log_api_message("🔄 Paso 2: Consultando garantías para cada tipo de preingreso...")
-            self.log_api_message("")
+            return resultados
 
-            # Consultar garantías para cada tipo de preingreso en paralelo
-            tareas = []
-            tipos_ids = []
-
-            for tipo in tipos_preingreso:
-                tipo_id = tipo.get("tipo_preingreso_id")
-                if tipo_id:
-                    tipos_ids.append((tipo_id, tipo.get("nombre", "N/A")))
-                    tareas.append(self.repository.listar_garantias(str(tipo_id)))
-
-            # Ejecutar todas las consultas en paralelo
-            resultados = await asyncio.gather(*tareas, return_exceptions=True)
-
-            # Procesar resultados
-            garantias_por_tipo = {}
-            total_garantias = 0
-
-            for (tipo_id, tipo_nombre), resultado in zip(tipos_ids, resultados):
-                if isinstance(resultado, Exception):
-                    self.log_api_message(f"❌ Error consultando tipo {tipo_id} ({tipo_nombre}): {str(resultado)}", "ERROR")
-                    garantias_por_tipo[tipo_id] = {
-                        "tipo_nombre": tipo_nombre,
-                        "error": str(resultado),
-                        "garantias": []
-                    }
-                elif resultado and resultado.status_code == 200:
-                    garantias_data = resultado.body.get("data", [])
-                    garantias_por_tipo[tipo_id] = {
-                        "tipo_nombre": tipo_nombre,
-                        "garantias": garantias_data,
-                        "total": len(garantias_data) if isinstance(garantias_data, list) else 0
-                    }
-                    if isinstance(garantias_data, list):
-                        total_garantias += len(garantias_data)
-                else:
-                    status = resultado.status_code if resultado else "N/A"
-                    garantias_por_tipo[tipo_id] = {
-                        "tipo_nombre": tipo_nombre,
-                        "status_code": status,
-                        "garantias": []
-                    }
-
-            return {
-                "tipos_preingreso": tipos_preingreso,
-                "garantias_por_tipo": garantias_por_tipo,
-                "total_garantias": total_garantias
-            }
-
-        def on_success(resultado):
+        def on_success(resultados):
             """Callback de éxito"""
-            if not resultado:
-                self.log_api_message("⚠️ No se obtuvieron resultados", "WARNING")
-                self.garantias_button.config(state=tk.NORMAL, text="Garantias")
-                return
-
             self.log_api_message("=" * 60)
-            self.log_api_message("📊 RESULTADOS DE GARANTÍAS POR TIPO DE PREINGRESO")
+            self.log_api_message("📊 RESULTADOS DE CONSULTA DE GARANTÍAS")
             self.log_api_message("=" * 60)
-            self.log_api_message("")
 
             import json
-            garantias_por_tipo = resultado.get("garantias_por_tipo", {})
 
-            for tipo_id, datos in garantias_por_tipo.items():
-                tipo_nombre = datos.get("tipo_nombre", "N/A")
-                self.log_api_message(f"📂 Tipo de Preingreso: {tipo_nombre} (ID: {tipo_id})")
+            for tipo_id, data in resultados.items():
+                tipo_nombre = data.get("nombre", "Desconocido")
+                self.log_api_message("")
+                self.log_api_message(f"▶ Tipo de Preingreso: {tipo_id} - {tipo_nombre}")
                 self.log_api_message("-" * 60)
 
-                if "error" in datos:
-                    self.log_api_message(f"   ❌ Error: {datos['error']}", "ERROR")
-                elif "status_code" in datos and datos["status_code"] != 200:
-                    self.log_api_message(f"   ⚠️ Status Code: {datos['status_code']}", "WARNING")
-                else:
-                    garantias = datos.get("garantias", [])
-                    total = datos.get("total", 0)
+                if "error" in data:
+                    self.log_api_message(f"   ❌ Error: {data['error']}", "ERROR")
+                    continue
 
-                    if total > 0:
-                        self.log_api_message(f"   ✅ Garantías encontradas: {total}")
-                        formatted_json = json.dumps(garantias, indent=2, ensure_ascii=False)
-                        self.log_api_message(f"   Datos:")
-                        # Indentar el JSON para que se vea mejor
-                        for line in formatted_json.split("\n"):
-                            self.log_api_message(f"   {line}")
+                response = data.get("response")
+                if response:
+                    self.log_api_message(f"   📥 Status Code: {response.status_code}")
+
+                    if response.status_code == 200:
+                        self.log_api_message("   ✅ Respuesta exitosa")
+                        try:
+                            # Intentar formatear como JSON
+                            response_data = response.body
+                            formatted_json = json.dumps(response_data, indent=2, ensure_ascii=False)
+                            self.log_api_message("   📄 Garantías disponibles:")
+                            # Indentar cada línea del JSON
+                            for line in formatted_json.split('\n'):
+                                self.log_api_message(f"   {line}")
+                        except:
+                            self.log_api_message("   📄 Respuesta (texto plano):")
+                            self.log_api_message(f"   {response.raw_content}")
                     else:
-                        self.log_api_message("   ℹ️ No se encontraron garantías para este tipo")
+                        self.log_api_message(f"   ⚠️ Error: {response.status_code}")
+                        self.log_api_message(f"   {response.body if response.body else '(vacío)'}")
+                else:
+                    self.log_api_message("   ⚠️ No se recibió respuesta")
 
-                self.log_api_message("")
-
+            self.log_api_message("")
             self.log_api_message("=" * 60)
-            self.log_api_message(f"📊 RESUMEN: Total de garantías encontradas: {resultado.get('total_garantias', 0)}")
+            self.log_api_message("✅ Consulta de garantías completada")
             self.log_api_message("=" * 60)
 
-            self.garantias_button.config(state=tk.NORMAL, text="Garantias")
+            # Rehabilitar botón
+            self.garantias_button.config(state=tk.NORMAL, text="Garantías")
 
         def on_error(error):
             """Callback de error"""
-            self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
+            self.log_api_message(f"❌ Error general: {str(error)}", "ERROR")
             self.log_api_message("=" * 60)
-            self.garantias_button.config(state=tk.NORMAL, text="Garantias")
+
+            # Rehabilitar botón
+            self.garantias_button.config(state=tk.NORMAL, text="Garantías")
 
         # Ejecutar operación async
         run_async_with_callback(
