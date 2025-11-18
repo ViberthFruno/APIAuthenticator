@@ -1,0 +1,69 @@
+{
+  "proveedores": {
+    "MobilePro": {
+      "id": "4d368873-4488-416f-9996-a95c416eaec2",
+      "palabras_clave": [
+        "MOBILEPRO",
+        "MOBILE PRO"
+      ]
+    },
+    "Suplidora Movil": {
+      "id": "af3e8a46-cd6a-4eae-a1d1-8b6c1a8111d7",
+      "palabras_clave": [
+        "SUPLIDORA MOVIL",
+        "SUPLIDORA",
+        "SUPLIDORAMOVIL"
+      ]
+    },
+    "Liberty": {
+      "id": "560600c2-60d5-42a7-9478-e9d1fef48a97",
+      "palabras_clave": [
+        "LIBERTY"
+      ]
+    },
+    "CTC GRUP": {
+      "id": "497c7e40-7e8a-45bd-962f-a79f5f5fe641",
+      "palabras_clave": [
+        "CTC GRUP",
+        "CTCGRUP",
+        "CTC-GRUP"
+      ]
+    },
+    "OSL": {
+      "id": "88f9f5fd-4569-40dd-bc20-9a34097dcedd",
+      "palabras_clave": [
+        "OSL"
+      ]
+    },
+    "MAJICAL": {
+      "id": "796b6e10-539d-479b-89d8-644c564308c6",
+      "palabras_clave": [
+        "MAJICAL",
+        "MAGICAL"
+      ]
+    },
+    "INTCOMEX": {
+      "id": "66e20464-0afa-4d7e-9e33-8cb7a358731f",
+      "palabras_clave": [
+        "INTCOMEX",
+        "INT COMEX"
+      ]
+    },
+    "Mobiltech": {
+      "id": "b24941fa-955f-4a66-9326-da6aaf8b18d1",
+      "palabras_clave": [
+        "MOBILTECH",
+        "MOBIL TECH",
+        "MOVILTECH"
+      ]
+    },
+    "CTC GROUP": {
+      "id": "235b222e-ad2d-4493-9e0d-24eae244f8f9",
+      "palabras_clave": [
+        "CTC GROUP",
+        "CTCGROUP",
+        "CTC-GROUP"
+      ]
+    }
+  }
+}
