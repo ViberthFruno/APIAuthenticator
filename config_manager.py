@@ -294,3 +294,137 @@ def save_categorias_config(config):
     """
     manager = ConfigManager()
     return manager.save_categorias_config(config)
+
+
+# ============================================================================
+# FUNCIONES PARA CONFIGURACIÓN DE PROVEEDORES
+# ============================================================================
+
+def get_proveedores_config_path():
+    """
+    Función global para obtener la ruta correcta a config_proveedores.json
+    Compatible con PyInstaller y desarrollo.
+
+    Returns:
+        str: Ruta absoluta al archivo config_proveedores.json
+    """
+    if getattr(sys, 'frozen', False):
+        # Si es ejecutable con PyInstaller
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Si es desarrollo, usar directorio del script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_dir, 'config_proveedores.json')
+
+
+def get_proveedores_config():
+    """
+    Función global para cargar la configuración de proveedores.
+    Compatible con PyInstaller y desarrollo.
+
+    Returns:
+        Dict: Configuración de proveedores con estructura:
+              {
+                  "proveedores": {
+                      "MobilePro": {
+                          "id": "UUID",
+                          "palabras_clave": ["MOBILEPRO", "MOBILE PRO", ...]
+                      },
+                      ...
+                  }
+              }
+    """
+    proveedores_file = get_proveedores_config_path()
+
+    # Proveedores por defecto con sus UUIDs
+    default_proveedores = {
+        "proveedores": {
+            "MobilePro": {
+                "id": "4d368873-4488-416f-9996-a95c416eaec2",
+                "palabras_clave": ["MOBILEPRO", "MOBILE PRO"]
+            },
+            "Suplidora Movil": {
+                "id": "af3e8a46-cd6a-4eae-a1d1-8b6c1a8111d7",
+                "palabras_clave": ["SUPLIDORA MOVIL", "SUPLIDORA", "SUPLIDORAMOVIL"]
+            },
+            "Liberty": {
+                "id": "560600c2-60d5-42a7-9478-e9d1fef48a97",
+                "palabras_clave": ["LIBERTY"]
+            },
+            "CTC GRUP": {
+                "id": "497c7e40-7e8a-45bd-962f-a79f5f5fe641",
+                "palabras_clave": ["CTC GRUP", "CTCGRUP", "CTC-GRUP"]
+            },
+            "OSL": {
+                "id": "88f9f5fd-4569-40dd-bc20-9a34097dcedd",
+                "palabras_clave": ["OSL"]
+            },
+            "MAJICAL": {
+                "id": "796b6e10-539d-479b-89d8-644c564308c6",
+                "palabras_clave": ["MAJICAL", "MAGICAL"]
+            },
+            "INTCOMEX": {
+                "id": "66e20464-0afa-4d7e-9e33-8cb7a358731f",
+                "palabras_clave": ["INTCOMEX", "INT COMEX", "INTCOMEX"]
+            },
+            "Mobiltech": {
+                "id": "b24941fa-955f-4a66-9326-da6aaf8b18d1",
+                "palabras_clave": ["MOBILTECH", "MOBIL TECH", "MOVILTECH"]
+            },
+            "CTC GROUP": {
+                "id": "235b222e-ad2d-4493-9e0d-24eae244f8f9",
+                "palabras_clave": ["CTC GROUP", "CTCGROUP", "CTC-GROUP"]
+            }
+        }
+    }
+
+    try:
+        print(f"[DEBUG ConfigManager] Buscando config_proveedores.json en: {proveedores_file}")
+        print(f"[DEBUG ConfigManager] ¿Existe el archivo? {os.path.exists(proveedores_file)}")
+
+        if os.path.exists(proveedores_file):
+            print(f"[DEBUG ConfigManager] ✓ Archivo encontrado, cargando...")
+            with open(proveedores_file, 'r', encoding='utf-8') as file:
+                config_data = json.load(file)
+                print(f"[DEBUG ConfigManager] ✓ Proveedores cargados: {list(config_data.get('proveedores', {}).keys())}")
+                return config_data
+        else:
+            print(f"[DEBUG ConfigManager] ❌ Archivo NO encontrado, creando con valores por defecto...")
+            # Crear el archivo con valores por defecto
+            save_proveedores_config(default_proveedores)
+            print(f"[DEBUG ConfigManager] ✓ Archivo config_proveedores.json creado en: {proveedores_file}")
+            return default_proveedores
+
+    except Exception as e:
+        print(f"[DEBUG ConfigManager] ❌ Error al cargar proveedores: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Si hay error, intentar crear el archivo con valores por defecto
+        try:
+            save_proveedores_config(default_proveedores)
+            return default_proveedores
+        except:
+            return default_proveedores
+
+
+def save_proveedores_config(config):
+    """
+    Función global para guardar la configuración de proveedores.
+    Compatible con PyInstaller y desarrollo.
+
+    Args:
+        config (Dict): Configuración de proveedores a guardar
+
+    Returns:
+        bool: True si se guardó correctamente, False en caso contrario
+    """
+    proveedores_file = get_proveedores_config_path()
+    try:
+        with open(proveedores_file, 'w', encoding='utf-8') as file:
+            json.dump(config, file, indent=2, ensure_ascii=False)
+        print(f"[DEBUG ConfigManager] ✓ Proveedores guardados en: {proveedores_file}")
+        return True
+    except Exception as e:
+        print(f"[DEBUG ConfigManager] ❌ Error al guardar proveedores: {str(e)}")
+        return False

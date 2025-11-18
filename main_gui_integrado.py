@@ -293,6 +293,14 @@ class IntegratedGUI(LoggerMixin):
         )
         self.categorias_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
+        # Botón para editar proveedores
+        self.proveedores_button = ttk.Button(
+            self.bottom_left_panel,
+            text="Proveedores",
+            command=self.open_proveedores_modal
+        )
+        self.proveedores_button.grid(row=5, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
         self.bottom_left_panel.columnconfigure(0, weight=1)
 
     def setup_bottom_right_panel(self):
@@ -1125,6 +1133,296 @@ class IntegratedGUI(LoggerMixin):
 
         # Cargar categorías iniciales
         cargar_categorias()
+
+    def open_proveedores_modal(self):
+        """Abre una ventana modal para configurar los proveedores y sus palabras clave"""
+        import json
+        import os
+        from config_manager import get_proveedores_config, save_proveedores_config
+
+        # Cargar configuración de proveedores
+        config_data = get_proveedores_config()
+        proveedores_dict = config_data.get('proveedores', {})
+
+        # Crear ventana modal
+        modal = tk.Toplevel(self.root)
+        modal.title("Configurar Proveedores")
+        modal.geometry("800x500")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Frame principal con dos paneles
+        main_frame = ttk.Frame(modal, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Panel izquierdo: Lista de proveedores
+        left_frame = ttk.LabelFrame(main_frame, text="Proveedores", padding="10")
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        # Listbox para proveedores
+        proveedores_listbox = tk.Listbox(left_frame, height=15, width=25)
+        proveedores_listbox.pack(fill=tk.BOTH, expand=True)
+
+        # Scroll para listbox de proveedores
+        scrollbar_prov = ttk.Scrollbar(left_frame, orient=tk.VERTICAL, command=proveedores_listbox.yview)
+        scrollbar_prov.pack(side=tk.RIGHT, fill=tk.Y)
+        proveedores_listbox.config(yscrollcommand=scrollbar_prov.set)
+
+        # Panel derecho: Palabras clave del proveedor seleccionado
+        right_frame = ttk.LabelFrame(main_frame, text="Palabras Clave", padding="10")
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        # Label con información del proveedor seleccionado
+        info_label = ttk.Label(right_frame, text="Selecciona un proveedor", font=("Arial", 10, "bold"))
+        info_label.pack(pady=(0, 10))
+
+        # Listbox para palabras clave
+        palabras_listbox = tk.Listbox(right_frame, height=12, width=40)
+        palabras_listbox.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        # Scroll para listbox de palabras
+        scrollbar_pal = ttk.Scrollbar(right_frame, orient=tk.VERTICAL, command=palabras_listbox.yview)
+        scrollbar_pal.pack(side=tk.RIGHT, fill=tk.Y)
+        palabras_listbox.config(yscrollcommand=scrollbar_pal.set)
+
+        # Frame para botones de palabras clave
+        palabras_buttons_frame = ttk.Frame(right_frame)
+        palabras_buttons_frame.pack(fill=tk.X)
+
+        # Variable para tracking del proveedor seleccionado
+        proveedor_seleccionado = [None]  # Usar lista para mutabilidad en closures
+
+        def cargar_proveedores():
+            """Carga la lista de proveedores en el listbox"""
+            proveedores_listbox.delete(0, tk.END)
+            for nombre_prov in sorted(proveedores_dict.keys()):
+                proveedores_listbox.insert(tk.END, nombre_prov)
+
+        def on_proveedor_select(event):
+            """Maneja la selección de un proveedor"""
+            selection = proveedores_listbox.curselection()
+            if not selection:
+                return
+
+            idx = selection[0]
+            nombre_proveedor = proveedores_listbox.get(idx)
+            proveedor_seleccionado[0] = nombre_proveedor
+
+            # Actualizar label de información
+            proveedor_id = proveedores_dict[nombre_proveedor].get('id', '?')
+            info_label.config(text=f"Proveedor: {nombre_proveedor}\nID: {proveedor_id}")
+
+            # Cargar palabras clave de este proveedor
+            palabras_listbox.delete(0, tk.END)
+            palabras_clave = proveedores_dict[nombre_proveedor].get('palabras_clave', [])
+
+            # Mostrar palabras clave
+            for palabra in palabras_clave:
+                palabras_listbox.insert(tk.END, palabra)
+
+        def agregar_palabra():
+            """Agrega una nueva palabra clave al proveedor seleccionado"""
+            if not proveedor_seleccionado[0]:
+                messagebox.showwarning("Advertencia", "Selecciona primero un proveedor")
+                return
+
+            # Crear ventana para ingresar la palabra
+            palabra_modal = tk.Toplevel(modal)
+            palabra_modal.title("Agregar Palabra Clave")
+            palabra_modal.geometry("400x150")
+            palabra_modal.transient(modal)
+            palabra_modal.grab_set()
+
+            # Centrar ventana
+            palabra_modal.update_idletasks()
+            pw = palabra_modal.winfo_width()
+            ph = palabra_modal.winfo_height()
+            px = (palabra_modal.winfo_screenwidth() // 2) - (pw // 2)
+            py = (palabra_modal.winfo_screenheight() // 2) - (ph // 2)
+            palabra_modal.geometry(f"{pw}x{ph}+{px}+{py}")
+
+            # Frame
+            frame = ttk.Frame(palabra_modal, padding="20")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            # Entrada de palabra clave
+            ttk.Label(frame, text="Nueva palabra clave:").grid(row=0, column=0, sticky="w", pady=(0, 15))
+            entrada = ttk.Entry(frame, width=30)
+            entrada.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+            entrada.focus_set()
+
+            def guardar_palabra():
+                palabra = entrada.get().strip().upper()  # Convertir a mayúsculas
+                if not palabra:
+                    messagebox.showwarning("Advertencia", "La palabra clave no puede estar vacía")
+                    return
+
+                # Verificar que no exista ya
+                palabras_actuales = proveedores_dict[proveedor_seleccionado[0]]['palabras_clave']
+                if palabra in palabras_actuales:
+                    messagebox.showwarning("Advertencia", "Esta palabra clave ya existe")
+                    return
+
+                # Agregar al proveedor
+                proveedores_dict[proveedor_seleccionado[0]]['palabras_clave'].append(palabra)
+
+                # Actualizar listbox
+                palabras_listbox.insert(tk.END, palabra)
+                palabra_modal.destroy()
+
+            button_frame = ttk.Frame(frame)
+            button_frame.grid(row=1, column=0, columnspan=2, pady=(10, 0))
+
+            ttk.Button(button_frame, text="Guardar", command=guardar_palabra).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=palabra_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+
+            frame.columnconfigure(1, weight=1)
+
+            # Permitir Enter para guardar
+            entrada.bind('<Return>', lambda e: guardar_palabra())
+
+        def eliminar_palabra():
+            """Elimina la palabra clave seleccionada"""
+            if not proveedor_seleccionado[0]:
+                messagebox.showwarning("Advertencia", "Selecciona primero un proveedor")
+                return
+
+            selection = palabras_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona una palabra clave para eliminar")
+                return
+
+            idx = selection[0]
+            palabra = palabras_listbox.get(idx)
+
+            # Confirmar eliminación
+            if messagebox.askyesno("Confirmar", f"¿Eliminar la palabra clave '{palabra}'?"):
+                # Eliminar de la lista en memoria
+                palabras_clave = proveedores_dict[proveedor_seleccionado[0]]['palabras_clave']
+                if idx < len(palabras_clave):
+                    palabras_clave.pop(idx)
+                palabras_listbox.delete(idx)
+
+        def editar_palabra():
+            """Edita la palabra clave seleccionada"""
+            if not proveedor_seleccionado[0]:
+                messagebox.showwarning("Advertencia", "Selecciona primero un proveedor")
+                return
+
+            selection = palabras_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona una palabra clave para editar")
+                return
+
+            idx = selection[0]
+            palabra_actual = palabras_listbox.get(idx)
+
+            # Crear ventana para editar
+            editar_modal = tk.Toplevel(modal)
+            editar_modal.title("Editar Palabra Clave")
+            editar_modal.geometry("400x150")
+            editar_modal.transient(modal)
+            editar_modal.grab_set()
+
+            # Centrar ventana
+            editar_modal.update_idletasks()
+            ew = editar_modal.winfo_width()
+            eh = editar_modal.winfo_height()
+            ex = (editar_modal.winfo_screenwidth() // 2) - (ew // 2)
+            ey = (editar_modal.winfo_screenheight() // 2) - (eh // 2)
+            editar_modal.geometry(f"{ew}x{eh}+{ex}+{ey}")
+
+            # Frame
+            frame = ttk.Frame(editar_modal, padding="20")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            # Entrada para editar la palabra
+            ttk.Label(frame, text="Editar palabra clave:").grid(row=0, column=0, sticky="w", pady=(0, 15))
+            entrada = ttk.Entry(frame, width=30)
+            entrada.insert(0, palabra_actual)
+            entrada.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+            entrada.focus_set()
+            entrada.select_range(0, tk.END)
+
+            def guardar_edicion():
+                nueva_palabra = entrada.get().strip().upper()  # Convertir a mayúsculas
+                if not nueva_palabra:
+                    messagebox.showwarning("Advertencia", "La palabra clave no puede estar vacía")
+                    return
+
+                # Actualizar en la lista
+                palabras_clave = proveedores_dict[proveedor_seleccionado[0]]['palabras_clave']
+                palabras_clave[idx] = nueva_palabra
+
+                # Actualizar listbox
+                palabras_listbox.delete(idx)
+                palabras_listbox.insert(idx, nueva_palabra)
+                palabras_listbox.selection_set(idx)
+
+                messagebox.showinfo("Éxito", f"✅ Palabra clave actualizada correctamente")
+                editar_modal.destroy()
+
+            button_frame = ttk.Frame(frame)
+            button_frame.grid(row=1, column=0, columnspan=2, pady=(10, 0))
+
+            ttk.Button(button_frame, text="Guardar", command=guardar_edicion).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=editar_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+
+            frame.columnconfigure(1, weight=1)
+
+            # Permitir Enter para guardar
+            entrada.bind('<Return>', lambda e: guardar_edicion())
+
+        # Botones para gestionar palabras clave
+        ttk.Button(palabras_buttons_frame, text="➕ Agregar", command=agregar_palabra).pack(side=tk.LEFT, expand=True, padx=2)
+        ttk.Button(palabras_buttons_frame, text="✏️ Editar", command=editar_palabra).pack(side=tk.LEFT, expand=True, padx=2)
+        ttk.Button(palabras_buttons_frame, text="🗑️ Eliminar", command=eliminar_palabra).pack(side=tk.LEFT, expand=True, padx=2)
+
+        # Bind de selección de proveedor
+        proveedores_listbox.bind('<<ListboxSelect>>', on_proveedor_select)
+
+        # Frame para botones principales (guardar/cancelar)
+        main_button_frame = ttk.Frame(main_frame)
+        main_button_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+
+        def guardar_configuracion():
+            """Guarda la configuración de proveedores en el archivo JSON"""
+            try:
+                # Crear el JSON completo con los proveedores
+                config_data = {
+                    "proveedores": proveedores_dict
+                }
+
+                # Guardar usando la función global
+                if save_proveedores_config(config_data):
+                    messagebox.showinfo("Éxito", "✅ Configuración de proveedores guardada correctamente")
+                    self.log_api_message("✅ Configuración de proveedores actualizada", level="INFO")
+                    modal.destroy()
+                else:
+                    messagebox.showerror("Error", "Error al guardar la configuración")
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al guardar la configuración:\n{e}")
+
+        ttk.Button(main_button_frame, text="💾 Guardar", command=guardar_configuracion).pack(side=tk.LEFT, expand=True, padx=5)
+        ttk.Button(main_button_frame, text="❌ Cancelar", command=modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+
+        # Configurar grid weights
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=2)
+        main_frame.rowconfigure(0, weight=1)
+
+        # Cargar proveedores iniciales
+        cargar_proveedores()
 
     # ===== MÉTODOS DE ACCIÓN =====
 
