@@ -1711,6 +1711,7 @@ class Case(BaseCase):
                 'body': body_message,
                 'attachments': [],  # No enviamos archivos adjuntos en el correo principal
                 'extracted_data': extracted_data,  # Datos extraídos para usuarios CC
+                'preingreso_results': preingreso_results,  # Resultados del preingreso para usuarios CC
                 'pdf_original': {  # PDF original para adjuntar en notificaciones a usuarios CC
                     'filename': pdf_filename,
                     'data': pdf_content
