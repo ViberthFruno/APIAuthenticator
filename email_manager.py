@@ -904,6 +904,59 @@ Sistema Automatizado de Gestión de Reparaciones
                     'data': text_file_data
                 }]
 
+                # NUEVO: Generar archivo TXT con datos extraídos del PDF (siempre, incluso en errores)
+                logger.info("📝 Generando archivo de texto con datos extraídos del PDF...")
+
+                if extracted_data and len(extracted_data) > 0:
+                    # Si hay datos extraídos, generar el archivo normalmente
+                    logger.info(f"   Datos extraídos encontrados ({len(extracted_data)} campos)")
+                    datos_text_content = _generate_formatted_text_for_cc(extracted_data)
+                    boleta_numero = extracted_data.get('numero_boleta', 'sin_numero')
+                    datos_text_filename = f"Datos_Extraidos_Boleta_{boleta_numero}.txt"
+                else:
+                    # Si NO hay datos extraídos, generar archivo indicando que no se pudo extraer
+                    logger.warning("   No hay datos extraídos disponibles - generando archivo vacío")
+                    datos_text_content = f"""DATOS EXTRAÍDOS DEL PDF - NO DISPONIBLES
+{'=' * 80}
+
+No se pudieron extraer datos del PDF debido al error en el procesamiento.
+
+MOTIVO:
+{'-' * 80}
+
+{body}
+
+{'-' * 80}
+
+INFORMACIÓN ADICIONAL:
+- El PDF original se adjunta para revisión manual
+- Fecha de procesamiento: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+{'=' * 80}
+
+Este archivo fue generado automáticamente por GolloBot.
+Sistema Automatizado de Gestión de Reparaciones
+"""
+                    datos_text_filename = f"Datos_Extraidos_Boleta_No_Disponible.txt"
+
+                # Crear archivo temporal con datos extraídos
+                temp_datos_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+                temp_datos_file.write(datos_text_content)
+                temp_datos_file.close()
+                temp_files_to_clean.append(temp_datos_file.name)
+
+                logger.info(f"✅ Archivo de datos extraídos creado: {datos_text_filename}")
+
+                # Leer el contenido del archivo de datos para adjuntar
+                with open(temp_datos_file.name, 'rb') as f:
+                    datos_file_data = f.read()
+
+                # Agregar archivo de datos extraídos a los adjuntos
+                cc_attachments.append({
+                    'filename': datos_text_filename,
+                    'data': datos_file_data
+                })
+
                 # Agregar PDF original si está disponible
                 if pdf_original and pdf_original.get('data'):
                     pdf_filename = pdf_original.get('filename', 'documento_error.pdf')
@@ -938,6 +991,7 @@ Sistema Automatizado de Gestión de Reparaciones
                         "",
                         "Adjunto encontrará:",
                         "• Archivo de texto con información detallada del error",
+                        "• Archivo de texto con datos extraídos del PDF (si fue posible extraerlos)",
                         "• PDF original que causó el error (si está disponible)",
                         "",
                         "⚠️ DETALLES DEL ERROR:",
