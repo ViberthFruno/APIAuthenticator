@@ -820,20 +820,7 @@ class EmailManager:
                                 ""
                             ])
 
-                    # Agregar sección de recordatorio de funcionamiento
                     cc_body_lines.extend([
-                        "⭐ Recordatorio de Funcionamiento:",
-                        "",
-                        "   Si necesita especificar información adicional en futuros correos, puede utilizar las siguientes palabras clave:",
-                        "",
-                        "   • Para indicar el tipo de garantía:",
-                        "     Escriba en el cuerpo del correo: garantia: [tipo]",
-                        "     Ejemplo: garantia: normal",
-                        "",
-                        "   • Para indicar un proveedor específico:",
-                        "     Escriba en el cuerpo del correo: proveedor: [nombre]",
-                        "     Ejemplo: proveedor: Fruno",
-                        "",
                         "",
                         "Este es un correo automático generado por GolloBot.",
                         "",

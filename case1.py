@@ -930,6 +930,21 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
             message_lines.append(f"   • {file}")
         message_lines.append("")
 
+    # Agregar sección de recordatorio de funcionamiento
+    message_lines.append("")
+    message_lines.append("⭐ Recordatorio de Funcionamiento:")
+    message_lines.append("")
+    message_lines.append("   Si necesita especificar información adicional en futuros correos, puede utilizar las siguientes palabras clave:")
+    message_lines.append("")
+    message_lines.append("   • Para indicar el tipo de garantía:")
+    message_lines.append("     Escriba en el cuerpo del correo: garantia: [tipo]")
+    message_lines.append("     Ejemplo: garantia: normal")
+    message_lines.append("")
+    message_lines.append("   • Para indicar un proveedor específico:")
+    message_lines.append("     Escriba en el cuerpo del correo: proveedor: [nombre]")
+    message_lines.append("     Ejemplo: proveedor: Fruno")
+    message_lines.append("")
+
     # Cierre del mensaje
     message_lines.append("")
     message_lines.append("El preingreso se ha creado correctamente en nuestro sistema.")
