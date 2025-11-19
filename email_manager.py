@@ -8,7 +8,7 @@ import os
 import smtplib
 import ssl
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from email import encoders
 from email.header import decode_header
 from email.mime.base import MIMEBase
@@ -860,6 +860,62 @@ class EmailManager:
                 logger.info(f"⚠️ Enviando notificaciones de ERROR a {len(cc_list)} usuario(s) CC...")
                 logger.info("=" * 80)
 
+                # Generar archivo de texto con información del error
+                logger.info("📝 Generando archivo de texto con información del error...")
+                error_text_content = f"""NOTIFICACIÓN DE ERROR - PROCESAMIENTO DE PRE-INGRESO
+{'=' * 80}
+
+Se ha detectado un error durante el procesamiento del documento PDF.
+
+DETALLES DEL ERROR:
+{'-' * 80}
+
+{body}
+
+{'-' * 80}
+
+INFORMACIÓN ADICIONAL:
+- Fecha de procesamiento: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- Este correo es solo informativo para que esté al tanto de los problemas detectados
+- El usuario que envió el correo original ya ha sido notificado del error
+
+{'=' * 80}
+
+Este archivo fue generado automáticamente por GolloBot.
+Sistema Automatizado de Gestión de Reparaciones
+"""
+
+                # Crear archivo temporal con la información del error
+                temp_text_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+                temp_text_file.write(error_text_content)
+                temp_text_file.close()
+                temp_files_to_clean.append(temp_text_file.name)
+
+                text_filename = f"Error_Procesamiento_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                logger.info(f"✅ Archivo de texto creado: {text_filename}")
+
+                # Leer el contenido del archivo para adjuntar
+                with open(temp_text_file.name, 'rb') as f:
+                    text_file_data = f.read()
+
+                # Crear lista de adjuntos (archivo de texto + PDF original)
+                cc_attachments = [{
+                    'filename': text_filename,
+                    'data': text_file_data
+                }]
+
+                # Agregar PDF original si está disponible
+                if pdf_original and pdf_original.get('data'):
+                    pdf_filename = pdf_original.get('filename', 'documento_error.pdf')
+                    pdf_data = pdf_original.get('data')
+                    cc_attachments.append({
+                        'filename': pdf_filename,
+                        'data': pdf_data
+                    })
+                    logger.info(f"✅ PDF original incluido: {pdf_filename}")
+                else:
+                    logger.warning("⚠️ PDF original no disponible para adjuntar")
+
                 cc_success_count = 0
                 cc_failed_count = 0
 
@@ -879,6 +935,10 @@ class EmailManager:
                         "Estimado/a Usuario,",
                         "",
                         "Se le envía esta notificación automática para informarle que se ha detectado un ERROR durante el procesamiento de un pre-ingreso.",
+                        "",
+                        "Adjunto encontrará:",
+                        "• Archivo de texto con información detallada del error",
+                        "• PDF original que causó el error (si está disponible)",
                         "",
                         "⚠️ DETALLES DEL ERROR:",
                         "",
@@ -902,7 +962,7 @@ class EmailManager:
                         provider, email_addr, password,
                         cc_email, cc_subject, cc_body,
                         None,  # Sin CC
-                        None,  # Sin adjuntos para errores
+                        cc_attachments,  # Incluye archivo de texto + PDF original
                         logger
                     )
 
