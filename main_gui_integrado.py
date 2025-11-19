@@ -1143,11 +1143,12 @@ class IntegratedGUI(LoggerMixin):
         # Cargar configuración de proveedores
         config_data = get_proveedores_config()
         proveedores_dict = config_data.get('proveedores', {})
+        palabras_clave_campo = config_data.get('palabras_clave_campo', ['PROVEEDOR'])
 
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
         modal.title("Configurar Proveedores")
-        modal.geometry("800x500")
+        modal.geometry("800x600")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -1160,7 +1161,138 @@ class IntegratedGUI(LoggerMixin):
         y = (modal.winfo_screenheight() // 2) - (height // 2)
         modal.geometry(f"{width}x{height}+{x}+{y}")
 
-        # Frame principal con dos paneles
+        # ========== PANEL SUPERIOR: Palabras clave del campo "Proveedor" ==========
+        top_frame = ttk.LabelFrame(modal, text="Palabras Clave para Detectar Campo 'Proveedor'", padding="10")
+        top_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
+
+        ttk.Label(top_frame, text="Variaciones de la palabra 'proveedor' para búsqueda en correos (ej: PROVEEDOR, PROBEDOR):",
+                  font=("Arial", 9), wraplength=750).pack(anchor="w", pady=(0, 5))
+
+        # Frame para listbox y botones
+        campo_content_frame = ttk.Frame(top_frame)
+        campo_content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Listbox para palabras clave del campo
+        campo_listbox = tk.Listbox(campo_content_frame, height=4, width=80)
+        campo_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+
+        # Scroll para listbox
+        scrollbar_campo = ttk.Scrollbar(campo_content_frame, orient=tk.VERTICAL, command=campo_listbox.yview)
+        scrollbar_campo.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        campo_listbox.config(yscrollcommand=scrollbar_campo.set)
+
+        # Frame para botones
+        campo_buttons_frame = ttk.Frame(campo_content_frame)
+        campo_buttons_frame.pack(side=tk.LEFT, fill=tk.Y)
+
+        def cargar_palabras_campo():
+            """Carga las palabras clave del campo en el listbox"""
+            campo_listbox.delete(0, tk.END)
+            for palabra in palabras_clave_campo:
+                campo_listbox.insert(tk.END, palabra)
+
+        def agregar_palabra_campo():
+            """Agrega una nueva palabra clave al campo"""
+            # Crear ventana para ingresar palabra
+            input_window = tk.Toplevel(modal)
+            input_window.title("Agregar Palabra Clave")
+            input_window.geometry("400x150")
+            input_window.transient(modal)
+            input_window.grab_set()
+
+            ttk.Label(input_window, text="Ingresa la palabra clave (será convertida a mayúsculas):",
+                      font=("Arial", 9)).pack(pady=(20, 5))
+
+            entry = ttk.Entry(input_window, width=40)
+            entry.pack(pady=5)
+            entry.focus()
+
+            def confirmar():
+                palabra = entry.get().strip().upper()
+                if not palabra:
+                    messagebox.showwarning("Advertencia", "La palabra no puede estar vacía")
+                    return
+
+                if palabra in palabras_clave_campo:
+                    messagebox.showwarning("Advertencia", f"La palabra '{palabra}' ya existe")
+                    return
+
+                palabras_clave_campo.append(palabra)
+                cargar_palabras_campo()
+                input_window.destroy()
+                messagebox.showinfo("Éxito", f"✅ Palabra '{palabra}' agregada")
+
+            ttk.Button(input_window, text="Agregar", command=confirmar).pack(pady=10)
+
+        def editar_palabra_campo():
+            """Edita una palabra clave del campo seleccionada"""
+            selection = campo_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona una palabra para editar")
+                return
+
+            idx = selection[0]
+            palabra_actual = campo_listbox.get(idx)
+
+            # Crear ventana para editar
+            input_window = tk.Toplevel(modal)
+            input_window.title("Editar Palabra Clave")
+            input_window.geometry("400x150")
+            input_window.transient(modal)
+            input_window.grab_set()
+
+            ttk.Label(input_window, text="Edita la palabra clave:", font=("Arial", 9)).pack(pady=(20, 5))
+
+            entry = ttk.Entry(input_window, width=40)
+            entry.insert(0, palabra_actual)
+            entry.pack(pady=5)
+            entry.focus()
+            entry.select_range(0, tk.END)
+
+            def confirmar():
+                palabra = entry.get().strip().upper()
+                if not palabra:
+                    messagebox.showwarning("Advertencia", "La palabra no puede estar vacía")
+                    return
+
+                if palabra != palabra_actual and palabra in palabras_clave_campo:
+                    messagebox.showwarning("Advertencia", f"La palabra '{palabra}' ya existe")
+                    return
+
+                palabras_clave_campo[idx] = palabra
+                cargar_palabras_campo()
+                input_window.destroy()
+                messagebox.showinfo("Éxito", f"✅ Palabra actualizada a '{palabra}'")
+
+            ttk.Button(input_window, text="Guardar", command=confirmar).pack(pady=10)
+
+        def eliminar_palabra_campo():
+            """Elimina una palabra clave del campo seleccionada"""
+            selection = campo_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona una palabra para eliminar")
+                return
+
+            idx = selection[0]
+            palabra = campo_listbox.get(idx)
+
+            if len(palabras_clave_campo) <= 1:
+                messagebox.showwarning("Advertencia", "Debe haber al menos una palabra clave")
+                return
+
+            if messagebox.askyesno("Confirmar", f"¿Eliminar la palabra '{palabra}'?"):
+                palabras_clave_campo.pop(idx)
+                cargar_palabras_campo()
+                messagebox.showinfo("Éxito", f"✅ Palabra '{palabra}' eliminada")
+
+        ttk.Button(campo_buttons_frame, text="➕ Agregar", command=agregar_palabra_campo, width=12).pack(pady=2)
+        ttk.Button(campo_buttons_frame, text="✏️ Editar", command=editar_palabra_campo, width=12).pack(pady=2)
+        ttk.Button(campo_buttons_frame, text="🗑️ Eliminar", command=eliminar_palabra_campo, width=12).pack(pady=2)
+
+        # Cargar palabras clave del campo iniciales
+        cargar_palabras_campo()
+
+        # ========== FRAME PRINCIPAL con dos paneles ==========
         main_frame = ttk.Frame(modal, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -1397,8 +1529,9 @@ class IntegratedGUI(LoggerMixin):
         def guardar_configuracion():
             """Guarda la configuración de proveedores en el archivo JSON"""
             try:
-                # Crear el JSON completo con los proveedores
+                # Crear el JSON completo con palabras_clave_campo y proveedores
                 config_data = {
+                    "palabras_clave_campo": palabras_clave_campo,
                     "proveedores": proveedores_dict
                 }
 
