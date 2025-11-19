@@ -1349,7 +1349,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
                 'filename': pdf_filename,
                 'is_409_conflict': is_409_conflict,
                 'numero_boleta': extracted_data.get('numero_boleta') if is_409_conflict else None,
-                'numero_transaccion': extracted_data.get('numero_transaccion') if is_409_conflict else None
+                'numero_transaccion': extracted_data.get('numero_transaccion') if is_409_conflict else None,
+                'extracted_data': extracted_data  # Incluir datos extraídos completos para adjuntos en correos de error
             }
 
     except Exception as e:
@@ -1441,6 +1442,12 @@ class Case(BaseCase):
             pdf_content = pdf_attachment.get('data')
             pdf_filename = pdf_attachment.get('filename', 'documento.pdf')
 
+            # Crear estructura de PDF para incluir en todos los responses (éxito y error)
+            pdf_data = {
+                'filename': pdf_filename,
+                'data': pdf_content
+            }
+
             logger.info(f"Procesando PDF: {pdf_filename}")
 
             # Normalizar el cuerpo del correo
@@ -1512,7 +1519,9 @@ class Case(BaseCase):
                             subject,
                             first_conflict.get('numero_boleta'),
                             first_conflict.get('numero_transaccion')
-                        )
+                        ),
+                        'pdf_original': pdf_data,  # Incluir PDF original para adjuntos
+                        'extracted_data': first_conflict.get('extracted_data')  # Incluir datos extraídos si existen
                     }
                     return response
 
@@ -1520,7 +1529,9 @@ class Case(BaseCase):
                 response = {
                     'recipient': sender,
                     'subject': f"Error en Procesamiento de Preingreso - {timestamp}",
-                    'body': _generate_all_failed_message(failed_files, non_pdf_files, subject)
+                    'body': _generate_all_failed_message(failed_files, non_pdf_files, subject),
+                    'pdf_original': pdf_data,  # Incluir PDF original para adjuntos
+                    'extracted_data': failed_files[0].get('extracted_data') if failed_files else None  # Incluir datos extraídos si existen
                 }
                 return response
 
@@ -1552,10 +1563,7 @@ class Case(BaseCase):
                 'attachments': [],  # No enviamos archivos adjuntos en el correo principal
                 'extracted_data': extracted_data,  # Datos extraídos para usuarios CC
                 'preingreso_results': preingreso_results,  # Resultados del preingreso para usuarios CC
-                'pdf_original': {  # PDF original para adjuntar en notificaciones a usuarios CC
-                    'filename': pdf_filename,
-                    'data': pdf_content
-                }
+                'pdf_original': pdf_data  # PDF original para adjuntar en notificaciones a usuarios CC
             }
 
             logger.info("Procesamiento completado: 1 preingreso creado exitosamente")
