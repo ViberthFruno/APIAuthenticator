@@ -860,6 +860,34 @@ class EmailManager:
                 logger.info(f"⚠️ Enviando notificaciones de ERROR a {len(cc_list)} usuario(s) CC...")
                 logger.info("=" * 80)
 
+                # Crear lista de adjuntos
+                cc_attachments = []
+
+                # Si hay datos extraídos, generar archivo con datos del PDF (aunque haya fallado la creación)
+                if extracted_data:
+                    logger.info("📝 Generando archivo de texto con datos extraídos del PDF...")
+                    text_content = _generate_formatted_text_for_cc(extracted_data)
+
+                    # Crear archivo temporal para datos extraídos
+                    temp_text_file_datos = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+                    temp_text_file_datos.write(text_content)
+                    temp_text_file_datos.close()
+                    temp_files_to_clean.append(temp_text_file_datos.name)
+
+                    # Determinar nombre del archivo basado en boleta
+                    boleta_numero = extracted_data.get('numero_boleta', 'datos')
+                    text_filename_datos = f"Datos_Extraidos_Boleta_{boleta_numero}.txt"
+                    logger.info(f"✅ Archivo de datos extraídos creado: {text_filename_datos}")
+
+                    # Leer el contenido del archivo para adjuntar
+                    with open(temp_text_file_datos.name, 'rb') as f:
+                        text_file_data_datos = f.read()
+
+                    cc_attachments.append({
+                        'filename': text_filename_datos,
+                        'data': text_file_data_datos
+                    })
+
                 # Generar archivo de texto con información del error
                 logger.info("📝 Generando archivo de texto con información del error...")
                 error_text_content = f"""NOTIFICACIÓN DE ERROR - PROCESAMIENTO DE PRE-INGRESO
@@ -886,23 +914,22 @@ Sistema Automatizado de Gestión de Reparaciones
 """
 
                 # Crear archivo temporal con la información del error
-                temp_text_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
-                temp_text_file.write(error_text_content)
-                temp_text_file.close()
-                temp_files_to_clean.append(temp_text_file.name)
+                temp_text_file_error = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+                temp_text_file_error.write(error_text_content)
+                temp_text_file_error.close()
+                temp_files_to_clean.append(temp_text_file_error.name)
 
-                text_filename = f"Error_Procesamiento_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-                logger.info(f"✅ Archivo de texto creado: {text_filename}")
+                text_filename_error = f"Error_Procesamiento_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                logger.info(f"✅ Archivo de error creado: {text_filename_error}")
 
                 # Leer el contenido del archivo para adjuntar
-                with open(temp_text_file.name, 'rb') as f:
-                    text_file_data = f.read()
+                with open(temp_text_file_error.name, 'rb') as f:
+                    text_file_data_error = f.read()
 
-                # Crear lista de adjuntos (archivo de texto + PDF original)
-                cc_attachments = [{
-                    'filename': text_filename,
-                    'data': text_file_data
-                }]
+                cc_attachments.append({
+                    'filename': text_filename_error,
+                    'data': text_file_data_error
+                })
 
                 # Agregar PDF original si está disponible
                 if pdf_original and pdf_original.get('data'):
@@ -936,9 +963,16 @@ Sistema Automatizado de Gestión de Reparaciones
                         "",
                         "Se le envía esta notificación automática para informarle que se ha detectado un ERROR durante el procesamiento de un pre-ingreso.",
                         "",
-                        "Adjunto encontrará:",
-                        "• Archivo de texto con información detallada del error",
-                        "• PDF original que causó el error (si está disponible)",
+                        "Adjunto encontrará:"
+                    ]
+
+                    # Agregar lista de archivos adjuntos según lo que esté disponible
+                    if extracted_data:
+                        cc_body_lines.append("• Archivo de texto con datos extraídos del PDF")
+                    cc_body_lines.append("• Archivo de texto con información detallada del error")
+                    cc_body_lines.append("• PDF original que causó el error (si está disponible)")
+
+                    cc_body_lines.extend([
                         "",
                         "⚠️ DETALLES DEL ERROR:",
                         "",
@@ -954,7 +988,7 @@ Sistema Automatizado de Gestión de Reparaciones
                         "",
                         "Atentamente,",
                         "Sistema Automatizado de Gestión de Reparaciones"
-                    ]
+                    ])
 
                     cc_body = "\n".join(cc_body_lines)
 
