@@ -1349,7 +1349,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
                 'filename': pdf_filename,
                 'is_409_conflict': is_409_conflict,
                 'numero_boleta': extracted_data.get('numero_boleta') if is_409_conflict else None,
-                'numero_transaccion': extracted_data.get('numero_transaccion') if is_409_conflict else None
+                'numero_transaccion': extracted_data.get('numero_transaccion') if is_409_conflict else None,
+                'extracted_data': extracted_data  # Incluir datos extraídos para notificaciones a CC
             }
 
     except Exception as e:
@@ -1489,6 +1490,8 @@ class Case(BaseCase):
                     'numero_boleta': result.get('numero_boleta'),
                     'numero_transaccion': result.get('numero_transaccion')
                 })
+                # Guardar los datos extraídos incluso si falló (para enviar a usuarios CC)
+                extracted_data = result.get('extracted_data')
                 logger.error(f"❌ Falló el procesamiento de: {pdf_filename}")
 
             # Validar si se creó el preingreso correctamente
@@ -1512,7 +1515,12 @@ class Case(BaseCase):
                             subject,
                             first_conflict.get('numero_boleta'),
                             first_conflict.get('numero_transaccion')
-                        )
+                        ),
+                        'extracted_data': extracted_data,  # Datos extraídos para usuarios CC
+                        'pdf_original': {  # PDF original para adjuntar en notificaciones a usuarios CC
+                            'filename': pdf_filename,
+                            'data': pdf_content
+                        }
                     }
                     return response
 
@@ -1520,7 +1528,12 @@ class Case(BaseCase):
                 response = {
                     'recipient': sender,
                     'subject': f"Error en Procesamiento de Preingreso - {timestamp}",
-                    'body': _generate_all_failed_message(failed_files, non_pdf_files, subject)
+                    'body': _generate_all_failed_message(failed_files, non_pdf_files, subject),
+                    'extracted_data': extracted_data,  # Datos extraídos para usuarios CC
+                    'pdf_original': {  # PDF original para adjuntar en notificaciones a usuarios CC
+                        'filename': pdf_filename,
+                        'data': pdf_content
+                    }
                 }
                 return response
 
