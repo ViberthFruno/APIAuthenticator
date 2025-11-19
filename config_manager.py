@@ -326,6 +326,7 @@ def get_proveedores_config():
     Returns:
         Dict: Configuración de proveedores con estructura:
               {
+                  "palabras_clave_campo": ["PROVEEDOR", "PROBEDOR", "PROVEDOR", ...],
                   "proveedores": {
                       "MobilePro": {
                           "id": "UUID",
@@ -339,6 +340,14 @@ def get_proveedores_config():
 
     # Proveedores por defecto con sus UUIDs
     default_proveedores = {
+        "palabras_clave_campo": [
+            "PROVEEDOR",
+            "PROBEDOR",
+            "PROVEDOR",
+            "PROBEEDOR",
+            "PROVEHEDOR",
+            "PROOVEDOR"
+        ],
         "proveedores": {
             "MobilePro": {
                 "id": "4d368873-4488-416f-9996-a95c416eaec2",

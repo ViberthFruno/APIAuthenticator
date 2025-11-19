@@ -1,4 +1,12 @@
 {
+  "palabras_clave_campo": [
+    "PROVEEDOR",
+    "PROBEDOR",
+    "PROVEDOR",
+    "PROBEEDOR",
+    "PROVEHEDOR",
+    "PROOVEDOR"
+  ],
   "proveedores": {
     "MobilePro": {
       "id": "4d368873-4488-416f-9996-a95c416eaec2",

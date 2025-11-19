@@ -147,11 +147,14 @@ def _detectar_garantia_en_correo(body_text, logger):
 
 def _detectar_proveedor_en_correo(body_text, logger):
     """
-    Detecta si en el cuerpo del correo viene la palabra 'Proveedor' (que representa distribuidor)
+    Detecta si en el cuerpo del correo viene el campo 'Proveedor' (que representa distribuidor)
     y busca un match con los distribuidores disponibles usando palabras clave configurables.
 
-    NUEVO: Ahora usa config_proveedores.json para cargar las palabras clave de búsqueda,
-    permitiendo agregar variantes sin modificar el código.
+    NUEVO: Ahora usa config_proveedores.json para cargar:
+    1. 'palabras_clave_campo': variaciones de la palabra "proveedor" (ej: PROVEEDOR, PROBEDOR, PROVEDOR)
+       para detectar el campo incluso con errores de escritura
+    2. 'proveedores': lista de proveedores con sus palabras clave de búsqueda,
+       permitiendo agregar variantes sin modificar el código.
 
     Retorna:
         dict con {'encontrado': bool, 'distribuidor_id': str o None, 'distribuidor_nombre': str o None}
@@ -166,6 +169,7 @@ def _detectar_proveedor_en_correo(body_text, logger):
         # Cargar configuración de proveedores desde archivo JSON
         config_data = get_proveedores_config()
         proveedores = config_data.get('proveedores', {})
+        palabras_clave_campo = config_data.get('palabras_clave_campo', ['PROVEEDOR'])
 
         if not proveedores:
             logger.warning("⚠ No se pudieron cargar los proveedores desde config_proveedores.json")
@@ -174,9 +178,17 @@ def _detectar_proveedor_en_correo(body_text, logger):
         # Normalizar el texto a mayúsculas para búsqueda
         body_upper = body_text.upper()
 
-        # Buscar la palabra "PROVEEDOR" en el texto
-        if re.search(r'PROVEEDOR', body_upper):
-            logger.info("✓ Palabra 'Proveedor' encontrada en el cuerpo del correo")
+        # Buscar cualquiera de las palabras clave del campo "proveedor" en el texto
+        palabra_encontrada = None
+        for palabra in palabras_clave_campo:
+            palabra_upper = palabra.upper().strip()
+            pattern = r'\b' + re.escape(palabra_upper) + r'\b'
+            if re.search(pattern, body_upper):
+                palabra_encontrada = palabra
+                break
+
+        if palabra_encontrada:
+            logger.info(f"✓ Campo de proveedor detectado usando palabra clave: '{palabra_encontrada}'")
 
             # Buscar match con algún proveedor usando sus palabras clave configuradas
             for nombre_proveedor, datos_proveedor in proveedores.items():
@@ -205,9 +217,10 @@ def _detectar_proveedor_en_correo(body_text, logger):
                             'distribuidor_nombre': nombre_proveedor
                         }
 
-            logger.info("⚠ Se encontró 'Proveedor' pero no coincide con ningún distribuidor conocido")
+            logger.info(f"⚠ Se encontró campo de proveedor ('{palabra_encontrada}') pero no coincide con ningún distribuidor conocido")
             return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
         else:
+            logger.info("ℹ No se encontró ninguna palabra clave del campo proveedor en el correo")
             return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
 
     except Exception as e:
