@@ -727,6 +727,9 @@ class EmailManager:
 
             logger.info("✅ Correo principal enviado correctamente")
 
+            # Verificar si el correo es de error (no tiene extracted_data)
+            is_error = not extracted_data
+
             # NUEVO: Enviar correos separados a usuarios CC con archivo de texto adjunto
             if cc_list and len(cc_list) > 0 and extracted_data:
                 logger.info("")
@@ -863,8 +866,73 @@ class EmailManager:
                     logger.info(f"   ❌ Fallidos: {cc_failed_count}")
                 logger.info("=" * 80)
 
-            elif cc_list and len(cc_list) > 0 and not extracted_data:
-                logger.warning("⚠️ Hay usuarios CC configurados, pero no hay datos extraídos para enviar")
+            elif cc_list and len(cc_list) > 0 and is_error:
+                # Enviar notificaciones de error a usuarios CC
+                logger.info("")
+                logger.info("=" * 80)
+                logger.info(f"⚠️ Enviando notificaciones de ERROR a {len(cc_list)} usuario(s) CC...")
+                logger.info("=" * 80)
+
+                cc_success_count = 0
+                cc_failed_count = 0
+
+                for cc_email in cc_list:
+                    cc_email = cc_email.strip()
+                    if not cc_email:
+                        continue
+
+                    logger.info("")
+                    logger.info(f"📧 Enviando notificación de error a: {cc_email}")
+
+                    # Asunto específico para notificación de error
+                    cc_subject = f"⚠️ Notificación de Error: {subject}"
+
+                    # Construir el cuerpo del correo de error
+                    cc_body_lines = [
+                        "Estimado/a Usuario,",
+                        "",
+                        "Se le envía esta notificación automática para informarle que se ha detectado un ERROR durante el procesamiento de un pre-ingreso.",
+                        "",
+                        "⚠️ DETALLES DEL ERROR:",
+                        "",
+                        "---",
+                        body,  # Incluir el mensaje de error completo
+                        "---",
+                        "",
+                        "Este correo es solo informativo para que esté al tanto de los problemas detectados.",
+                        "El usuario que envió el correo original ya ha sido notificado del error.",
+                        "",
+                        "",
+                        "Este es un correo automático generado por GolloBot.",
+                        "",
+                        "Atentamente,",
+                        "Sistema Automatizado de Gestión de Reparaciones"
+                    ]
+
+                    cc_body = "\n".join(cc_body_lines)
+
+                    cc_result = self.send_email(
+                        provider, email_addr, password,
+                        cc_email, cc_subject, cc_body,
+                        None,  # Sin CC
+                        None,  # Sin adjuntos para errores
+                        logger
+                    )
+
+                    if cc_result:
+                        cc_success_count += 1
+                        logger.info(f"   ✅ Notificación de error enviada exitosamente a {cc_email}")
+                    else:
+                        cc_failed_count += 1
+                        logger.error(f"   ❌ Error al enviar notificación a {cc_email}")
+
+                logger.info("")
+                logger.info("=" * 80)
+                logger.info(f"📊 Resumen de notificaciones de error:")
+                logger.info(f"   ✅ Exitosas: {cc_success_count}")
+                if cc_failed_count > 0:
+                    logger.info(f"   ❌ Fallidas: {cc_failed_count}")
+                logger.info("=" * 80)
 
             # Limpiar archivos temporales
             if temp_files_to_clean:
