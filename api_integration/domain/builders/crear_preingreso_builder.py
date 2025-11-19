@@ -1,9 +1,6 @@
 # crear_preingreso_builder.py
 
 import re
-import json
-import os
-import sys
 from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 from uuid import UUID
@@ -12,7 +9,6 @@ from dateutil.relativedelta import relativedelta
 
 from api_integration.application.dtos import SucursalDTO, DatosExtraidosPDF, ArchivoAdjunto
 from api_integration.domain.entities import PreingresoData
-
 # Importar función global para cargar configuración de categorías
 # IMPORTANTE: Esta función maneja correctamente las rutas tanto en PyInstaller como en desarrollo
 from config_manager import get_categorias_config
@@ -125,7 +121,7 @@ class CrearPreingresoBuilder:
         """
         # Crear una copia de las categorías hardcodeadas por defecto
         categorias = {nombre: {"id": datos["id"], "palabras_clave": datos["palabras_clave"].copy()}
-                     for nombre, datos in CrearPreingresoBuilder._CATEGORIAS_CONFIG.items()}
+                      for nombre, datos in CrearPreingresoBuilder._CATEGORIAS_CONFIG.items()}
 
         try:
             # Usar la función global que maneja correctamente las rutas en PyInstaller y desarrollo
@@ -227,10 +223,6 @@ class CrearPreingresoBuilder:
         # Obtener id del modelo comercial
         modelo_comercial_id = UUID('910f491b-6c99-4225-bef8-83c85a83ae44')  # Desconocido
 
-        fecha_compra = datos_pdf.fecha_compra if datos_pdf.fecha_compra else "01/01/1970"
-
-        fecha_compra = CrearPreingresoBuilder._convertir_fecha(fecha_compra)
-
         numero_factura = CrearPreingresoBuilder._limpiar_texto(datos_pdf.factura, True)
 
         if not numero_factura:
@@ -239,38 +231,29 @@ class CrearPreingresoBuilder:
         # Detectar categoría y tipo de dispositivo automáticamente basándose en la descripción del producto
         categoria_id, tipo_dispositivo_id = CrearPreingresoBuilder._detectar_categoria(datos_pdf.producto_descripcion)
 
-        # Por default están sin garantía
-        tipo_preingreso_id = 92
-        garantia_id = 2
-        msg_fecha_compra = ""
+        cuerpo_correo = CrearPreingresoBuilder._limpiar_texto(datos_pdf.cuerpo_correo)
 
-        if not datos_pdf.fecha_compra:
-            # Si la fecha de compra no viene, entonces ingresa como "Sin Garantía"
-            msg_fecha_compra = "La fecha de compra no viene en el documento PDF, ingresa 'Sin Garantía'"
+        pdf_tiene_fecha_compra = datos_pdf.fecha_compra is not None and datos_pdf.fecha_compra != ""
 
-        else:
-            # Si la fecha de compra No ha excedido un año
-            if not CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
+        fecha_compra = CrearPreingresoBuilder._convertir_fecha(
+            datos_pdf.fecha_compra) if pdf_tiene_fecha_compra else '1970-01-01'
 
-                # Intenta obtener el tipo de preingreso y la garantía desde la información del PDF
-                tipo_preingreso_id, garantia_id = (
-                    CrearPreingresoBuilder._validar_garantia(
-                        fecha_compra,
-                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre),
-                        numero_factura,
-                        CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
-                    )
-                )
-            else:
-                # Si la fecha de compra excede un año, entonces ingresa como "Sin Garantía".
-                msg_fecha_compra = f"La fecha de compra '{fecha_compra}' excede un año, ingresa 'Sin Garantía'"
+        tipo_preingreso_id, garantia_id, msg_fecha_compra = (
+            CrearPreingresoBuilder._validar_garantia(
+                pdf_tiene_fecha_compra,
+                fecha_compra,
+                CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre),
+                cuerpo_correo,
+                numero_factura,
+                CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
+            )
+        )
 
         # detalle_recepcion = nombre marca + nombre modelo + Daños + observaciones + cuerpo del correo.
         # Usar el nombre canónico de la marca (no el del PDF que puede venir en mayúsculas/minúsculas)
         modelo_nombre = CrearPreingresoBuilder._limpiar_texto(datos_pdf.modelo_nombre)
         danos = CrearPreingresoBuilder._limpiar_texto(datos_pdf.danos)
         observaciones = CrearPreingresoBuilder._limpiar_texto(datos_pdf.observaciones)
-        cuerpo_correo = CrearPreingresoBuilder._limpiar_texto(datos_pdf.cuerpo_correo)
 
         # Construir detalle base
         detalle_recepcion = f"Marca:{marca_nombre_canonico} | Modelo:{modelo_nombre} | Daño:{danos} | Obs:{observaciones} | {msg_fecha_compra}".rstrip(
@@ -335,19 +318,24 @@ class CrearPreingresoBuilder:
 
     @staticmethod
     def _validar_garantia(
+            pdf_tiene_fecha_compra: bool,
             fecha_compra: str,
             nombre_garantia: str,
+            cuerpo_correo: str | None,
             factura: str | None,
             observaciones: str | None
-    ) -> Tuple[int, int]:
+    ) -> Tuple[int, int, str]:
         """
         Mapea un nombre de garantía a su ID correspondiente de tipo de preingreso y garantía.
         Si no se encuentra coincidencia, entonces por defecto devuelve los ids de 'Sin garantía'.
 
         Returns:
-            Tuple[int, int]: Una tupla (tipo_preingreso_id, garantia_id).
-                             Por defecto, (92, 2) si no se encuentra coincidencia.
+            Tuple[int, int, str]: Una tupla (tipo_preingreso_id, garantia_id, msg_fecha_compra).
+                             Por defecto, (92, 2, '') si no se encuentra coincidencia.
         """
+
+        # TODO: Crear lógica para obtener la Garantía según el cuerpo del correo (si este aplica).
+
         la_factura = factura if factura else ""
         la_factura = CrearPreingresoBuilder._normalizar_clave(la_factura)
 
@@ -355,7 +343,7 @@ class CrearPreingresoBuilder:
         la_observacion = CrearPreingresoBuilder._normalizar_clave(la_observacion)
 
         if 'stock' in la_factura or 'stock' in la_observacion:
-            return 8, 1
+            return 8, 1, ''
 
         clave_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_garantia)
 
@@ -364,9 +352,17 @@ class CrearPreingresoBuilder:
 
         # Si no es 'C.S.R.' y si es DAP, retorna como DAP:
         if tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_dap(fecha_compra):
-            return 9, 1
+            return 9, 1, 'Se detecta como DAP según la fecha de compra'
 
-        return tipo_preingreso_id, garantia_id
+        # Si la fecha de compra no viene, entonces ingresa como "Sin Garantía":
+        if not pdf_tiene_fecha_compra:
+            return 92, 2, "La fecha de compra no viene en el documento PDF, ingresa 'Sin Garantía'"
+
+        # Si la fecha de compra ha excedido un año, entonces ingresa como "Sin Garantía"
+        if CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
+            return 92, 2, f"La fecha de compra '{fecha_compra}' excede un año, ingresa 'Sin Garantía'"
+
+        return tipo_preingreso_id, garantia_id, ''
 
     @staticmethod
     def _convertir_fecha(fecha_ddmmyyyy: str) -> str:
