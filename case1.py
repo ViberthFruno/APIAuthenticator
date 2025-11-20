@@ -704,9 +704,9 @@ def extract_repair_data(text, logger):
             data['codigo_distribuidor'] = match.group(1).strip()
             data['distribuidor'] = match.group(2).strip()
 
-        # Número de factura (más flexible - captura STOCK)
-        # Actualizado para detenerse también antes de "Fecha de Compra:"
-        match = re.search(r'No\s*\.?\s*Factura\s*:?\s*([^\s]+(?:\s+[^\s]+){0,5}?)(?=\s+Correo|\s+Fecha\s+de\s+Compra)',
+        # Número de factura (más flexible - captura tanto números como texto)
+        # Actualizado para detenerse antes de campos intermedios como Tel:, Correo:, Fecha, C.S.R.:, Garantia
+        match = re.search(r'No\s*\.?\s*Factura\s*:?\s*([^\s]+(?:\s+[^\s]+){0,5}?)(?=\s+(?:Tel:|Correo:|Fecha|C\.?S\.?R\.?:|Garantia))',
                           text,
                           re.IGNORECASE)
         if match:
