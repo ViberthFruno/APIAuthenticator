@@ -1173,6 +1173,11 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
         # Información de garantía y distribuidor para logging
         garantia_del_pdf = extracted_data.get('tipo_garantia', '')
         logger.info(f"   📋 Garantía extraída del PDF: '{garantia_del_pdf}'")
+
+        # Flag informativo: indica si se detectó garantía en el correo (solo para logging/mensajes)
+        # NOTA: La decisión de qué garantía usar se realiza en CrearPreingresoBuilder._determinar_tipo_garantia()
+        garantia_viene_de_correo = bool(garantia_correo)
+
         if garantia_correo:
             logger.info(f"   📧 Garantía detectada en correo: '{garantia_correo}' (tendrá prioridad si es válida)")
 
