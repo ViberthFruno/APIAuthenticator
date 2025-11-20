@@ -146,6 +146,40 @@ class CrearPreingresoBuilder:
         _normalizar_clave('DAP'): 1,
     }
 
+    # Tipos de dispositivo hardcodeados (lista fija que no cambia)
+    # Estos son los únicos IDs válidos que la API acepta
+    TIPOS_DISPOSITIVO_IDS: Dict[str, int] = {
+        'Celulares y Tablets': 1,
+        'Monitores': 2,
+        'Cocinas': 3,
+        'Refrigeradoras': 4,
+        'Licuadoras': 6,
+        'Desconocido': 7,
+        'Audífonos': 8,
+        'Relojes': 9,
+        'Cable USB': 10,
+        'Cubo': 11,
+        'Proyector': 13,
+        'Parlante': 15,
+        'Mouse': 16,
+        'Scooter': 17,
+        'Robot de Limpieza': 18,
+        'Pantallas': 19,
+        'Impresora': 20,
+        'Laptop': 21,
+        'Cámaras de seguridad': 23,
+        'Router': 24,
+        'Drones': 25,
+        'Baterías': 26,
+        'Gaming': 27,
+        'Teclado': 28,
+        'Estuches': 29,
+        'Audio/video': 32,
+        'Internet Satelital': 33,
+        'Tarjeta de memoria externa': 34,
+        'No encontrado': 36
+    }
+
     # Categorías hardcodeadas (solo categoria_id, sin tipo_dispositivo_id)
     _CATEGORIAS_CONFIG: Dict = {
         "Móviles": {"id": 1, "palabras_clave": []},
@@ -182,14 +216,22 @@ class CrearPreingresoBuilder:
             for nombre_cat, datos_cat in categorias_guardadas.items():
                 if nombre_cat in categorias:
                     palabras_guardadas = datos_cat.get('palabras_clave', [])
-                    # Convertir palabras clave a formato simple (solo strings)
-                    palabras_simples = []
+                    # Mantener estructura completa con tipo_dispositivo_id
+                    palabras_completas = []
                     for palabra_data in palabras_guardadas:
                         if isinstance(palabra_data, str):
-                            palabras_simples.append(palabra_data)
+                            # Formato antiguo: solo string, usar tipo desconocido
+                            palabras_completas.append({
+                                'palabra': palabra_data,
+                                'tipo_dispositivo_id': 7  # Desconocido
+                            })
                         elif isinstance(palabra_data, dict):
-                            palabras_simples.append(palabra_data.get('palabra', ''))
-                    categorias[nombre_cat]['palabras_clave'] = palabras_simples
+                            # Formato nuevo: dict con palabra y tipo_dispositivo_id
+                            palabras_completas.append({
+                                'palabra': palabra_data.get('palabra', ''),
+                                'tipo_dispositivo_id': palabra_data.get('tipo_dispositivo_id', 7)  # Default: Desconocido
+                            })
+                    categorias[nombre_cat]['palabras_clave'] = palabras_completas
 
             print(f"[DEBUG CrearPreingresoBuilder] ✓ Configuración de categorías cargada correctamente")
             print(f"[DEBUG CrearPreingresoBuilder] Total categorías: {len(categorias)}")
@@ -207,19 +249,19 @@ class CrearPreingresoBuilder:
     @staticmethod
     def _detectar_categoria(descripcion_producto: Optional[str]) -> Tuple[int, int]:
         """
-        Detecta la categoría del producto basándose en palabras clave en la descripción.
+        Detecta la categoría y tipo de dispositivo del producto basándose en palabras clave en la descripción.
         Prioriza coincidencias más largas (más específicas) sobre coincidencias cortas.
-
-        Nota: tipo_dispositivo_id siempre retorna 7 (Desconocido) ya que solo se trabaja con categoria_id.
 
         Args:
             descripcion_producto: Descripción del producto extraída del PDF
 
         Returns:
             Tuple[int, int]: (categoria_id, tipo_dispositivo_id)
-                           (12, 7) = (No encontrado, Desconocido) si no se encuentra coincidencia
+                           - categoria_id: ID de la categoría detectada (12 = "No encontrado" si no hay coincidencia)
+                           - tipo_dispositivo_id: ID del tipo de dispositivo configurado en el JSON para esa palabra clave
+                                                 (7 = "Desconocido" si no hay coincidencia)
         """
-        # Tipo de dispositivo siempre será Desconocido (7) ya que solo trabajamos con categoria_id
+        # Tipo de dispositivo por defecto (cuando no se encuentra coincidencia)
         TIPO_DISPOSITIVO_DESCONOCIDO = 7
 
         # Si no hay descripción, retornar "No encontrado"
@@ -236,28 +278,31 @@ class CrearPreingresoBuilder:
         # Normalizar la descripción para búsqueda case-insensitive
         descripcion_normalizada = descripcion_producto.upper().strip()
 
-        # Recopilar todas las palabras clave con sus categorías
+        # Recopilar todas las palabras clave con sus categorías y tipos de dispositivo
         # y ordenarlas por longitud descendente (más largas primero)
         todas_palabras = []
         for nombre_categoria, config_categoria in categorias_config.items():
             categoria_id = config_categoria.get('id')
             palabras_clave = config_categoria.get('palabras_clave', [])
 
-            for palabra in palabras_clave:
-                # Las palabras clave ahora son strings simples
-                if isinstance(palabra, str):
+            for palabra_data in palabras_clave:
+                # Las palabras clave ahora son diccionarios con palabra y tipo_dispositivo_id
+                if isinstance(palabra_data, dict):
+                    palabra = palabra_data.get('palabra', '')
+                    tipo_dispositivo_id = palabra_data.get('tipo_dispositivo_id', TIPO_DISPOSITIVO_DESCONOCIDO)
+
                     palabra_normalizada = palabra.upper().strip()
                     if palabra_normalizada:  # Ignorar palabras vacías
-                        todas_palabras.append((palabra_normalizada, categoria_id))
+                        todas_palabras.append((palabra_normalizada, categoria_id, tipo_dispositivo_id))
 
         # Ordenar por longitud descendente (más largas primero)
         todas_palabras.sort(key=lambda x: len(x[0]), reverse=True)
 
         # Buscar coincidencias con palabras clave ordenadas
-        for palabra_normalizada, categoria_id in todas_palabras:
-            # Si la palabra clave está contenida en la descripción, retornar la categoría
+        for palabra_normalizada, categoria_id, tipo_dispositivo_id in todas_palabras:
+            # Si la palabra clave está contenida en la descripción, retornar la categoría y tipo de dispositivo
             if palabra_normalizada in descripcion_normalizada:
-                return categoria_id, TIPO_DISPOSITIVO_DESCONOCIDO
+                return categoria_id, tipo_dispositivo_id
 
         # Si no se encontró ninguna coincidencia, retornar "No encontrado"
         return 12, TIPO_DISPOSITIVO_DESCONOCIDO  # Categoría "No encontrado", Tipo Dispositivo Desconocido
