@@ -71,6 +71,8 @@ class IntegratedGUI(LoggerMixin):
         self.preingreso_button = None
         self.marca_button = None
         self.garantias_button = None
+        self.categoria_entry = None
+        self.dispositivo_button = None
         self.search_button = None
         self.api_config_button = None
         self.cc_users_button = None
@@ -386,7 +388,21 @@ class IntegratedGUI(LoggerMixin):
             text="Garantías",
             command=self.consultar_garantias
         )
-        self.garantias_button.pack(fill=tk.X)
+        self.garantias_button.pack(fill=tk.X, pady=(0, 10))
+
+        # Campo y botón para consultar dispositivo por categoría
+        ttk.Label(marca_frame, text="Categoría Dispositivo ID:").pack(anchor="w", pady=(0, 5))
+
+        self.categoria_entry = ttk.Entry(marca_frame, width=30)
+        self.categoria_entry.pack(fill=tk.X, pady=(0, 5))
+
+        # Botón consultar dispositivo
+        self.dispositivo_button = ttk.Button(
+            marca_frame,
+            text="Consultar Dispositivo",
+            command=self.consultar_dispositivo
+        )
+        self.dispositivo_button.pack(fill=tk.X)
 
     def setup_api_right_panel(self):
         """Configura el panel derecho de la pestaña API con el log"""
@@ -1951,6 +1967,76 @@ class IntegratedGUI(LoggerMixin):
 
             # Rehabilitar botón
             self.garantias_button.config(state=tk.NORMAL, text="Garantías")
+
+        # Ejecutar operación async
+        run_async_with_callback(
+            consultar(),
+            on_success=on_success,
+            on_error=on_error
+        )
+
+    def consultar_dispositivo(self):
+        """Consulta tipos de dispositivo por categoría"""
+        # Obtener el ID de categoría del campo de entrada
+        categoria_id = self.categoria_entry.get().strip()
+
+        if not categoria_id:
+            self.log_api_message("❌ Error: Debe ingresar un ID de categoría", "ERROR")
+            messagebox.showwarning("Advertencia", "Ingrese un ID de categoría de dispositivo")
+            return
+
+        self.log_api_message("=" * 60)
+        self.log_api_message("📱 Consultando Tipos de Dispositivo")
+        self.log_api_message("=" * 60)
+        self.log_api_message(f"🔍 Categoría ID: {categoria_id}")
+
+        # Deshabilitar botón
+        self.dispositivo_button.config(state=tk.DISABLED, text="Consultando...")
+
+        async def consultar():
+            """Operación asíncrona"""
+            self.log_api_message("🔄 Iniciando consulta...")
+            endpoint = f"/v1/unidad/categoria/{categoria_id}/tipo_dispositivo"
+            self.log_api_message(f"📡 Endpoint: {endpoint}")
+            self.log_api_message(f"🌐 URL completa: {self.settings.API_BASE_URL}{endpoint}")
+            self.log_api_message("")
+
+            # Llamar al repositorio
+            response = await self.repository.listar_tipos_dispositivo(categoria_id)
+            return response
+
+        def on_success(response):
+            """Callback de éxito"""
+            self.log_api_message(f"📥 Status Code: {response.status_code}")
+            self.log_api_message("")
+
+            if response.status_code == 200:
+                self.log_api_message("✅ Respuesta exitosa")
+                try:
+                    import json
+                    formatted_json = json.dumps(response.body, indent=2, ensure_ascii=False)
+                    self.log_api_message("📄 Tipos de Dispositivo:")
+                    self.log_api_message(formatted_json)
+                except:
+                    self.log_api_message("📄 Respuesta (texto plano):")
+                    self.log_api_message(str(response.raw_content))
+            else:
+                self.log_api_message(f"⚠️ Error: {response.status_code}", "ERROR")
+                self.log_api_message(f"📄 Respuesta: {response.body if response.body else '(vacío)'}")
+
+            self.log_api_message("")
+            self.log_api_message("=" * 60)
+
+            # Rehabilitar botón
+            self.dispositivo_button.config(state=tk.NORMAL, text="Consultar Dispositivo")
+
+        def on_error(error):
+            """Callback de error"""
+            self.log_api_message(f"❌ Error: {str(error)}", "ERROR")
+            self.log_api_message("=" * 60)
+
+            # Rehabilitar botón
+            self.dispositivo_button.config(state=tk.NORMAL, text="Consultar Dispositivo")
 
         # Ejecutar operación async
         run_async_with_callback(
