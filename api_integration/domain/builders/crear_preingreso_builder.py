@@ -73,6 +73,56 @@ class CrearPreingresoBuilder:
         # nombre_normalizado = re.sub(r'[^\w\s]', '', nombre_normalizado)
         return nombre_normalizado
 
+    @staticmethod
+    def _detectar_garantia_en_correo(cuerpo_correo: str | None) -> Tuple[bool, str | None]:
+        """
+        Detecta si en el cuerpo del correo viene la palabra 'Garantia' y una opción válida.
+
+        Args:
+            cuerpo_correo: Texto del cuerpo del correo electrónico
+
+        Returns:
+            Tuple[bool, str | None]: (encontrada, garantia)
+                - encontrada: True si se encontró una garantía válida en el correo
+                - garantia: Nombre de la garantía encontrada (normalizado) o None
+        """
+        if not cuerpo_correo:
+            return False, None
+
+        # Opciones válidas de garantía (case insensitive)
+        # Mapeo: CLAVE_BUSQUEDA -> Valor normalizado
+        opciones_validas = {
+            'NORMAL': 'Normal',
+            'NO': 'No',
+            'C.S.R.': 'C.S.R.',
+            'C.S.R': 'C.S.R.',
+            'CSR': 'C.S.R.',
+            'DOA': 'DOA',
+            'STOCK': 'STOCK',
+            'DAP': 'DAP'
+        }
+
+        try:
+            # Normalizar el texto a mayúsculas para búsqueda
+            cuerpo_upper = cuerpo_correo.upper()
+
+            # Buscar "GARANTIA" o "GARANTÍA" en el texto
+            if re.search(r'GARANT[IÍ]A', cuerpo_upper):
+                # Buscar una de las opciones válidas
+                for opcion_upper, opcion_normalizada in opciones_validas.items():
+                    # Buscar la opción con límites de palabra
+                    pattern = r'\b' + re.escape(opcion_upper) + r'\b'
+                    if re.search(pattern, cuerpo_upper):
+                        return True, opcion_normalizada
+
+                # Se encontró 'Garantia' pero sin opción válida
+                return False, None
+            else:
+                return False, None
+
+        except Exception:
+            return False, None
+
     # Definir las constantes como atributos de clase
     _TIPO_PREINGRESO_MAP: Dict[str, int] = {
         _normalizar_clave('Normal'): 7,
@@ -239,7 +289,7 @@ class CrearPreingresoBuilder:
             datos_pdf.fecha_compra) if pdf_tiene_fecha_compra else '1970-01-01'
 
         tipo_preingreso_id, garantia_id, msg_fecha_compra = (
-            CrearPreingresoBuilder._validar_garantia(
+            CrearPreingresoBuilder._determinar_tipo_garantia(
                 pdf_tiene_fecha_compra,
                 fecha_compra,
                 CrearPreingresoBuilder._limpiar_texto(datos_pdf.garantia_nombre),
@@ -317,25 +367,69 @@ class CrearPreingresoBuilder:
         )
 
     @staticmethod
-    def _validar_garantia(
+    def _determinar_tipo_garantia(
             pdf_tiene_fecha_compra: bool,
             fecha_compra: str,
-            nombre_garantia: str,
+            garantia_desde_pdf: str,
             cuerpo_correo: str | None,
             factura: str | None,
             observaciones: str | None
     ) -> Tuple[int, int, str]:
         """
-        Mapea un nombre de garantía a su ID correspondiente de tipo de preingreso y garantía.
-        Si no se encuentra coincidencia, entonces por defecto devuelve los ids de 'Sin garantía'.
+        Determina el tipo de preingreso y garantía basándose en múltiples fuentes de información.
+
+        JERARQUÍA DE PRIORIDADES:
+        1. Garantía del correo electrónico (si el usuario la especifica en el correo)
+        2. Casos especiales (STOCK en factura/observaciones)
+        3. Garantía del PDF (valor extraído del documento)
+        4. Validaciones de fecha (DAP, sin fecha, mayor a 1 año)
+
+        Args:
+            pdf_tiene_fecha_compra: Si el PDF contiene fecha de compra
+            fecha_compra: Fecha de compra en formato YYYY-MM-DD
+            garantia_desde_pdf: Tipo de garantía extraído del PDF
+            cuerpo_correo: Texto completo del cuerpo del correo (opcional)
+            factura: Número de factura (opcional)
+            observaciones: Observaciones del PDF (opcional)
 
         Returns:
-            Tuple[int, int, str]: Una tupla (tipo_preingreso_id, garantia_id, msg_fecha_compra).
-                             Por defecto, (92, 2, '') si no se encuentra coincidencia.
+            Tuple[int, int, str]: (tipo_preingreso_id, garantia_id, mensaje)
+                - tipo_preingreso_id: ID del tipo de preingreso (7=Normal, 8=DOA/STOCK, 9=DAP, 92=Sin Garantía)
+                - garantia_id: ID de la garantía (1=Normal, 2=Sin Garantía, 4=C.S.R.)
+                - mensaje: Mensaje descriptivo del proceso de determinación
         """
 
-        # TODO: Crear lógica para obtener la Garantía según el cuerpo del correo (si este aplica).
+        # ========================================================================
+        # PRIORIDAD 1: Garantía del correo electrónico
+        # ========================================================================
+        # Si el usuario especifica garantía en el cuerpo del correo, tiene prioridad máxima
+        garantia_encontrada_correo, garantia_correo = CrearPreingresoBuilder._detectar_garantia_en_correo(cuerpo_correo)
 
+        if garantia_encontrada_correo and garantia_correo:
+            # Normalizar y mapear la garantía del correo
+            clave_normalizada = CrearPreingresoBuilder._normalizar_clave(garantia_correo)
+            tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
+            garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
+
+            # Aplicar validaciones de fecha incluso si viene del correo
+            # Si no es 'C.S.R.' (92) y es DAP, retornar como DAP
+            if tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_dap(fecha_compra):
+                return 9, 1, f"Garantía '{garantia_correo}' detectada en correo, ajustada a DAP por fecha de compra"
+
+            # Si no hay fecha de compra, ingresar como "Sin Garantía" excepto si es C.S.R.
+            if not pdf_tiene_fecha_compra and tipo_preingreso_id != 92:
+                return 92, 2, f"Garantía '{garantia_correo}' detectada en correo, pero sin fecha de compra → 'Sin Garantía'"
+
+            # Si la fecha excede un año, ingresar como "Sin Garantía" excepto si es C.S.R.
+            if pdf_tiene_fecha_compra and tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
+                return 92, 2, f"Garantía '{garantia_correo}' detectada en correo, pero fecha excede 1 año → 'Sin Garantía'"
+
+            return tipo_preingreso_id, garantia_id, f"Garantía '{garantia_correo}' detectada en cuerpo del correo (prioridad alta)"
+
+        # ========================================================================
+        # PRIORIDAD 2: Casos especiales - STOCK
+        # ========================================================================
+        # Si en factura u observaciones viene "STOCK", es DOA/STOCK
         la_factura = factura if factura else ""
         la_factura = CrearPreingresoBuilder._normalizar_clave(la_factura)
 
@@ -343,26 +437,33 @@ class CrearPreingresoBuilder:
         la_observacion = CrearPreingresoBuilder._normalizar_clave(la_observacion)
 
         if 'stock' in la_factura or 'stock' in la_observacion:
-            return 8, 1, ''
+            return 8, 1, "Detectado 'STOCK' en factura/observaciones → DOA/STOCK"
 
-        clave_normalizada = CrearPreingresoBuilder._normalizar_clave(nombre_garantia)
-
+        # ========================================================================
+        # PRIORIDAD 3: Garantía del PDF
+        # ========================================================================
+        # Si no hay garantía del correo, usar la del PDF
+        clave_normalizada = CrearPreingresoBuilder._normalizar_clave(garantia_desde_pdf)
         tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
         garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
 
-        # Si no es 'C.S.R.' y si es DAP, retorna como DAP:
+        # ========================================================================
+        # PRIORIDAD 4: Validaciones de fecha
+        # ========================================================================
+        # Si no es 'C.S.R.' (92) y es DAP (< 7 días), retornar como DAP
         if tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_dap(fecha_compra):
-            return 9, 1, 'Se detecta como DAP según la fecha de compra'
+            return 9, 1, f"Garantía del PDF: '{garantia_desde_pdf}', ajustada a DAP por fecha de compra < 7 días"
 
-        # Si la fecha de compra no viene, entonces ingresa como "Sin Garantía":
+        # Si la fecha de compra no viene, ingresar como "Sin Garantía"
         if not pdf_tiene_fecha_compra:
-            return 92, 2, "La fecha de compra no viene en el documento PDF, ingresa 'Sin Garantía'"
+            return 92, 2, "La fecha de compra no viene en el documento PDF → 'Sin Garantía'"
 
-        # Si la fecha de compra ha excedido un año, entonces ingresa como "Sin Garantía"
+        # Si la fecha de compra ha excedido un año, ingresar como "Sin Garantía"
         if CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
-            return 92, 2, f"La fecha de compra '{fecha_compra}' excede un año, ingresa 'Sin Garantía'"
+            return 92, 2, f"La fecha de compra '{fecha_compra}' excede un año → 'Sin Garantía'"
 
-        return tipo_preingreso_id, garantia_id, ''
+        # Si todo está OK, retornar los IDs correspondientes
+        return tipo_preingreso_id, garantia_id, f"Garantía del PDF: '{garantia_desde_pdf}'"
 
     @staticmethod
     def _convertir_fecha(fecha_ddmmyyyy: str) -> str:

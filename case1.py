@@ -1110,12 +1110,16 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
         pdf_content: Bytes del archivo PDF
         pdf_filename: Nombre del archivo PDF
         logger: Logger para registrar eventos
-        garantia_correo: Garantía recibida del cuerpo del correo (opcional)
+        garantia_correo: Garantía detectada en el cuerpo del correo (opcional, solo para logging)
         proveedor_correo_id: ID del distribuidor (proveedor) recibido del cuerpo del correo (opcional)
-        cuerpo_correo: Cuerpo del correo normalizado (opcional)
+        cuerpo_correo: Cuerpo del correo normalizado (opcional, usado por el builder para determinar garantía)
 
     Returns:
         dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
+
+    Nota:
+        La decisión final sobre qué garantía usar se realiza en CrearPreingresoBuilder._determinar_tipo_garantia()
+        siguiendo la jerarquía: Correo > Casos especiales > PDF > Validaciones de fecha
     """
     try:
         logger.info("=" * 80)
@@ -1166,17 +1170,11 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
         temp_pdf.close()
         logger.info(f"   📁 Archivo temporal creado: {temp_pdf.name}")
 
-        # Determinar qué garantía usar (prioridad: correo > PDF)
-        garantia_a_usar = None
-        garantia_viene_de_correo = False
-
+        # Información de garantía y distribuidor para logging
+        garantia_del_pdf = extracted_data.get('tipo_garantia', '')
+        logger.info(f"   📋 Garantía extraída del PDF: '{garantia_del_pdf}'")
         if garantia_correo:
-            garantia_a_usar = garantia_correo
-            garantia_viene_de_correo = True
-            logger.info(f"   ✓ Usando garantía del correo: '{garantia_correo}'")
-        else:
-            garantia_a_usar = extracted_data.get('tipo_garantia', '')
-            logger.info(f"   ℹ Usando garantía del PDF: '{garantia_a_usar}'")
+            logger.info(f"   📧 Garantía detectada en correo: '{garantia_correo}' (tendrá prioridad si es válida)")
 
         # Determinar qué distribuidor usar (proveedor = distribuidor)
         # Si viene proveedor_correo_id, usarlo; si no, dejar como None
@@ -1199,7 +1197,7 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
             cliente_telefono=_strip_if_string(extracted_data.get('telefono_cliente', '')),
             cliente_correo=_strip_if_string(extracted_data.get('correo_cliente', '')),
             serie=_strip_if_string(extracted_data.get('serie', '')),
-            garantia_nombre=_strip_if_string(garantia_a_usar),
+            garantia_nombre=_strip_if_string(extracted_data.get('tipo_garantia', '')),
             fecha_compra=_strip_if_string(extracted_data.get('fecha_compra')),
             factura=_strip_if_string(extracted_data.get('numero_factura')),
             cliente_cedula=_strip_if_string(extracted_data.get('cedula_cliente')),
