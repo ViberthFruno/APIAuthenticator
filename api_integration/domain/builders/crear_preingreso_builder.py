@@ -76,7 +76,19 @@ class CrearPreingresoBuilder:
     @staticmethod
     def _detectar_garantia_en_correo(cuerpo_correo: str | None) -> Tuple[bool, str | None]:
         """
-        Detecta si en el cuerpo del correo viene la palabra 'Garantia' y una opción válida.
+        Detecta si en el cuerpo del correo viene alguna palabra clave de garantía.
+
+        Busca directamente las palabras clave sin necesidad de que el usuario escriba "Garantia:" primero.
+        Esto evita problemas con tildes y encoding UTF-8.
+
+        Palabras clave soportadas (case insensitive):
+        - "sin garantia", "sin" → No
+        - "normal" → Normal
+        - "csr", "c.s.r.", "c.s.r" → C.S.R.
+        - "doa" → DOA
+        - "no" → No
+        - "stock" → STOCK
+        - "dap" → DAP
 
         Args:
             cuerpo_correo: Texto del cuerpo del correo electrónico
@@ -89,36 +101,34 @@ class CrearPreingresoBuilder:
         if not cuerpo_correo:
             return False, None
 
-        # Opciones válidas de garantía (case insensitive)
-        # Mapeo: CLAVE_BUSQUEDA -> Valor normalizado
-        opciones_validas = {
-            'NORMAL': 'Normal',
-            'NO': 'No',
-            'C.S.R.': 'C.S.R.',
-            'C.S.R': 'C.S.R.',
-            'CSR': 'C.S.R.',
-            'DOA': 'DOA',
-            'STOCK': 'STOCK',
-            'DAP': 'DAP'
-        }
-
         try:
-            # Normalizar el texto a mayúsculas para búsqueda
+            # Normalizar el texto a mayúsculas para búsqueda case-insensitive
             cuerpo_upper = cuerpo_correo.upper()
 
-            # Buscar "GARANTIA" o "GARANTÍA" en el texto
-            if re.search(r'GARANT[IÍ]A', cuerpo_upper):
-                # Buscar una de las opciones válidas
-                for opcion_upper, opcion_normalizada in opciones_validas.items():
-                    # Buscar la opción con límites de palabra
-                    pattern = r'\b' + re.escape(opcion_upper) + r'\b'
-                    if re.search(pattern, cuerpo_upper):
-                        return True, opcion_normalizada
+            # Definir patrones de búsqueda en orden de prioridad
+            # Primero frases completas, luego palabras individuales
+            # Formato: (patrón_regex, nombre_garantía_normalizado)
+            patrones_garantia = [
+                # Frases completas primero (más específicas)
+                (r'\bSIN\s+GARANT[IÍ]A\b', 'No'),  # "sin garantia" o "sin garantía"
+                (r'\bC\.?\s*S\.?\s*R\.?\b', 'C.S.R.'),  # "CSR", "C.S.R", "C.S.R.", "C S R"
 
-                # Se encontró 'Garantia' pero sin opción válida
-                return False, None
-            else:
-                return False, None
+                # Palabras individuales
+                (r'\bNORMAL\b', 'Normal'),
+                (r'\bDOA\b', 'DOA'),
+                (r'\bSTOCK\b', 'STOCK'),
+                (r'\bDAP\b', 'DAP'),
+                (r'\bSIN\b', 'No'),  # "sin" solo
+                (r'\bNO\b', 'No'),   # "no" solo (al final para evitar falsos positivos)
+            ]
+
+            # Buscar cada patrón en orden de prioridad
+            for patron, garantia_nombre in patrones_garantia:
+                if re.search(patron, cuerpo_upper):
+                    return True, garantia_nombre
+
+            # No se encontró ninguna palabra clave de garantía
+            return False, None
 
         except Exception:
             return False, None

@@ -97,7 +97,19 @@ def _extract_body_text(email_message):
 
 def _detectar_garantia_en_correo(body_text, logger):
     """
-    Detecta si en el cuerpo del correo viene la palabra 'Garantia' y una opción válida
+    Detecta si en el cuerpo del correo viene alguna palabra clave de garantía.
+
+    Busca directamente las palabras clave sin necesidad de que el usuario escriba "Garantia:" primero.
+    Esto evita problemas con tildes y encoding UTF-8.
+
+    Palabras clave soportadas (case insensitive):
+    - "sin garantia", "sin" → No
+    - "normal" → Normal
+    - "csr", "c.s.r.", "c.s.r" → C.S.R
+    - "doa" → DOA
+    - "no" → No
+    - "stock" → Stock
+    - "dap" → DAP
 
     Retorna:
         dict con {'encontrada': bool, 'garantia': str o None}
@@ -105,40 +117,38 @@ def _detectar_garantia_en_correo(body_text, logger):
     if not body_text:
         return {'encontrada': False, 'garantia': None}
 
-    # Opciones válidas de garantía (case insensitive)
-    opciones_validas = {
-        'NORMAL': 'Normal',
-        'NO': 'No',
-        'C.S.R': 'C.S.R',
-        'CSR': 'C.S.R',
-        'DOA': 'DOA',
-        'STOCK': 'Stock',
-        'DAP': 'DAP'
-    }
-
     try:
-        # Buscar la palabra "Garantia" o "Garantía" (case insensitive)
         import re
 
-        # Normalizar el texto a mayúsculas para búsqueda
+        # Normalizar el texto a mayúsculas para búsqueda case-insensitive
         body_upper = body_text.upper()
 
-        # Buscar "GARANTIA" en el texto
-        if re.search(r'GARANT[IÍ]A', body_upper):
-            logger.info("✓ Palabra 'Garantia' encontrada en el cuerpo del correo")
+        # Definir patrones de búsqueda en orden de prioridad
+        # Primero frases completas, luego palabras individuales
+        # Formato: (patrón_regex, nombre_garantía_normalizado)
+        patrones_garantia = [
+            # Frases completas primero (más específicas)
+            (r'\bSIN\s+GARANT[IÍ]A\b', 'No'),  # "sin garantia" o "sin garantía"
+            (r'\bC\.?\s*S\.?\s*R\.?\b', 'C.S.R'),  # "CSR", "C.S.R", "C.S.R.", "C S R"
 
-            # Buscar una de las opciones válidas
-            for opcion_upper, opcion_normalizada in opciones_validas.items():
-                # Buscar la opción con límites de palabra
-                pattern = r'\b' + re.escape(opcion_upper) + r'\b'
-                if re.search(pattern, body_upper):
-                    logger.info(f"✓ Garantía detectada en correo: '{opcion_normalizada}'")
-                    return {'encontrada': True, 'garantia': opcion_normalizada}
+            # Palabras individuales
+            (r'\bNORMAL\b', 'Normal'),
+            (r'\bDOA\b', 'DOA'),
+            (r'\bSTOCK\b', 'Stock'),
+            (r'\bDAP\b', 'DAP'),
+            (r'\bSIN\b', 'No'),  # "sin" solo
+            (r'\bNO\b', 'No'),   # "no" solo (al final para evitar falsos positivos)
+        ]
 
-            logger.info("⚠ Se encontró 'Garantia' pero sin opción válida")
-            return {'encontrada': False, 'garantia': None}
-        else:
-            return {'encontrada': False, 'garantia': None}
+        # Buscar cada patrón en orden de prioridad
+        for patron, garantia_nombre in patrones_garantia:
+            if re.search(patron, body_upper):
+                logger.info(f"✓ Palabra clave de garantía detectada en correo: '{garantia_nombre}'")
+                logger.info(f"  Patrón encontrado: {patron}")
+                return {'encontrada': True, 'garantia': garantia_nombre}
+
+        # No se encontró ninguna palabra clave de garantía
+        return {'encontrada': False, 'garantia': None}
 
     except Exception as e:
         logger.error(f"Error al detectar garantía en correo: {str(e)}")
