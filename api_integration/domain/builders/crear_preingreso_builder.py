@@ -434,10 +434,19 @@ class CrearPreingresoBuilder:
         Determina el tipo de preingreso y garantía basándose en múltiples fuentes de información.
 
         JERARQUÍA DE PRIORIDADES:
-        1. Garantía del correo electrónico (si el usuario la especifica en el correo)
+        1. ⭐ Garantía del correo electrónico (PRIORIDAD MÁXIMA - SIN VALIDACIONES)
+           - Si el usuario especifica garantía en el correo, se usa ESA garantía
+           - NO se aplican validaciones de fecha ni otros criterios
+           - El usuario tiene la última palabra
+
         2. Casos especiales (STOCK en factura/observaciones)
+           - Solo si NO hay garantía en el correo
+
         3. Garantía del PDF (valor extraído del documento)
+           - Solo si NO hay garantía en el correo
+
         4. Validaciones de fecha (DAP, sin fecha, mayor a 1 año)
+           - Solo si NO hay garantía en el correo
 
         Args:
             pdf_tiene_fecha_compra: Si el PDF contiene fecha de compra
@@ -455,9 +464,10 @@ class CrearPreingresoBuilder:
         """
 
         # ========================================================================
-        # PRIORIDAD 1: Garantía del correo electrónico
+        # PRIORIDAD 1: Garantía del correo electrónico (PRIORIDAD MÁXIMA)
         # ========================================================================
-        # Si el usuario especifica garantía en el cuerpo del correo, tiene prioridad máxima
+        # Si el usuario especifica garantía en el cuerpo del correo, tiene PRIORIDAD ABSOLUTA
+        # Se usa la garantía del correo SIN NINGUNA VALIDACIÓN ADICIONAL
         garantia_encontrada_correo, garantia_correo = CrearPreingresoBuilder._detectar_garantia_en_correo(cuerpo_correo)
 
         if garantia_encontrada_correo and garantia_correo:
@@ -466,20 +476,9 @@ class CrearPreingresoBuilder:
             tipo_preingreso_id = CrearPreingresoBuilder._TIPO_PREINGRESO_MAP.get(clave_normalizada, 92)
             garantia_id = CrearPreingresoBuilder._GARANTIA_ID_MAP.get(clave_normalizada, 2)
 
-            # Aplicar validaciones de fecha incluso si viene del correo
-            # Si no es 'C.S.R.' (92) y es DAP, retornar como DAP
-            if tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_dap(fecha_compra):
-                return 9, 1, f"Garantía '{garantia_correo}' detectada en correo, ajustada a DAP por fecha de compra"
-
-            # Si no hay fecha de compra, ingresar como "Sin Garantía" excepto si es C.S.R.
-            if not pdf_tiene_fecha_compra and tipo_preingreso_id != 92:
-                return 92, 2, f"Garantía '{garantia_correo}' detectada en correo, pero sin fecha de compra → 'Sin Garantía'"
-
-            # Si la fecha excede un año, ingresar como "Sin Garantía" excepto si es C.S.R.
-            if pdf_tiene_fecha_compra and tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
-                return 92, 2, f"Garantía '{garantia_correo}' detectada en correo, pero fecha excede 1 año → 'Sin Garantía'"
-
-            return tipo_preingreso_id, garantia_id, f"Garantía '{garantia_correo}' detectada en cuerpo del correo (prioridad alta)"
+            # ✅ RETORNAR INMEDIATAMENTE - La garantía del correo NO se valida con fechas ni otros criterios
+            # El usuario tiene la última palabra sobre qué garantía usar
+            return tipo_preingreso_id, garantia_id, f"Garantía '{garantia_correo}' del correo (prioridad máxima - sin validaciones)"
 
         # ========================================================================
         # PRIORIDAD 2: Casos especiales - STOCK
