@@ -1283,6 +1283,9 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
         logger.info("   ⏳ Enviando datos a la API iFR Pro...")
         result = run_async_from_sync(ejecutar_creacion())
 
+        # Determinar si la garantía viene del correo
+        garantia_viene_de_correo = bool(garantia_correo)
+
         # Limpiar archivo temporal
         import os
         try:
