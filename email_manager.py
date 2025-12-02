@@ -417,6 +417,99 @@ def _generate_formatted_text_for_cc(data):
     return "\n".join(lines)
 
 
+def _generate_api_sent_data_text(preingreso_results):
+    """Genera el texto formateado con los datos que fueron enviados al API"""
+    from datetime import datetime
+
+    lines = ["=" * 80, "DATOS ENVIADOS AL SISTEMA iFR Pro", "=" * 80, ""]
+
+    if not preingreso_results or len(preingreso_results) == 0:
+        lines.append("No hay información disponible sobre los datos enviados al sistema.")
+        lines.append("")
+        lines.append("=" * 80)
+        return "\n".join(lines)
+
+    # Tomar el primer resultado (normalmente solo hay uno)
+    result = preingreso_results[0]
+
+    lines.append("RESULTADO DE LA CREACIÓN DEL PREINGRESO")
+    lines.append("-" * 80)
+
+    if result.get('preingreso_id'):
+        lines.append(f"ID Preingreso (Boleta Fruno): {result['preingreso_id']}")
+
+    if result.get('boleta'):
+        lines.append(f"Número de Boleta Gollo: {result['boleta']}")
+
+    if result.get('numero_transaccion'):
+        lines.append(f"Número de Transacción: {result['numero_transaccion']}")
+
+    if result.get('tipo_preingreso_nombre'):
+        lines.append(f"Tipo de Preingreso: {result['tipo_preingreso_nombre']}")
+
+    if result.get('garantia_nombre'):
+        lines.append(f"Garantía Aplicada: {result['garantia_nombre']}")
+
+    # Indicar si la garantía viene del correo
+    if result.get('garantia_viene_de_correo'):
+        lines.append(f"Origen de Garantía: Detectada en el cuerpo del correo")
+
+    lines.append("")
+
+    # Enlaces de consulta
+    if result.get('consultar_reparacion') or result.get('consultar_guia'):
+        lines.append("ENLACES DE CONSULTA")
+        lines.append("-" * 80)
+
+        if result.get('consultar_reparacion'):
+            lines.append(f"Consultar Estado de Reparación:")
+            lines.append(f"  {result['consultar_reparacion']}")
+
+        if result.get('consultar_guia'):
+            lines.append(f"Consultar Guía:")
+            lines.append(f"  {result['consultar_guia']}")
+
+        lines.append("")
+
+    # Información adicional del resultado
+    if result.get('extracted_data'):
+        extracted = result['extracted_data']
+
+        lines.append("DATOS ADICIONALES ENVIADOS")
+        lines.append("-" * 80)
+
+        if extracted.get('nombre_cliente') or extracted.get('nombre_contacto'):
+            nombre = extracted.get('nombre_cliente') or extracted.get('nombre_contacto')
+            lines.append(f"Cliente: {nombre}")
+
+        if extracted.get('correo_cliente'):
+            lines.append(f"Correo Cliente: {extracted['correo_cliente']}")
+
+        if extracted.get('telefono_cliente'):
+            lines.append(f"Teléfono Cliente: {extracted['telefono_cliente']}")
+
+        if extracted.get('serie'):
+            lines.append(f"Serie del Producto: {extracted['serie']}")
+
+        if extracted.get('marca'):
+            lines.append(f"Marca: {extracted['marca']}")
+
+        if extracted.get('modelo'):
+            lines.append(f"Modelo: {extracted['modelo']}")
+
+        if extracted.get('descripcion_producto'):
+            lines.append(f"Descripción del Producto: {extracted['descripcion_producto']}")
+
+        lines.append("")
+
+    lines.append("=" * 80)
+    lines.append("Datos enviados exitosamente al sistema iFR Pro")
+    lines.append(f"Fecha de envío: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("=" * 80)
+
+    return "\n".join(lines)
+
+
 class EmailManager:
     def __init__(self):
         """Inicializa el gestor de correo electrónico"""
@@ -808,16 +901,77 @@ class EmailManager:
                         "• Archivo de texto con todos los datos extraídos del PDF procesado",
                         "• PDF original de la boleta de reparación",
                         "",
-                        "Detalles de la boleta:",
-                        f"- Número de Boleta: {extracted_data.get('numero_boleta', 'N/A')}",
-                        f"- Número de Transacción: {extracted_data.get('numero_transaccion', 'N/A')}",
-                        f"- Cliente: {extracted_data.get('nombre_cliente', 'N/A')}",
-                        f"- Fecha: {extracted_data.get('fecha', 'N/A')}",
+                        "=" * 80,
+                        "🏷️ DATOS DEL PDF:",
+                        "=" * 80,
                         ""
                     ]
 
+                    # Agregar datos extraídos del PDF
+                    if extracted_data.get('numero_boleta'):
+                        cc_body_lines.append(f"Número de Boleta: {extracted_data['numero_boleta']}")
+                    if extracted_data.get('numero_transaccion'):
+                        cc_body_lines.append(f"Número de Transacción: {extracted_data['numero_transaccion']}")
+                    if extracted_data.get('fecha'):
+                        cc_body_lines.append(f"Fecha: {extracted_data['fecha']}")
+                    if extracted_data.get('nombre_cliente'):
+                        cc_body_lines.append(f"Cliente: {extracted_data['nombre_cliente']}")
+                    if extracted_data.get('cedula_cliente'):
+                        cc_body_lines.append(f"Cédula: {extracted_data['cedula_cliente']}")
+                    if extracted_data.get('telefono_cliente'):
+                        cc_body_lines.append(f"Teléfono: {extracted_data['telefono_cliente']}")
+                    if extracted_data.get('correo_cliente'):
+                        cc_body_lines.append(f"Correo: {extracted_data['correo_cliente']}")
+                    if extracted_data.get('sucursal'):
+                        cc_body_lines.append(f"Sucursal: {extracted_data['sucursal']}")
+                    if extracted_data.get('descripcion_producto'):
+                        cc_body_lines.append(f"Producto: {extracted_data['descripcion_producto']}")
+                    if extracted_data.get('marca'):
+                        cc_body_lines.append(f"Marca: {extracted_data['marca']}")
+                    if extracted_data.get('modelo'):
+                        cc_body_lines.append(f"Modelo: {extracted_data['modelo']}")
+                    if extracted_data.get('serie'):
+                        cc_body_lines.append(f"Serie: {extracted_data['serie']}")
+                    if extracted_data.get('tipo_garantia'):
+                        cc_body_lines.append(f"Tipo de Garantía (PDF): {extracted_data['tipo_garantia']}")
+                    if extracted_data.get('numero_factura'):
+                        cc_body_lines.append(f"Número de Factura: {extracted_data['numero_factura']}")
+                    if extracted_data.get('fecha_compra'):
+                        cc_body_lines.append(f"Fecha de Compra: {extracted_data['fecha_compra']}")
+                    if extracted_data.get('danos'):
+                        cc_body_lines.append(f"Daños: {extracted_data['danos']}")
+
+                    cc_body_lines.extend([
+                        "",
+                        "=" * 80,
+                        "🏷️ DATOS QUE SERÁN ENVIADOS AL SISTEMA:",
+                        "=" * 80,
+                        ""
+                    ])
+
+                    # Agregar datos que fueron enviados al API
+                    if preingreso_results and len(preingreso_results) > 0:
+                        result = preingreso_results[0]
+                        if result.get('preingreso_id'):
+                            cc_body_lines.append(f"ID Preingreso (Boleta Fruno): {result['preingreso_id']}")
+                        if result.get('boleta'):
+                            cc_body_lines.append(f"Número de Boleta Gollo: {result['boleta']}")
+                        if result.get('numero_transaccion'):
+                            cc_body_lines.append(f"Número de Transacción: {result['numero_transaccion']}")
+                        if result.get('tipo_preingreso_nombre'):
+                            cc_body_lines.append(f"Tipo de Preingreso: {result['tipo_preingreso_nombre']}")
+                        if result.get('garantia_nombre'):
+                            cc_body_lines.append(f"Garantía Aplicada: {result['garantia_nombre']}")
+                        if result.get('garantia_viene_de_correo'):
+                            cc_body_lines.append(f"Origen de Garantía: Detectada en el cuerpo del correo")
+
+                    cc_body_lines.extend([
+                        "",
+                        "=" * 80,
+                        ""
+                    ])
+
                     # Agregar sección de consulta del estado si está disponible
-                    preingreso_results = response_data.get('preingreso_results', [])
                     if preingreso_results and len(preingreso_results) > 0:
                         consultar_reparacion = preingreso_results[0].get('consultar_reparacion')
                         if consultar_reparacion:
