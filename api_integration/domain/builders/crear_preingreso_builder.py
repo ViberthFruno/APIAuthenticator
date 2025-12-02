@@ -137,9 +137,22 @@ class CrearPreingresoBuilder:
     _TIPO_PREINGRESO_MAP: Dict[str, int] = {
         _normalizar_clave('Normal'): 7,
         _normalizar_clave('No'): 92,
+        # CSR - Variantes principales
         _normalizar_clave('C.S.R.'): 92,
         _normalizar_clave('C.S.R'): 92,
         _normalizar_clave('CSR'): 92,
+        # CSR - Variantes con errores de OCR (puntos en diferentes posiciones)
+        _normalizar_clave('C.SR'): 92,   # Punto solo después de C
+        _normalizar_clave('CS.R'): 92,   # Punto solo después de S
+        _normalizar_clave('C..SR'): 92,  # Punto doble después de C
+        _normalizar_clave('C. SR'): 92,  # Punto y espacio después de C
+        _normalizar_clave('C .SR'): 92,  # Espacio y punto después de C
+        _normalizar_clave('C. S.R'): 92, # Punto y espacio después de C, punto después de S
+        _normalizar_clave('C.S. R'): 92, # Punto después de C y S, espacio antes de R
+        _normalizar_clave('C .S.R'): 92, # Espacio y punto después de C, punto después de S
+        _normalizar_clave('C..S.R'): 92, # Punto doble después de C, punto después de S
+        _normalizar_clave('C.S..R'): 92, # Punto después de C, punto doble después de S
+        # Otros tipos de garantía
         _normalizar_clave('DOA'): 8,
         _normalizar_clave('STOCK'): 8,
         _normalizar_clave('DAP'): 9,
@@ -148,9 +161,22 @@ class CrearPreingresoBuilder:
     _GARANTIA_ID_MAP: Dict[str, int] = {
         _normalizar_clave('Normal'): 1,
         _normalizar_clave('No'): 2,
+        # CSR - Variantes principales
         _normalizar_clave('C.S.R.'): 4,
         _normalizar_clave('C.S.R'): 4,
         _normalizar_clave('CSR'): 4,
+        # CSR - Variantes con errores de OCR (puntos en diferentes posiciones)
+        _normalizar_clave('C.SR'): 4,   # Punto solo después de C
+        _normalizar_clave('CS.R'): 4,   # Punto solo después de S
+        _normalizar_clave('C..SR'): 4,  # Punto doble después de C
+        _normalizar_clave('C. SR'): 4,  # Punto y espacio después de C
+        _normalizar_clave('C .SR'): 4,  # Espacio y punto después de C
+        _normalizar_clave('C. S.R'): 4, # Punto y espacio después de C, punto después de S
+        _normalizar_clave('C.S. R'): 4, # Punto después de C y S, espacio antes de R
+        _normalizar_clave('C .S.R'): 4, # Espacio y punto después de C, punto después de S
+        _normalizar_clave('C..S.R'): 4, # Punto doble después de C, punto después de S
+        _normalizar_clave('C.S..R'): 4, # Punto después de C, punto doble después de S
+        # Otros tipos de garantía
         _normalizar_clave('DOA'): 1,
         _normalizar_clave('STOCK'): 1,
         _normalizar_clave('DAP'): 1,
