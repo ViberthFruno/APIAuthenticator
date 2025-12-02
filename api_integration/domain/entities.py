@@ -690,10 +690,19 @@ class PreingresoData:
     def to_api_body(self) -> Dict[str, str]:
         """
         Convierte a formato esperado por la API (sin archivos)
-        
+
         Returns:
             Diccionario con los campos para el body
         """
+        # Aplicar límite de 20 caracteres al número de factura (requisito de la API)
+        numero_factura_original = self.numero_factura or "N/A"
+        numero_factura_final = numero_factura_original
+
+        # Truncar a 20 caracteres si excede el límite
+        if len(numero_factura_original) > 20:
+            numero_factura_final = numero_factura_original[:20]
+            print(f"[ADVERTENCIA] Número de factura truncado: '{numero_factura_original}' -> '{numero_factura_final}' (límite: 20 caracteres)")
+
         return {
             "codigo_sucursal": self.codigo_sucursal,
             "tipo_preingreso_id": self.tipo_preingreso_id,
@@ -711,7 +720,7 @@ class PreingresoData:
             "descripcion_division": self.descripcion_division,
             "propietario_contactos_ids": "[]",
             "imei_prestamo": "",
-            "numero_factura": self.numero_factura or "N/A",
+            "numero_factura": numero_factura_final,
             "distribuidor_id": self.distribuidor_id or "",
             "fecha_compra": self.fecha_compra,
             "imei": "",
