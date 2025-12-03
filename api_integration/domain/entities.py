@@ -580,6 +580,7 @@ class PreingresoData:
     otro_telefono_propietario: Optional[str] = None
     numero_factura: Optional[str] = None
     distribuidor_id: Optional[str] = None
+    msg_garantia: Optional[str] = None  # Mensaje de garantía para el usuario
 
     # Archivos adjuntos
     pdf_filename: str = ""

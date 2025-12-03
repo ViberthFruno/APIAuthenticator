@@ -442,6 +442,7 @@ class CrearPreingresoBuilder:
             distribuidor_id=distribuidor_id,
             otro_telefono_propietario=CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_telefono2, True),
             numero_factura=numero_factura,
+            msg_garantia=msg_fecha_compra,  # Guardar mensaje de garantía
 
             # Archivo adjunto
             pdf_filename=CrearPreingresoBuilder._limpiar_texto(archivo_adjunto.nombre_archivo),
