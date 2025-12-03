@@ -417,14 +417,19 @@ def _generate_formatted_text_for_cc(data):
     return "\n".join(lines)
 
 
-def _generate_api_sent_data_text(preingreso_results):
-    """Genera el texto formateado con los datos que fueron enviados al API"""
+def _generate_control_data_text(preingreso_results):
+    """
+    Genera el texto formateado con los datos del PDF y datos enviados al API
+    tal como se muestran en la consola (para adjuntar como archivo TXT)
+    """
     from datetime import datetime
 
-    lines = ["=" * 80, "DATOS ENVIADOS AL SISTEMA iFR Pro", "=" * 80, ""]
+    lines = ["=" * 80, "INFORMACIÓN DE CONTROL - PROCESAMIENTO DE BOLETA", "=" * 80, ""]
+    lines.append(f"Fecha de generación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("")
 
     if not preingreso_results or len(preingreso_results) == 0:
-        lines.append("No hay información disponible sobre los datos enviados al sistema.")
+        lines.append("No hay información disponible sobre el procesamiento.")
         lines.append("")
         lines.append("=" * 80)
         return "\n".join(lines)
@@ -432,79 +437,89 @@ def _generate_api_sent_data_text(preingreso_results):
     # Tomar el primer resultado (normalmente solo hay uno)
     result = preingreso_results[0]
 
-    lines.append("RESULTADO DE LA CREACIÓN DEL PREINGRESO")
-    lines.append("-" * 80)
+    # SECCIÓN 1: DATOS DEL PDF
+    lines.append("=" * 80)
+    lines.append("🏷️ DATOS DEL PDF:")
+    lines.append("=" * 80)
+    lines.append("")
+
+    # Obtener el objeto datos_pdf si está disponible
+    if result.get('datos_pdf_object'):
+        datos_pdf_obj = result.get('datos_pdf_object')
+        lines.append(f"DatosExtraidosPDF({datos_pdf_obj})")
+    else:
+        lines.append("Datos del PDF no disponibles")
+
+    lines.append("")
+    lines.append("")
+
+    # SECCIÓN 2: DATOS QUE SERÁN ENVIADOS
+    lines.append("=" * 80)
+    lines.append("🏷️ DATOS QUE SERÁN ENVIADOS AL SISTEMA:")
+    lines.append("=" * 80)
+    lines.append("")
+
+    # Obtener los datos del API body si están disponibles
+    if result.get('datos_api_body'):
+        import json
+        datos_api = result.get('datos_api_body')
+        # Si es un string JSON, parsearlo
+        if isinstance(datos_api, str):
+            try:
+                datos_api = json.loads(datos_api)
+            except:
+                pass
+        lines.append(str(datos_api))
+    else:
+        lines.append("Datos del API no disponibles")
+
+    lines.append("")
+    lines.append("")
+
+    # SECCIÓN 3: RESULTADO
+    lines.append("=" * 80)
+    lines.append("RESULTADO DE LA CREACIÓN:")
+    lines.append("=" * 80)
+    lines.append("")
 
     if result.get('preingreso_id'):
-        lines.append(f"ID Preingreso (Boleta Fruno): {result['preingreso_id']}")
+        lines.append(f"✅ ID Preingreso (Boleta Fruno): {result['preingreso_id']}")
 
     if result.get('boleta'):
-        lines.append(f"Número de Boleta Gollo: {result['boleta']}")
+        lines.append(f"📋 Número de Boleta Gollo: {result['boleta']}")
 
     if result.get('numero_transaccion'):
-        lines.append(f"Número de Transacción: {result['numero_transaccion']}")
+        lines.append(f"🔢 Número de Transacción: {result['numero_transaccion']}")
 
     if result.get('tipo_preingreso_nombre'):
-        lines.append(f"Tipo de Preingreso: {result['tipo_preingreso_nombre']}")
+        lines.append(f"📝 Tipo de Preingreso: {result['tipo_preingreso_nombre']}")
 
     if result.get('garantia_nombre'):
-        lines.append(f"Garantía Aplicada: {result['garantia_nombre']}")
+        lines.append(f"🛡️ Garantía Aplicada: {result['garantia_nombre']}")
 
-    # Indicar si la garantía viene del correo
     if result.get('garantia_viene_de_correo'):
-        lines.append(f"Origen de Garantía: Detectada en el cuerpo del correo")
+        lines.append(f"📧 Origen de Garantía: Detectada en el cuerpo del correo")
 
     lines.append("")
 
     # Enlaces de consulta
     if result.get('consultar_reparacion') or result.get('consultar_guia'):
-        lines.append("ENLACES DE CONSULTA")
+        lines.append("🔗 ENLACES DE CONSULTA:")
         lines.append("-" * 80)
 
         if result.get('consultar_reparacion'):
             lines.append(f"Consultar Estado de Reparación:")
             lines.append(f"  {result['consultar_reparacion']}")
+            lines.append("")
 
         if result.get('consultar_guia'):
             lines.append(f"Consultar Guía:")
             lines.append(f"  {result['consultar_guia']}")
-
-        lines.append("")
-
-    # Información adicional del resultado
-    if result.get('extracted_data'):
-        extracted = result['extracted_data']
-
-        lines.append("DATOS ADICIONALES ENVIADOS")
-        lines.append("-" * 80)
-
-        if extracted.get('nombre_cliente') or extracted.get('nombre_contacto'):
-            nombre = extracted.get('nombre_cliente') or extracted.get('nombre_contacto')
-            lines.append(f"Cliente: {nombre}")
-
-        if extracted.get('correo_cliente'):
-            lines.append(f"Correo Cliente: {extracted['correo_cliente']}")
-
-        if extracted.get('telefono_cliente'):
-            lines.append(f"Teléfono Cliente: {extracted['telefono_cliente']}")
-
-        if extracted.get('serie'):
-            lines.append(f"Serie del Producto: {extracted['serie']}")
-
-        if extracted.get('marca'):
-            lines.append(f"Marca: {extracted['marca']}")
-
-        if extracted.get('modelo'):
-            lines.append(f"Modelo: {extracted['modelo']}")
-
-        if extracted.get('descripcion_producto'):
-            lines.append(f"Descripción del Producto: {extracted['descripcion_producto']}")
-
-        lines.append("")
+            lines.append("")
 
     lines.append("=" * 80)
-    lines.append("Datos enviados exitosamente al sistema iFR Pro")
-    lines.append(f"Fecha de envío: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("Documento generado automáticamente por GolloBot")
+    lines.append(f"Fecha de procesamiento: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append("=" * 80)
 
     return "\n".join(lines)
@@ -841,11 +856,11 @@ class EmailManager:
                 logger.info(f"📧 Enviando correos separados a {len(cc_list)} usuario(s) CC...")
                 logger.info("=" * 80)
 
-                # Generar el archivo de texto con los datos extraídos
+                # Generar archivo de texto con datos extraídos del PDF (formato legible)
                 logger.info("📝 Generando archivo de texto con datos extraídos del PDF...")
                 text_content = _generate_formatted_text_for_cc(extracted_data)
 
-                # Crear archivo temporal
+                # Crear archivo temporal para datos extraídos
                 temp_text_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
                 temp_text_file.write(text_content)
                 temp_text_file.close()
@@ -855,17 +870,39 @@ class EmailManager:
                 boleta_numero = extracted_data.get('numero_boleta', 'datos')
                 text_filename = f"Datos_Extraidos_Boleta_{boleta_numero}.txt"
 
-                logger.info(f"✅ Archivo de texto creado: {text_filename}")
+                logger.info(f"✅ Archivo de datos extraídos creado: {text_filename}")
 
-                # Leer el contenido del archivo para adjuntar
+                # Generar archivo de control con datos del PDF y datos enviados al API
+                logger.info("📝 Generando archivo de control con datos del PDF y API...")
+                control_content = _generate_control_data_text(preingreso_results)
+
+                # Crear archivo temporal para datos de control
+                temp_control_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+                temp_control_file.write(control_content)
+                temp_control_file.close()
+                temp_files_to_clean.append(temp_control_file.name)
+
+                control_filename = f"Control_Boleta_{boleta_numero}.txt"
+                logger.info(f"✅ Archivo de control creado: {control_filename}")
+
+                # Leer el contenido de los archivos para adjuntar
                 with open(temp_text_file.name, 'rb') as f:
                     text_file_data = f.read()
 
-                # Crear lista de adjuntos (archivo de texto + PDF original)
-                cc_attachments = [{
-                    'filename': text_filename,
-                    'data': text_file_data
-                }]
+                with open(temp_control_file.name, 'rb') as f:
+                    control_file_data = f.read()
+
+                # Crear lista de adjuntos (archivo de datos extraídos + archivo de control + PDF original)
+                cc_attachments = [
+                    {
+                        'filename': text_filename,
+                        'data': text_file_data
+                    },
+                    {
+                        'filename': control_filename,
+                        'data': control_file_data
+                    }
+                ]
 
                 # Agregar PDF original si está disponible
                 if pdf_original and pdf_original.get('data'):
@@ -892,83 +929,47 @@ class EmailManager:
                     # Asunto específico para usuarios CC
                     cc_subject = f"Notificación: {subject}"
 
-                    # Construir el cuerpo del correo con las nuevas secciones
+                    # Construir el cuerpo del correo (simplificado)
                     cc_body_lines = [
                         "Estimado/a Usuario,",
                         "",
                         "Se le envía esta notificación automática como parte del proceso de gestión de la boleta de reparación.",
                         "",
                         "Adjunto encontrará:",
-                        "• Archivo de texto con todos los datos extraídos del PDF procesado",
+                        "• Archivo con datos extraídos del PDF (formato legible)",
+                        "• Archivo de control con 🏷️Datos del PDF y 🏷️Datos enviados al sistema",
                         "• PDF original de la boleta de reparación",
                         "",
                         "=" * 80,
-                        "🏷️ DATOS DEL PDF:",
+                        "RESUMEN DE LA BOLETA:",
                         "=" * 80,
                         ""
                     ]
 
-                    # Agregar datos extraídos del PDF
+                    # Agregar solo datos básicos en el cuerpo
                     if extracted_data.get('numero_boleta'):
                         cc_body_lines.append(f"Número de Boleta: {extracted_data['numero_boleta']}")
                     if extracted_data.get('numero_transaccion'):
                         cc_body_lines.append(f"Número de Transacción: {extracted_data['numero_transaccion']}")
-                    if extracted_data.get('fecha'):
-                        cc_body_lines.append(f"Fecha: {extracted_data['fecha']}")
                     if extracted_data.get('nombre_cliente'):
                         cc_body_lines.append(f"Cliente: {extracted_data['nombre_cliente']}")
-                    if extracted_data.get('cedula_cliente'):
-                        cc_body_lines.append(f"Cédula: {extracted_data['cedula_cliente']}")
-                    if extracted_data.get('telefono_cliente'):
-                        cc_body_lines.append(f"Teléfono: {extracted_data['telefono_cliente']}")
-                    if extracted_data.get('correo_cliente'):
-                        cc_body_lines.append(f"Correo: {extracted_data['correo_cliente']}")
-                    if extracted_data.get('sucursal'):
-                        cc_body_lines.append(f"Sucursal: {extracted_data['sucursal']}")
-                    if extracted_data.get('descripcion_producto'):
-                        cc_body_lines.append(f"Producto: {extracted_data['descripcion_producto']}")
-                    if extracted_data.get('marca'):
-                        cc_body_lines.append(f"Marca: {extracted_data['marca']}")
-                    if extracted_data.get('modelo'):
-                        cc_body_lines.append(f"Modelo: {extracted_data['modelo']}")
-                    if extracted_data.get('serie'):
-                        cc_body_lines.append(f"Serie: {extracted_data['serie']}")
-                    if extracted_data.get('tipo_garantia'):
-                        cc_body_lines.append(f"Tipo de Garantía (PDF): {extracted_data['tipo_garantia']}")
-                    if extracted_data.get('numero_factura'):
-                        cc_body_lines.append(f"Número de Factura: {extracted_data['numero_factura']}")
-                    if extracted_data.get('fecha_compra'):
-                        cc_body_lines.append(f"Fecha de Compra: {extracted_data['fecha_compra']}")
-                    if extracted_data.get('danos'):
-                        cc_body_lines.append(f"Daños: {extracted_data['danos']}")
+                    if extracted_data.get('fecha'):
+                        cc_body_lines.append(f"Fecha: {extracted_data['fecha']}")
 
-                    cc_body_lines.extend([
-                        "",
-                        "=" * 80,
-                        "🏷️ DATOS QUE SERÁN ENVIADOS AL SISTEMA:",
-                        "=" * 80,
-                        ""
-                    ])
-
-                    # Agregar datos que fueron enviados al API
+                    # Agregar resultado de la creación
                     if preingreso_results and len(preingreso_results) > 0:
                         result = preingreso_results[0]
+                        cc_body_lines.append("")
                         if result.get('preingreso_id'):
-                            cc_body_lines.append(f"ID Preingreso (Boleta Fruno): {result['preingreso_id']}")
-                        if result.get('boleta'):
-                            cc_body_lines.append(f"Número de Boleta Gollo: {result['boleta']}")
-                        if result.get('numero_transaccion'):
-                            cc_body_lines.append(f"Número de Transacción: {result['numero_transaccion']}")
-                        if result.get('tipo_preingreso_nombre'):
-                            cc_body_lines.append(f"Tipo de Preingreso: {result['tipo_preingreso_nombre']}")
+                            cc_body_lines.append(f"✅ ID Preingreso creado: {result['preingreso_id']}")
                         if result.get('garantia_nombre'):
-                            cc_body_lines.append(f"Garantía Aplicada: {result['garantia_nombre']}")
-                        if result.get('garantia_viene_de_correo'):
-                            cc_body_lines.append(f"Origen de Garantía: Detectada en el cuerpo del correo")
+                            cc_body_lines.append(f"🛡️ Garantía aplicada: {result['garantia_nombre']}")
 
                     cc_body_lines.extend([
                         "",
                         "=" * 80,
+                        "",
+                        "Para más detalles, consulte el archivo de control adjunto.",
                         ""
                     ])
 

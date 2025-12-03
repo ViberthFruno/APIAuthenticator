@@ -1330,7 +1330,9 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
                     'garantia_nombre': result.garantia_nombre,
                     'filename': pdf_filename,
                     'extracted_data': extracted_data,  # Incluir todos los datos extraídos
-                    'garantia_viene_de_correo': garantia_viene_de_correo  # Flag para indicar origen de la garantía
+                    'garantia_viene_de_correo': garantia_viene_de_correo,  # Flag para indicar origen de la garantía
+                    'datos_pdf_object': datos_pdf,  # Objeto DatosExtraidosPDF completo
+                    'datos_api_body': result.response.body if result.response else None  # Datos enviados al API
                 }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
