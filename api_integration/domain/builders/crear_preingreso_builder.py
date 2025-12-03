@@ -403,9 +403,10 @@ class CrearPreingresoBuilder:
             CrearPreingresoBuilder._limpiar_texto(datos_pdf.cliente_contacto, True)
         )
 
-        # Si es DOA entonces la factura va en blanco:
+        # Si es DOA entonces la factura y fecha_compra van en blanco:
         if tipo_preingreso_id == 8:
             numero_factura = ""
+            fecha_compra = ""
 
         # TODO distribuidor_id no debe venir de datos_pdf, ya que se está mezclando lógica de negocios
         # entre la capa gui/pdf y la de crear preingreso (código espagueti).
