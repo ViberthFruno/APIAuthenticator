@@ -81,6 +81,10 @@ class CreatePreingresoUseCase:
                 input_dto.archivo_adjunto
             )
 
+            # Capturar datos raw para adjuntar en correos
+            datos_pdf_raw = str(input_dto.datos_pdf)
+            datos_api_raw = str(preingreso_data.to_api_body())
+
             # Debug - datos enviados a la API:
             print("")
             print("🏷️Datos del PDF:")
@@ -161,7 +165,9 @@ class CreatePreingresoUseCase:
                 tipo_preingreso_nombre=tipo_preingreso_nombre,
                 garantia_nombre=garantia_nombre,
                 timestamp=datetime.now(),
-                boleta_usada=input_dto.datos_pdf.numero_boleta
+                boleta_usada=input_dto.datos_pdf.numero_boleta,
+                datos_pdf_raw=datos_pdf_raw,
+                datos_api_raw=datos_api_raw
             )
 
         except APIValidationError as e:

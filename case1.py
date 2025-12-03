@@ -1330,7 +1330,9 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
                     'garantia_nombre': result.garantia_nombre,
                     'filename': pdf_filename,
                     'extracted_data': extracted_data,  # Incluir todos los datos extraídos
-                    'garantia_viene_de_correo': garantia_viene_de_correo  # Flag para indicar origen de la garantía
+                    'garantia_viene_de_correo': garantia_viene_de_correo,  # Flag para indicar origen de la garantía
+                    'datos_pdf_raw': result.datos_pdf_raw,  # Datos raw del PDF para adjuntar
+                    'datos_api_raw': result.datos_api_raw  # Datos raw de la API para adjuntar
                 }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
@@ -1478,7 +1480,9 @@ class Case(BaseCase):
                     'consultar_guia': result.get('consultar_guia'),
                     'tipo_preingreso_nombre': result.get('tipo_preingreso_nombre'),
                     'garantia_nombre': result.get('garantia_nombre'),
-                    'garantia_viene_de_correo': result.get('garantia_viene_de_correo', False)
+                    'garantia_viene_de_correo': result.get('garantia_viene_de_correo', False),
+                    'datos_pdf_raw': result.get('datos_pdf_raw'),
+                    'datos_api_raw': result.get('datos_api_raw')
                 })
                 # Guardar los datos extraídos para enviar a usuarios CC
                 extracted_data = result.get('extracted_data')

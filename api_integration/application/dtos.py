@@ -94,6 +94,8 @@ class CreatePreingresoOutput:
     message: Optional[str] = None
     errors: list[str] = None
     tiempo_ejecucion_ms: Optional[float] = None
+    datos_pdf_raw: Optional[str] = None  # Representación string del objeto DatosExtraidosPDF
+    datos_api_raw: Optional[str] = None  # Representación string del diccionario enviado a la API
 
     def __post_init__(self):
         if self.errors is None:
