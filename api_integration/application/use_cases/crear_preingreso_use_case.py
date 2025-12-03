@@ -167,7 +167,8 @@ class CreatePreingresoUseCase:
                 timestamp=datetime.now(),
                 boleta_usada=input_dto.datos_pdf.numero_boleta,
                 datos_pdf_raw=datos_pdf_raw,
-                datos_api_raw=datos_api_raw
+                datos_api_raw=datos_api_raw,
+                msg_garantia=preingreso_data.msg_garantia  # Pasar mensaje de garantía
             )
 
         except APIValidationError as e:

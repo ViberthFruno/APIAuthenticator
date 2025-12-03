@@ -869,6 +869,66 @@ def _extract_text_from_pdf(pdf_data, logger):
         return None
 
 
+def _traducir_mensaje_garantia_usuario(msg_garantia):
+    """
+    Traduce mensajes técnicos de garantía a mensajes amigables para el usuario
+
+    Args:
+        msg_garantia: Mensaje técnico de garantía (ej: "Garantía 'Normal' detectada en correo, pero sin fecha de compra → 'Sin Garantía'")
+
+    Returns:
+        str: Mensaje amigable para el usuario
+    """
+    if not msg_garantia:
+        return None
+
+    msg_lower = msg_garantia.lower()
+
+    # Casos de garantía detectada en correo
+    if "detectada en correo" in msg_lower or "detectada en cuerpo del correo" in msg_lower:
+        # Extraer el tipo de garantía (puede estar entre comillas simples)
+        tipo_garantia_match = re.search(r"garantía\s+'([^']+)'", msg_garantia, re.IGNORECASE)
+        tipo_garantia = tipo_garantia_match.group(1) if tipo_garantia_match else "especificada"
+
+        if "sin fecha de compra" in msg_lower:
+            return f"Se detectó garantía {tipo_garantia} en el correo, pero no se encontró la fecha de compra en el documento, por lo que se clasificó como Sin Garantía. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+        elif "fecha excede 1 año" in msg_lower or "excede un año" in msg_lower:
+            return f"Se detectó garantía {tipo_garantia} en el correo, pero la fecha de compra excede un año de antigüedad, por lo que se clasificó como Sin Garantía. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+        elif "ajustada a dap" in msg_lower:
+            return f"Se detectó garantía {tipo_garantia} en el correo y se ajustó automáticamente a DAP según la fecha de compra. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+        elif "prioridad alta" in msg_lower:
+            return f"Se procesó la garantía {tipo_garantia} especificada en su correo. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+    # Casos de fecha de compra
+    if "fecha de compra no viene" in msg_lower:
+        return "No se encontró la fecha de compra en el documento PDF, por lo que se clasificó como Sin Garantía. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+    if "fecha de compra" in msg_lower and "excede un año" in msg_lower:
+        return "La fecha de compra en el documento excede un año de antigüedad, por lo que se clasificó como Sin Garantía. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+    # Caso de STOCK
+    if "stock" in msg_lower and "doa" in msg_lower:
+        return "Se detectó la palabra STOCK en el documento, por lo que se clasificó automáticamente como DOA/STOCK. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+    # Caso de garantía del PDF ajustada a DAP
+    if "garantía del pdf" in msg_lower and "ajustada a dap" in msg_lower:
+        tipo_garantia_match = re.search(r"garantía del pdf:\s+'([^']+)'", msg_garantia, re.IGNORECASE)
+        tipo_garantia = tipo_garantia_match.group(1) if tipo_garantia_match else "la especificada"
+        return f"La garantía del documento ({tipo_garantia}) se ajustó automáticamente a DAP porque la fecha de compra es menor a 7 días. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+    # Caso de garantía del PDF (normal, sin ajustes)
+    if "garantía del pdf:" in msg_lower:
+        tipo_garantia_match = re.search(r"garantía del pdf:\s+'([^']+)'", msg_garantia, re.IGNORECASE)
+        tipo_garantia = tipo_garantia_match.group(1) if tipo_garantia_match else "especificada"
+        return f"Se procesó la garantía {tipo_garantia} del documento. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+    # Si no coincide con ningún patrón, retornar un mensaje genérico
+    return "Se procesó la garantía según la información proporcionada. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
+
+
 def _generate_success_message(preingreso_results, failed_files, non_pdf_files, api_base_url=None):
     """
     Genera el mensaje de éxito con el preingreso creado
@@ -910,6 +970,16 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
                 message_lines.append(f"   Garantía de preingreso: {result['garantia_nombre']}")
 
         message_lines.append("")
+
+        # Sección de información sobre la garantía (NUEVA)
+        msg_garantia = result.get('msg_garantia')
+        if msg_garantia:
+            mensaje_usuario = _traducir_mensaje_garantia_usuario(msg_garantia)
+            if mensaje_usuario:
+                message_lines.append("ℹ️ Información sobre la garantía:")
+                message_lines.append("")
+                message_lines.append(f"   {mensaje_usuario}")
+                message_lines.append("")
 
         # Sección de consulta del estado
         if result.get('consultar_reparacion'):
@@ -1332,7 +1402,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
                     'extracted_data': extracted_data,  # Incluir todos los datos extraídos
                     'garantia_viene_de_correo': garantia_viene_de_correo,  # Flag para indicar origen de la garantía
                     'datos_pdf_raw': result.datos_pdf_raw,  # Datos raw del PDF para adjuntar
-                    'datos_api_raw': result.datos_api_raw  # Datos raw de la API para adjuntar
+                    'datos_api_raw': result.datos_api_raw,  # Datos raw de la API para adjuntar
+                    'msg_garantia': result.msg_garantia  # Mensaje de garantía para el usuario
                 }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
@@ -1482,7 +1553,8 @@ class Case(BaseCase):
                     'garantia_nombre': result.get('garantia_nombre'),
                     'garantia_viene_de_correo': result.get('garantia_viene_de_correo', False),
                     'datos_pdf_raw': result.get('datos_pdf_raw'),
-                    'datos_api_raw': result.get('datos_api_raw')
+                    'datos_api_raw': result.get('datos_api_raw'),
+                    'msg_garantia': result.get('msg_garantia')  # Mensaje de garantía
                 })
                 # Guardar los datos extraídos para enviar a usuarios CC
                 extracted_data = result.get('extracted_data')
