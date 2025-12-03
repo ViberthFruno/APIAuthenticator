@@ -858,6 +858,7 @@ class EmailManager:
             body = response_data.get('body', '')
             extracted_data = response_data.get('extracted_data')
             pdf_original = response_data.get('pdf_original')  # PDF original para CC
+            preingreso_results = response_data.get('preingreso_results')  # Resultados del preingreso
 
             if '<' in recipient and '>' in recipient:
                 recipient = recipient.split('<')[1].split('>')[0].strip()
