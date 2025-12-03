@@ -498,12 +498,12 @@ class CrearPreingresoBuilder:
             if tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_dap(fecha_compra):
                 return 9, 1, f"Garantía '{garantia_correo}' detectada en correo, ajustada a DAP por fecha de compra"
 
-            # Si no hay fecha de compra, ingresar como "Sin Garantía" excepto si es C.S.R.
-            if not pdf_tiene_fecha_compra and tipo_preingreso_id != 92:
+            # Si no hay fecha de compra, ingresar como "Sin Garantía" excepto si es C.S.R. o DOA
+            if not pdf_tiene_fecha_compra and tipo_preingreso_id != 92 and tipo_preingreso_id != 8:
                 return 92, 2, f"Garantía '{garantia_correo}' detectada en correo, pero sin fecha de compra → 'Sin Garantía'"
 
-            # Si la fecha excede un año, ingresar como "Sin Garantía" excepto si es C.S.R.
-            if pdf_tiene_fecha_compra and tipo_preingreso_id != 92 and CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
+            # Si la fecha excede un año, ingresar como "Sin Garantía" excepto si es C.S.R. o DOA
+            if pdf_tiene_fecha_compra and tipo_preingreso_id != 92 and tipo_preingreso_id != 8 and CrearPreingresoBuilder._es_mayor_a_un_ano(fecha_compra):
                 return 92, 2, f"Garantía '{garantia_correo}' detectada en correo, pero fecha excede 1 año → 'Sin Garantía'"
 
             return tipo_preingreso_id, garantia_id, f"Garantía '{garantia_correo}' detectada en cuerpo del correo (prioridad alta)"
