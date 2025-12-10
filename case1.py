@@ -975,9 +975,9 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
         message_lines.append("⚠️ Importante para el correcto funcionamiento del sistema de preingresos")
         message_lines.append("")
         message_lines.append("   Para garantizar una lectura precisa de los archivos y evitar errores en el proceso automático,")
-        message_lines.append("   envía un correo nuevo por cada PDF. No uses la opción \"Responder\" o \"Reenviar\" sobre mensajes")
-        message_lines.append("   anteriores, ya que esto puede alterar la estructura del contenido y afectar la correcta")
-        message_lines.append("   interpretación del sistema de preingresos.")
+        message_lines.append("   envía un correo nuevo por cada PDF. No uses la opción \"Responder\" o \"Reenviar\" sobre")
+        message_lines.append("   mensajes anteriores, ya que esto puede alterar la estructura del contenido y afectar la")
+        message_lines.append("   correcta interpretación del sistema de preingresos.")
         message_lines.append("")
 
         # Sección de información sobre la garantía (NUEVA)
@@ -1024,8 +1024,8 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     message_lines.append("     Ejemplo: proveedor: Fruno")
     message_lines.append("")
     message_lines.append("   • Para indicar una sucursal específica:")
-    message_lines.append("     Escriba en el cuerpo del correo: sucursal: [nombre]")
-    message_lines.append("     Ejemplo: sucursal: 123 Fruno-Est")
+    message_lines.append("     Escriba en el cuerpo del correo: servitotal: [nombre]")
+    message_lines.append("     Ejemplo: servitotal: 123")
     message_lines.append("")
 
     # Cierre del mensaje
