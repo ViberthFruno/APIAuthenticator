@@ -240,6 +240,59 @@ def _detectar_proveedor_en_correo(body_text, logger):
         return {'encontrado': False, 'distribuidor_id': None, 'distribuidor_nombre': None}
 
 
+def _detectar_servitotal_en_correo(body_text, logger):
+    """
+    Detecta si en el cuerpo del correo viene la palabra clave 'servitotal'
+    seguida de un código de sucursal (1-4 dígitos, opcionalmente seguido de nombre).
+
+    Formatos soportados:
+    - servitotal: 123
+    - servitotal: 045 CIUDAD NEILY
+    - servitotal: 1234
+    - SERVITOTAL 123
+
+    Args:
+        body_text: Texto del cuerpo del correo
+        logger: Logger para registrar eventos
+
+    Retorna:
+        dict con {'encontrado': bool, 'codigo_sucursal': str o None}
+    """
+    if not body_text:
+        return {'encontrado': False, 'codigo_sucursal': None}
+
+    try:
+        import re
+
+        # Normalizar el texto a mayúsculas para búsqueda case-insensitive
+        body_upper = body_text.upper()
+
+        # Patrón para buscar "servitotal" seguido de código de sucursal
+        # Formato: servitotal[:] [espacio] (1-4 dígitos) [opcionalmente nombre]
+        # Captura solo los dígitos, ignorando el nombre si existe
+        pattern = r'\bSERVITOTAL\s*:?\s*(\d{1,4})(?:\s+[\w\s\-]+)?'
+
+        match = re.search(pattern, body_upper)
+
+        if match:
+            codigo_sucursal = match.group(1)
+            logger.info(f"✓ Palabra clave 'servitotal' detectada en correo con código: '{codigo_sucursal}'")
+            logger.info(f"  Se intentará usar este código de sucursal en lugar del extraído del PDF")
+            return {
+                'encontrado': True,
+                'codigo_sucursal': codigo_sucursal
+            }
+
+        # No se encontró la palabra clave servitotal
+        return {'encontrado': False, 'codigo_sucursal': None}
+
+    except Exception as e:
+        logger.error(f"Error al detectar servitotal en correo: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {'encontrado': False, 'codigo_sucursal': None}
+
+
 def _extract_attachments(email_message, logger):
     """Extrae los archivos adjuntos de un email"""
     attachments = []
@@ -808,6 +861,9 @@ class EmailManager:
                         # Detectar si viene proveedor (distribuidor) en el correo
                         proveedor_correo = _detectar_proveedor_en_correo(body_text, logger)
 
+                        # Detectar si viene código de sucursal con palabra clave 'servitotal' en el correo
+                        servitotal_correo = _detectar_servitotal_en_correo(body_text, logger)
+
                         attachments = _extract_attachments(email_message, logger)
 
                         # Pasar sender y allowed_domains a find_matching_case
@@ -823,7 +879,8 @@ class EmailManager:
                                 'attachments': attachments,
                                 'body_text': body_text,
                                 'garantia_correo': garantia_correo,
-                                'proveedor_correo': proveedor_correo  # proveedor = distribuidor
+                                'proveedor_correo': proveedor_correo,  # proveedor = distribuidor
+                                'servitotal_correo': servitotal_correo  # código de sucursal del correo
                             }
 
                             response_data = self.case_handler.execute_case(matching_case, email_data_for_case, logger)
