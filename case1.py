@@ -990,6 +990,33 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
                 message_lines.append(f"   {mensaje_usuario}")
                 message_lines.append("")
 
+        # Sección de información sobre el código de sucursal usado (servitotal)
+        sucursal_info = result.get('sucursal_usada_info')
+        if sucursal_info:
+            origen = sucursal_info.get('origen')
+            codigo = sucursal_info.get('codigo')
+            nombre_sucursal = sucursal_info.get('nombre_sucursal')
+            codigo_correo_intentado = sucursal_info.get('codigo_correo_intentado')
+
+            # Solo mostrar mensaje si el usuario proporcionó un código con servitotal
+            if codigo_correo_intentado:
+                message_lines.append("🏪 Código de sucursal:")
+                message_lines.append("")
+
+                if origen == 'correo':
+                    # Se usó el código del correo exitosamente
+                    message_lines.append(f"   Se utilizó el código de sucursal '{codigo}' que usted proporcionó en el correo con la palabra clave 'servitotal'.")
+                    if nombre_sucursal:
+                        message_lines.append(f"   Sucursal identificada: {nombre_sucursal}")
+                elif origen == 'pdf':
+                    # El código del correo falló, se usó el del PDF como fallback
+                    message_lines.append(f"   El código de sucursal '{codigo_correo_intentado}' que proporcionó en el correo no pudo ser validado.")
+                    message_lines.append(f"   Se utilizó el código '{codigo}' extraído del PDF adjunto.")
+                    if nombre_sucursal:
+                        message_lines.append(f"   Sucursal identificada: {nombre_sucursal}")
+
+                message_lines.append("")
+
         # Sección de consulta del estado
         if result.get('consultar_reparacion'):
             message_lines.append("🔗 Consulta del estado:")
@@ -1185,7 +1212,7 @@ def _normalizar_cuerpo_correo(body_text):
     return texto if texto else None
 
 
-def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=None, proveedor_correo_id=None, cuerpo_correo=None):
+def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_correo=None, proveedor_correo_id=None, codigo_sucursal_correo=None, cuerpo_correo=None):
     """
     Crea un preingreso en la API a partir del contenido de un PDF
 
@@ -1195,14 +1222,17 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
         logger: Logger para registrar eventos
         garantia_correo: Garantía detectada en el cuerpo del correo (opcional, solo para logging)
         proveedor_correo_id: ID del distribuidor (proveedor) recibido del cuerpo del correo (opcional)
+        codigo_sucursal_correo: Código de sucursal del correo con palabra clave 'servitotal' (opcional)
         cuerpo_correo: Cuerpo del correo normalizado (opcional, usado por el builder para determinar garantía)
 
     Returns:
-        dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error}
+        dict con {success, preingreso_id, boleta, numero_transaccion, consultar_reparacion, consultar_guia, tipo_preingreso_nombre, garantia_nombre, error, sucursal_usada_info}
 
     Nota:
         La decisión final sobre qué garantía usar se realiza en CrearPreingresoBuilder._determinar_tipo_garantia()
         siguiendo la jerarquía: Correo > Casos especiales > PDF > Validaciones de fecha
+        Si se proporciona codigo_sucursal_correo, se intentará usar primero para buscar la sucursal en la API.
+        Si falla, se usará el código extraído del PDF como fallback.
     """
     try:
         logger.info("=" * 80)
@@ -1352,7 +1382,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
             datos_pdf=datos_pdf,
             retry_on_failure=True,
             validate_before_send=True,
-            archivo_adjunto=archivo_adjunto
+            archivo_adjunto=archivo_adjunto,
+            codigo_sucursal_correo=codigo_sucursal_correo  # Código de sucursal del correo (servitotal)
         )
 
         logger.info(f"🔍 Paso 4/4: Creando preingreso en la API...")
@@ -1416,7 +1447,8 @@ def _crear_preingreso_desde_pdf(pdf_content, pdf_filename, logger, garantia_corr
                     'garantia_viene_de_correo': garantia_viene_de_correo,  # Flag para indicar origen de la garantía
                     'datos_pdf_raw': result.datos_pdf_raw,  # Datos raw del PDF para adjuntar
                     'datos_api_raw': result.datos_api_raw,  # Datos raw de la API para adjuntar
-                    'msg_garantia': result.msg_garantia  # Mensaje de garantía para el usuario
+                    'msg_garantia': result.msg_garantia,  # Mensaje de garantía para el usuario
+                    'sucursal_usada_info': result.sucursal_usada_info  # Info sobre qué código de sucursal se usó (servitotal)
                 }
         else:
             error_msg = result.message or "Error desconocido al crear preingreso"
@@ -1484,6 +1516,14 @@ class Case(BaseCase):
                 logger.info(
                     f"📦 Proveedor (distribuidor) del correo detectado: '{proveedor_nombre}' (ID: {proveedor_id_del_correo}) - Se enviará a la API")
 
+            # Extraer código de sucursal del correo si existe (servitotal)
+            servitotal_correo_info = email_data.get('servitotal_correo', {})
+            codigo_sucursal_del_correo = None
+            if servitotal_correo_info.get('encontrado'):
+                codigo_sucursal_del_correo = servitotal_correo_info.get('codigo_sucursal')
+                logger.info(
+                    f"🏪 Código de sucursal del correo detectado (servitotal): '{codigo_sucursal_del_correo}' - Se intentará usar en lugar del extraído del PDF")
+
             # Clasificar archivos adjuntos
             pdf_attachments = []
             non_pdf_files = []
@@ -1540,13 +1580,14 @@ class Case(BaseCase):
             else:
                 logger.info("📧 No hay cuerpo de correo para incluir")
 
-            # Crear preingreso desde el PDF (pasando garantía, proveedor y cuerpo del correo si existen)
+            # Crear preingreso desde el PDF (pasando garantía, proveedor, código de sucursal y cuerpo del correo si existen)
             result = _crear_preingreso_desde_pdf(
                 pdf_content,
                 pdf_filename,
                 logger,
                 garantia_correo=garantia_del_correo,
                 proveedor_correo_id=proveedor_id_del_correo,  # proveedor = distribuidor
+                codigo_sucursal_correo=codigo_sucursal_del_correo,  # código de sucursal del correo (servitotal)
                 cuerpo_correo=cuerpo_normalizado  # Cuerpo del correo normalizado
             )
 
@@ -1567,7 +1608,8 @@ class Case(BaseCase):
                     'garantia_viene_de_correo': result.get('garantia_viene_de_correo', False),
                     'datos_pdf_raw': result.get('datos_pdf_raw'),
                     'datos_api_raw': result.get('datos_api_raw'),
-                    'msg_garantia': result.get('msg_garantia')  # Mensaje de garantía
+                    'msg_garantia': result.get('msg_garantia'),  # Mensaje de garantía
+                    'sucursal_usada_info': result.get('sucursal_usada_info')  # Info sobre qué código se usó (servitotal)
                 })
                 # Guardar los datos extraídos para enviar a usuarios CC
                 extracted_data = result.get('extracted_data')

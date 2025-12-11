@@ -77,6 +77,7 @@ class CreatePreingresoInput:
     retry_on_failure: bool = False
     validate_before_send: bool = True
     archivo_adjunto: Optional[ArchivoAdjunto] = None
+    codigo_sucursal_correo: Optional[str] = None  # Código de sucursal del correo (servitotal)
 
 
 @dataclass
@@ -97,6 +98,7 @@ class CreatePreingresoOutput:
     datos_pdf_raw: Optional[str] = None  # Representación string del objeto DatosExtraidosPDF
     datos_api_raw: Optional[str] = None  # Representación string del diccionario enviado a la API
     msg_garantia: Optional[str] = None  # Mensaje de garantía para el usuario
+    sucursal_usada_info: Optional[Dict[str, Any]] = None  # Info sobre qué código de sucursal se usó (servitotal)
 
     def __post_init__(self):
         if self.errors is None:

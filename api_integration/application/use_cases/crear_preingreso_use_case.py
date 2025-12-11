@@ -62,16 +62,60 @@ class CreatePreingresoUseCase:
         )
 
         try:
-            # Obtener la tienda
-            tienda = await self._obtener_tienda_por_referencia(input_dto.datos_pdf.referencia)
+            # Determinar qué código de sucursal usar (servitotal)
+            tienda = None
+            sucursal_usada_origen = None  # Para tracking: 'correo' o 'pdf'
+            codigo_usado = None
+
+            # Si viene código de sucursal del correo (servitotal), intentar primero con ese
+            if input_dto.codigo_sucursal_correo:
+                self.logger.info(
+                    f"🏪 Intentando buscar sucursal con código del correo (servitotal): '{input_dto.codigo_sucursal_correo}'",
+                )
+                tienda = await self._obtener_tienda_por_referencia(input_dto.codigo_sucursal_correo)
+
+                if tienda:
+                    sucursal_usada_origen = 'correo'
+                    codigo_usado = input_dto.codigo_sucursal_correo
+                    self.logger.info(
+                        f"✅ Sucursal encontrada usando código del correo: '{input_dto.codigo_sucursal_correo}' -> {tienda.sucursal_nombre}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"⚠️ No se encontró sucursal con código del correo: '{input_dto.codigo_sucursal_correo}'. Intentando con código del PDF..."
+                    )
+
+            # Si no se encontró con código del correo (o no vino), usar el del PDF
             if not tienda:
+                self.logger.info(
+                    f"🏪 Buscando sucursal con código del PDF: '{input_dto.datos_pdf.referencia}'",
+                )
+                tienda = await self._obtener_tienda_por_referencia(input_dto.datos_pdf.referencia)
+
+                if tienda:
+                    sucursal_usada_origen = 'pdf'
+                    codigo_usado = input_dto.datos_pdf.referencia
+                    self.logger.info(
+                        f"✅ Sucursal encontrada usando código del PDF: '{input_dto.datos_pdf.referencia}' -> {tienda.sucursal_nombre}"
+                    )
+
+            # Si no se encontró con ninguno de los dos códigos
+            if not tienda:
+                mensaje_error = f"No se encontró la tienda con código del PDF #{input_dto.datos_pdf.referencia}"
+                if input_dto.codigo_sucursal_correo:
+                    mensaje_error = f"No se encontró la tienda con código del correo (servitotal) #{input_dto.codigo_sucursal_correo} ni con código del PDF #{input_dto.datos_pdf.referencia}"
+
                 return CreatePreingresoOutput(
                     success=False,
                     response=None,
                     preingreso_id=None,
-                    message=f"No se encontró la tienda #{input_dto.datos_pdf.referencia}",
+                    message=mensaje_error,
                     timestamp=datetime.now(),
-                    boleta_usada=input_dto.datos_pdf.numero_boleta
+                    boleta_usada=input_dto.datos_pdf.numero_boleta,
+                    sucursal_usada_info={
+                        'origen': None,
+                        'codigo': None
+                    }
                 )
 
             # Construir el DTO inmutable
@@ -168,7 +212,13 @@ class CreatePreingresoUseCase:
                 boleta_usada=input_dto.datos_pdf.numero_boleta,
                 datos_pdf_raw=datos_pdf_raw,
                 datos_api_raw=datos_api_raw,
-                msg_garantia=preingreso_data.msg_garantia  # Pasar mensaje de garantía
+                msg_garantia=preingreso_data.msg_garantia,  # Pasar mensaje de garantía
+                sucursal_usada_info={  # Info sobre qué código de sucursal se usó (servitotal)
+                    'origen': sucursal_usada_origen,
+                    'codigo': codigo_usado,
+                    'nombre_sucursal': tienda.sucursal_nombre if tienda else None,
+                    'codigo_correo_intentado': input_dto.codigo_sucursal_correo  # Código del correo si se intentó
+                }
             )
 
         except APIValidationError as e:
