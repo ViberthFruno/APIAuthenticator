@@ -671,7 +671,7 @@ class IntegratedGUI(LoggerMixin):
 
         modal = tk.Toplevel(self.root)
         modal.title("Configurar Usuarios a Notificar")
-        modal.geometry("500x350")
+        modal.geometry("500x450")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -687,33 +687,90 @@ class IntegratedGUI(LoggerMixin):
         cc_frame = ttk.Frame(modal, padding="10")
         cc_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Título descriptivo
-        title_label = ttk.Label(
-            cc_frame,
-            text="Usuarios que recibirán notificaciones con datos extraídos",
-            font=("Segoe UI", 10, "bold")
-        )
-        title_label.pack(anchor="w", padx=5, pady=(0, 5))
+        # Frame superior: Agregar correo
+        add_frame = ttk.Frame(cc_frame)
+        add_frame.pack(fill=tk.X, padx=5, pady=(0, 10))
 
-        # Descripción
-        desc_label = ttk.Label(
-            cc_frame,
-            text="Estos usuarios recibirán un correo separado con un archivo de texto\nque contiene todos los datos extraídos del PDF procesado.\n\nIngrese los correos (uno por línea):",
-            justify=tk.LEFT
-        )
-        desc_label.pack(anchor="w", padx=5, pady=(0, 10))
+        add_label = ttk.Label(add_frame, text="Agregar Correo:", font=("Segoe UI", 9, "bold"))
+        add_label.pack(anchor="w", pady=(0, 5))
 
-        cc_text = tk.Text(cc_frame, wrap=tk.WORD, height=10)
-        cc_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        input_frame = ttk.Frame(add_frame)
+        input_frame.pack(fill=tk.X)
 
-        cc_text.insert(tk.END, "\n".join(cc_users_list))
+        email_entry = ttk.Entry(input_frame)
+        email_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
 
+        def add_email():
+            email = email_entry.get().strip()
+            if email:
+                # Validar que no esté duplicado
+                if email not in email_listbox.get(0, tk.END):
+                    email_listbox.insert(tk.END, email)
+                    email_entry.delete(0, tk.END)
+                else:
+                    self.log_api_message("⚠️ El correo ya está en la lista.", level="WARNING")
+            else:
+                self.log_api_message("⚠️ Por favor ingrese un correo válido.", level="WARNING")
+
+        add_button = ttk.Button(input_frame, text="Agregar", command=add_email)
+        add_button.pack(side=tk.LEFT)
+
+        # Permitir agregar con Enter
+        email_entry.bind('<Return>', lambda e: add_email())
+
+        # Frame central: Lista de usuarios configurados
+        list_frame = ttk.Frame(cc_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 10))
+
+        list_label = ttk.Label(list_frame, text="Usuarios Configurados:", font=("Segoe UI", 9, "bold"))
+        list_label.pack(anchor="w", pady=(0, 5))
+
+        # Listbox con scrollbar
+        listbox_frame = ttk.Frame(list_frame)
+        listbox_frame.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        email_listbox = tk.Listbox(listbox_frame, yscrollcommand=scrollbar.set, selectmode=tk.EXTENDED)
+        email_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=email_listbox.yview)
+
+        # Cargar correos existentes
+        for email in cc_users_list:
+            email_listbox.insert(tk.END, email)
+
+        # Frame de botones de acción
+        action_button_frame = ttk.Frame(cc_frame)
+        action_button_frame.pack(fill=tk.X, pady=(0, 10))
+
+        def delete_selected():
+            selected_indices = email_listbox.curselection()
+            if selected_indices:
+                # Eliminar desde el final para no afectar los índices
+                for index in reversed(selected_indices):
+                    email_listbox.delete(index)
+            else:
+                self.log_api_message("⚠️ Por favor seleccione al menos un correo para eliminar.", level="WARNING")
+
+        def clear_all():
+            if email_listbox.size() > 0:
+                email_listbox.delete(0, tk.END)
+            else:
+                self.log_api_message("⚠️ La lista ya está vacía.", level="WARNING")
+
+        delete_button = ttk.Button(action_button_frame, text="Eliminar Seleccionado", command=delete_selected)
+        delete_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        clear_button = ttk.Button(action_button_frame, text="Limpiar Todo", command=clear_all)
+        clear_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        # Frame de botones principales
         button_frame = ttk.Frame(cc_frame)
-        button_frame.pack(fill=tk.X, pady=(10, 0))
+        button_frame.pack(fill=tk.X)
 
         def save_cc_users():
-            emails_text = cc_text.get("1.0", tk.END).strip()
-            emails_list = [email.strip() for email in emails_text.split("\n") if email.strip()]
+            emails_list = list(email_listbox.get(0, tk.END))
 
             current_config = self.config_manager.load_config()
             current_config['cc_users'] = emails_list
@@ -724,11 +781,11 @@ class IntegratedGUI(LoggerMixin):
             else:
                 self.log_api_message("❌ Error al guardar la lista de usuarios a notificar.", level="ERROR")
 
-        save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
-        save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-
         cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
-        cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+        cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
+        save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
 
     def open_categorias_modal(self):
         """Abre una ventana modal para configurar las categorías y sus palabras clave"""
