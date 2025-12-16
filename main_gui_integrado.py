@@ -2451,6 +2451,30 @@ class IntegratedGUI(LoggerMixin):
             'label': 'Número de Boleta'
         }
 
+        # Campo: cliente_nombre
+        campo_frame = ttk.Frame(fields_frame)
+        campo_frame.pack(fill=tk.X, pady=5)
+
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=False)
+        check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
+        check.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Label
+        label = ttk.Label(campo_frame, text="Nombre de Cliente:", width=20)
+        label.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Entry
+        entry = ttk.Entry(campo_frame)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Almacenar referencia
+        campos['cliente_nombre'] = {
+            'entry': entry,
+            'check': var_check,
+            'label': 'Nombre de Cliente'
+        }
+
         # Función para enviar el preingreso
         def enviar_preingreso():
             self.log_api_message("🚀 Enviando preingreso personalizado...")
