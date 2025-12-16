@@ -2371,6 +2371,47 @@ class IntegratedGUI(LoggerMixin):
         )
         title_label.pack(pady=(0, 15))
 
+        # Variable para almacenar la ruta del PDF
+        archivo_pdf_seleccionado = tk.StringVar(value="")
+
+        # Frame para seleccionar PDF
+        pdf_frame = ttk.LabelFrame(main_frame, text="Archivo PDF Base", padding="10")
+        pdf_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # Frame interno para botón y etiqueta
+        pdf_inner_frame = ttk.Frame(pdf_frame)
+        pdf_inner_frame.pack(fill=tk.X)
+
+        def seleccionar_pdf():
+            """Abre diálogo para seleccionar archivo PDF"""
+            from tkinter import filedialog
+            archivo = filedialog.askopenfilename(
+                title="Seleccionar Boleta de Reparación (PDF)",
+                filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
+                initialdir=os.path.expanduser("~")
+            )
+            if archivo:
+                archivo_pdf_seleccionado.set(archivo)
+                nombre_archivo = os.path.basename(archivo)
+                pdf_label.config(text=f"📄 {nombre_archivo}", foreground="green")
+                self.log_api_message(f"📄 PDF seleccionado: {nombre_archivo}")
+
+        # Botón para seleccionar PDF
+        pdf_button = ttk.Button(
+            pdf_inner_frame,
+            text="📂 Seleccionar PDF",
+            command=seleccionar_pdf
+        )
+        pdf_button.pack(side=tk.LEFT, padx=(0, 10))
+
+        # Etiqueta para mostrar archivo seleccionado
+        pdf_label = ttk.Label(
+            pdf_inner_frame,
+            text="⚠️ No se ha seleccionado ningún archivo",
+            foreground="red"
+        )
+        pdf_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
         # Frame para los campos
         fields_frame = ttk.Frame(main_frame)
         fields_frame.pack(fill=tk.BOTH, expand=True)
@@ -2406,6 +2447,19 @@ class IntegratedGUI(LoggerMixin):
         def enviar_preingreso():
             self.log_api_message("🚀 Enviando preingreso personalizado...")
 
+            # Validar que se haya seleccionado un PDF
+            archivo_pdf = archivo_pdf_seleccionado.get()
+            if not archivo_pdf:
+                self.log_api_message("❌ Debe seleccionar un archivo PDF", level="ERROR")
+                messagebox.showerror("Error", "Por favor seleccione un archivo PDF antes de enviar")
+                return
+
+            # Validar que el archivo exista
+            if not os.path.exists(archivo_pdf):
+                self.log_api_message("❌ El archivo PDF no existe", level="ERROR")
+                messagebox.showerror("Error", "El archivo PDF seleccionado no existe")
+                return
+
             # Recolectar datos activos
             datos_recolectados = {}
             for campo_nombre, campo_data in campos.items():
@@ -2423,7 +2477,7 @@ class IntegratedGUI(LoggerMixin):
             modal.destroy()
 
             # Procesar el preingreso
-            self._procesar_preingreso_personalizado(datos_recolectados)
+            self._procesar_preingreso_personalizado(datos_recolectados, archivo_pdf)
 
         # Frame de botones
         button_frame = ttk.Frame(main_frame)
@@ -2445,9 +2499,10 @@ class IntegratedGUI(LoggerMixin):
         )
         cancel_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
 
-    def _procesar_preingreso_personalizado(self, datos_recolectados):
+    def _procesar_preingreso_personalizado(self, datos_recolectados, archivo_pdf):
         """Procesa y envía el preingreso personalizado"""
         self.log_api_message("📤 Procesando preingreso personalizado...")
+        self.log_api_message(f"📄 Archivo PDF: {os.path.basename(archivo_pdf)}")
 
         # Callbacks
         def on_success(result: CreatePreingresoOutput):
@@ -2464,7 +2519,7 @@ class IntegratedGUI(LoggerMixin):
                 self.log_api_message(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
 
                 # Enviar correos a usuarios notificados
-                self._enviar_correos_preingreso_personalizado(result, datos_recolectados)
+                self._enviar_correos_preingreso_personalizado(result, datos_recolectados, archivo_pdf)
 
             else:
                 error_msg = f"Error creando preingreso personalizado: {result.message}"
@@ -2482,6 +2537,17 @@ class IntegratedGUI(LoggerMixin):
 
         # Función asíncrona para procesar
         async def procesar():
+            # Crear referencia al archivo adjunto
+            archivo_adjunto = ArchivoAdjunto(
+                nombre_archivo=os.path.basename(archivo_pdf),
+                ruta_archivo=archivo_pdf,
+                tipo_mime="application/pdf"
+            )
+
+            # Leer el archivo PDF
+            pdf_content = await archivo_adjunto.leer_contenido()
+            self.log_api_message(f"📊 Tamaño del archivo: {len(pdf_content):,} bytes")
+
             # Crear objeto DatosExtraidosPDF con valores personalizados
             datos_pdf = DatosExtraidosPDF(
                 numero_boleta=datos_recolectados.get('numero_boleta', ''),
@@ -2503,7 +2569,7 @@ class IntegratedGUI(LoggerMixin):
             result = await use_case.execute(
                 CreatePreingresoInput(
                     datos_pdf=datos_pdf,
-                    archivo_adjunto=None  # No hay archivo adjunto
+                    archivo_adjunto=archivo_adjunto
                 )
             )
 
@@ -2516,7 +2582,7 @@ class IntegratedGUI(LoggerMixin):
             on_error=on_error
         )
 
-    def _enviar_correos_preingreso_personalizado(self, result: CreatePreingresoOutput, datos_recolectados):
+    def _enviar_correos_preingreso_personalizado(self, result: CreatePreingresoOutput, datos_recolectados, archivo_pdf):
         """Envía correos de notificación para preingreso personalizado"""
         self.log_api_message("📧 Enviando correos de notificación...")
 
@@ -2570,6 +2636,9 @@ El preingreso se ha creado correctamente en nuestro sistema.
 Este es un correo automático del sistema de preingresos.
 """
 
+        # Preparar archivos adjuntos (incluir el PDF)
+        attachments = [archivo_pdf] if archivo_pdf and os.path.exists(archivo_pdf) else None
+
         # Enviar correos individuales
         from email_manager import EmailManager
         email_manager = EmailManager()
@@ -2584,7 +2653,7 @@ Este es un correo automático del sistema de preingresos.
                     subject=asunto,
                     body=cuerpo,
                     cc=None,
-                    attachments=None,
+                    attachments=attachments,
                     logger=self.logger
                 )
 
