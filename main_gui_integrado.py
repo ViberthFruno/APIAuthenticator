@@ -2709,12 +2709,12 @@ Este es un correo automático del sistema de preingresos.
             try:
                 resultado = email_manager.send_email(
                     provider=provider,
-                    email=email_addr,
+                    email_addr=email_addr,
                     password=password,
-                    recipient=destinatario,
+                    to=destinatario,
                     subject=asunto,
                     body=cuerpo,
-                    cc=None,
+                    cc_list=None,
                     attachments=None,
                     logger=self.logger
                 )
