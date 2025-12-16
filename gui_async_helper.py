@@ -1,10 +1,7 @@
 # gui_async_helper.py
-"""
-Helper para ejecutar código async desde GUI síncrona (Tkinter)
+# Helper para ejecutar código async desde GUI síncrona (Tkinter)
+# Este módulo provee utilidades para ejecutar coroutines desde Tkinter.
 
-Problema: Tkinter es síncrono, pero la nueva arquitectura usa async/await.
-Solución: Este módulo provee utilidades para ejecutar coroutines desde Tkinter.
-"""
 
 import asyncio
 import threading
