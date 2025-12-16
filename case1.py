@@ -1050,10 +1050,6 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     message_lines.append("     Escriba en el cuerpo del correo: proveedor: [nombre]")
     message_lines.append("     Ejemplo: proveedor: Fruno")
     message_lines.append("")
-    message_lines.append("   • Para indicar una sucursal específica:")
-    message_lines.append("     Escriba en el cuerpo del correo: servitotal: [codigo]")
-    message_lines.append("     Ejemplo: servitotal: 123")
-    message_lines.append("")
 
     # Cierre del mensaje
     message_lines.append("")
