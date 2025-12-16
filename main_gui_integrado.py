@@ -354,6 +354,14 @@ class IntegratedGUI(LoggerMixin):
         )
         self.preingreso_button.pack(fill=tk.X)
 
+        # Botón de preingreso personalizado
+        self.preingreso_personalizado_button = ttk.Button(
+            preingreso_frame,
+            text="✏️ Preingreso Personalizado",
+            command=self.abrir_preingreso_personalizado
+        )
+        self.preingreso_personalizado_button.pack(fill=tk.X, pady=(5, 0))
+
         # Frame para Consultar Marca
         marca_frame = ttk.LabelFrame(left_panel, text="Consultar Catálogo", padding="10")
         marca_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -2328,6 +2336,267 @@ class IntegratedGUI(LoggerMixin):
             on_success=on_success,
             on_error=on_error
         )
+
+    def abrir_preingreso_personalizado(self):
+        """Abre un popup para crear un preingreso con datos personalizados"""
+        self.log_api_message("=" * 60)
+        self.log_api_message("Abriendo Preingreso Personalizado")
+        self.log_api_message("=" * 60)
+
+        # Crear ventana modal
+        modal = tk.Toplevel(self.root)
+        modal.title("Preingreso Personalizado")
+        modal.geometry("600x500")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Frame principal con scroll
+        main_frame = ttk.Frame(modal, padding="15")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título
+        title_label = ttk.Label(
+            main_frame,
+            text="Ingrese los datos del preingreso",
+            font=("Segoe UI", 11, "bold")
+        )
+        title_label.pack(pady=(0, 15))
+
+        # Frame para los campos
+        fields_frame = ttk.Frame(main_frame)
+        fields_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Diccionario para almacenar campos y checkboxes
+        campos = {}
+
+        # Campo: numero_boleta
+        campo_frame = ttk.Frame(fields_frame)
+        campo_frame.pack(fill=tk.X, pady=5)
+
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=True)
+        check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
+        check.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Label
+        label = ttk.Label(campo_frame, text="Número de Boleta:", width=20)
+        label.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Entry
+        entry = ttk.Entry(campo_frame)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Almacenar referencia
+        campos['numero_boleta'] = {
+            'entry': entry,
+            'check': var_check,
+            'label': 'Número de Boleta'
+        }
+
+        # Función para enviar el preingreso
+        def enviar_preingreso():
+            self.log_api_message("🚀 Enviando preingreso personalizado...")
+
+            # Recolectar datos activos
+            datos_recolectados = {}
+            for campo_nombre, campo_data in campos.items():
+                if campo_data['check'].get():  # Si está activado
+                    valor = campo_data['entry'].get().strip()
+                    if valor:
+                        datos_recolectados[campo_nombre] = valor
+                        self.log_api_message(f"  ✓ {campo_data['label']}: {valor}")
+
+            if not datos_recolectados:
+                self.log_api_message("❌ No hay datos para enviar", level="ERROR")
+                return
+
+            # Cerrar modal
+            modal.destroy()
+
+            # Procesar el preingreso
+            self._procesar_preingreso_personalizado(datos_recolectados)
+
+        # Frame de botones
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(15, 0))
+
+        # Botón Enviar
+        send_button = ttk.Button(
+            button_frame,
+            text="✉️ Enviar Preingreso",
+            command=enviar_preingreso
+        )
+        send_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
+        # Botón Cancelar
+        cancel_button = ttk.Button(
+            button_frame,
+            text="Cancelar",
+            command=modal.destroy
+        )
+        cancel_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+
+    def _procesar_preingreso_personalizado(self, datos_recolectados):
+        """Procesa y envía el preingreso personalizado"""
+        self.log_api_message("📤 Procesando preingreso personalizado...")
+
+        # Callbacks
+        def on_success(result: CreatePreingresoOutput):
+            """Callback cuando el procesamiento es exitoso"""
+            if result.success:
+                self.log_api_message("✅ Preingreso personalizado creado exitosamente!")
+                self.log_api_message(f"   Boleta usada: {result.boleta_usada}")
+                self.log_api_message(f"   Preingreso ID: {result.preingreso_id}")
+                self.log_api_message(f"   Preingreso Guía: {result.consultar_guia}")
+                self.log_api_message(f"   Tipo preingreso: {result.tipo_preingreso_nombre}")
+                self.log_api_message(f"   Garantía: {result.garantia_nombre}")
+                self.log_api_message(f"   Preingreso link: {result.consultar_reparacion}")
+                self.log_api_message(f"   Status: {result.response.status_code}")
+                self.log_api_message(f"   Tiempo: {result.response.response_time_ms:.0f}ms")
+
+                # Enviar correos a usuarios notificados
+                self._enviar_correos_preingreso_personalizado(result, datos_recolectados)
+
+            else:
+                error_msg = f"Error creando preingreso personalizado: {result.message}"
+                self.log_api_message(f"❌ {error_msg}", level="ERROR")
+                if result.errors:
+                    for error in result.errors:
+                        self.log_api_message(f"   - {error}", level="ERROR")
+
+        def on_error(exception: Exception):
+            """Callback cuando hay un error"""
+            error_msg = f"Error procesando preingreso personalizado: {str(exception)}"
+            self.log_api_message(f"❌ {error_msg}", level="ERROR")
+            import traceback
+            self.log_api_message(traceback.format_exc(), level="ERROR")
+
+        # Función asíncrona para procesar
+        async def procesar():
+            # Crear objeto DatosExtraidosPDF con valores personalizados
+            datos_pdf = DatosExtraidosPDF(
+                numero_boleta=datos_recolectados.get('numero_boleta', ''),
+                referencia='',  # Valor por defecto
+                nombre_sucursal='',  # Valor por defecto
+                numero_transaccion='',  # Valor por defecto
+                cliente_telefono='',  # Valor por defecto
+                cliente_correo='',  # Valor por defecto
+                serie='',  # Valor por defecto
+                garantia_nombre=''  # Valor por defecto
+            )
+
+            # Crear caso de uso
+            use_case = CreatePreingresoUseCase(self.repository, self.retry_policy)
+
+            self.log_api_message("Enviando solicitud de crear el preingreso personalizado...")
+
+            # Ejecutar caso de uso
+            result = await use_case.execute(
+                CreatePreingresoInput(
+                    datos_pdf=datos_pdf,
+                    archivo_adjunto=None  # No hay archivo adjunto
+                )
+            )
+
+            return result
+
+        # Ejecutar asíncronamente
+        run_async_with_callback(
+            procesar(),
+            on_success=on_success,
+            on_error=on_error
+        )
+
+    def _enviar_correos_preingreso_personalizado(self, result: CreatePreingresoOutput, datos_recolectados):
+        """Envía correos de notificación para preingreso personalizado"""
+        self.log_api_message("📧 Enviando correos de notificación...")
+
+        # Obtener lista de usuarios a notificar
+        config = self.config_manager.load_config()
+        cc_users = config.get('cc_users', [])
+
+        if not cc_users:
+            self.log_api_message("⚠️ No hay usuarios configurados para notificar", level="WARNING")
+            return
+
+        self.log_api_message(f"📮 Enviando a {len(cc_users)} destinatarios...")
+
+        # Obtener configuración de correo
+        email_config = config.get('email', {})
+        provider = email_config.get('provider', 'gmail')
+        email_addr = email_config.get('email', '')
+        password = email_config.get('password', '')
+
+        if not email_addr or not password:
+            self.log_api_message("❌ No hay configuración de correo", level="ERROR")
+            return
+
+        # Crear asunto y cuerpo del correo
+        asunto = f"Notificación: Preingreso Personalizado - Boleta {result.preingreso_id}"
+
+        cuerpo = f"""
+Estimado/a Usuario,
+
+Se ha creado un nuevo preingreso personalizado en el sistema.
+
+📄 Detalles de la solicitud:
+   Boleta Fruno: {result.preingreso_id}
+   Guía Fruno: {result.consultar_guia}
+   Tipo de preingreso: {result.tipo_preingreso_nombre}
+   Garantía: {result.garantia_nombre}
+
+📊 Datos personalizados enviados:
+"""
+        # Agregar datos personalizados al cuerpo
+        for campo, valor in datos_recolectados.items():
+            cuerpo += f"   - {campo}: {valor}\n"
+
+        cuerpo += f"""
+🔗 Consulta del estado:
+   👉 {result.consultar_reparacion}
+
+El preingreso se ha creado correctamente en nuestro sistema.
+
+---
+Este es un correo automático del sistema de preingresos.
+"""
+
+        # Enviar correos individuales
+        from email_manager import EmailManager
+        email_manager = EmailManager()
+
+        for destinatario in cc_users:
+            try:
+                resultado = email_manager.send_email(
+                    provider=provider,
+                    email=email_addr,
+                    password=password,
+                    recipient=destinatario,
+                    subject=asunto,
+                    body=cuerpo,
+                    cc=None,
+                    attachments=None,
+                    logger=self.logger
+                )
+
+                if resultado:
+                    self.log_api_message(f"✅ Correo enviado a: {destinatario}")
+                else:
+                    self.log_api_message(f"❌ Error enviando a: {destinatario}", level="ERROR")
+
+            except Exception as e:
+                self.log_api_message(f"❌ Error enviando correo a {destinatario}: {str(e)}", level="ERROR")
+
+        self.log_api_message("📬 Envío de correos completado")
 
     def extraer_datos_boleta_pdf(self, pdf_content):
         """Extrae datos de un PDF de boleta de reparación (con soporte OCR para Oracle Reports)"""
