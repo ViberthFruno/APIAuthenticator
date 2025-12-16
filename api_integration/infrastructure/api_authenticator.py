@@ -1,7 +1,5 @@
 # api_authenticator.py
-"""
-Autenticación para API iFR Pro
-"""
+# Autenticación para API iFR Pro
 
 import base64
 import hashlib

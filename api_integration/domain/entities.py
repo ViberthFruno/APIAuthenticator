@@ -86,7 +86,7 @@ class ApiCredentials:
 class ApiRequest:
     """
     Entity: Petición a API externa
-    
+
     Encapsula toda la información necesaria para hacer una petición
     """
     request_id: str
@@ -185,7 +185,7 @@ class ApiRequest:
 class ApiResponse:
     """
     Entity: Respuesta de API externa
-    
+
     Encapsula la respuesta y provee métodos de validación
     """
     request_id: str
@@ -433,11 +433,11 @@ class ApiResponse:
     def extract_data(self, key: str, required: bool = True) -> Any:
         """
         Extrae un campo específico del body
-        
+
         Args:
             key: Clave a extraer
             required: Si es requerido, lanza excepción si no existe
-            
+
         Returns:
             Valor del campo
         """
@@ -549,7 +549,7 @@ class ApiResponse:
 class PreingresoData:
     """
     Entity: Datos para crear un preingreso
-    
+
     Representa la información necesaria para crear un preingreso en la API
     """
     codigo_sucursal: str
@@ -645,7 +645,7 @@ class PreingresoData:
     def validate_for_api(self) -> List[str]:
         """
         Validar que tenga todos los campos requeridos para la API
-        
+
         Returns:
             Lista de errores (vacía si es válido)
         """
@@ -699,7 +699,8 @@ class PreingresoData:
         # Truncar a 20 caracteres si excede el límite
         if len(numero_factura_original) > 20:
             numero_factura_final = numero_factura_original[:20]
-            print(f"[ADVERTENCIA] Número de factura truncado: '{numero_factura_original}' -> '{numero_factura_final}' (límite: 20 caracteres)")
+            print(
+                f"[ADVERTENCIA] Número de factura truncado: '{numero_factura_original}' -> '{numero_factura_final}' (límite: 20 caracteres)")
 
         return {
             "codigo_sucursal": self.codigo_sucursal,
@@ -738,7 +739,7 @@ class PreingresoData:
     def to_file_tuple(self) -> Optional[tuple]:
         """
         Convierte el PDF a formato esperado por requests
-        
+
         Returns:
             Tupla (field_name, (filename, content, content_type))
         """
