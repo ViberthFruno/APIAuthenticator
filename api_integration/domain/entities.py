@@ -1,9 +1,6 @@
 # entities.py
+# Entidades para manejar requests/responses de API externa
 
-"""
-API Integration Context - Domain Entities
-Entidades para manejar requests/responses de API externa
-"""
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
