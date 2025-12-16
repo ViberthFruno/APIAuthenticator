@@ -2363,8 +2363,8 @@ class IntegratedGUI(LoggerMixin):
             """Callback cuando la extracción es exitosa"""
             self.log_api_message("✅ Datos extraídos del PDF correctamente")
 
-            # Paso 3: Abrir modal de personalización con los datos del PDF
-            self._mostrar_modal_personalizacion(archivo_pdf, datos_extraidos)
+            # Paso 3: Abrir modal de personalización con los datos del PDF en el hilo principal
+            self.root.after(0, lambda: self._mostrar_modal_personalizacion(archivo_pdf, datos_extraidos))
 
         def on_extract_error(error):
             """Callback cuando hay un error en la extracción"""
