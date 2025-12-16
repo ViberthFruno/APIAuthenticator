@@ -2339,14 +2339,19 @@ class IntegratedGUI(LoggerMixin):
 
     def abrir_preingreso_personalizado(self):
         """Abre un popup para crear un preingreso con datos personalizados"""
+        from tkinter import filedialog
+
         self.log_api_message("=" * 60)
         self.log_api_message("Abriendo Preingreso Personalizado")
         self.log_api_message("=" * 60)
 
+        # Variable para almacenar la ruta del PDF seleccionado
+        pdf_path = tk.StringVar(value="")
+
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
         modal.title("Preingreso Personalizado")
-        modal.geometry("600x500")
+        modal.geometry("600x600")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -2371,6 +2376,50 @@ class IntegratedGUI(LoggerMixin):
         )
         title_label.pack(pady=(0, 15))
 
+        # Frame para selección de PDF
+        pdf_frame = ttk.LabelFrame(main_frame, text="Archivo PDF Base", padding="10")
+        pdf_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # Label para mostrar el archivo seleccionado
+        pdf_label = ttk.Label(
+            pdf_frame,
+            text="Ningún archivo seleccionado",
+            foreground="gray"
+        )
+        pdf_label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+
+        # Función para seleccionar PDF
+        def seleccionar_pdf():
+            archivo = filedialog.askopenfilename(
+                title="Seleccionar PDF Base",
+                filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
+                initialdir=os.path.expanduser("~")
+            )
+            if archivo:
+                pdf_path.set(archivo)
+                pdf_label.config(
+                    text=os.path.basename(archivo),
+                    foreground="blue"
+                )
+                self.log_api_message(f"📄 PDF seleccionado: {os.path.basename(archivo)}")
+
+        # Botón para seleccionar PDF
+        select_pdf_button = ttk.Button(
+            pdf_frame,
+            text="📁 Seleccionar PDF",
+            command=seleccionar_pdf
+        )
+        select_pdf_button.pack(side=tk.RIGHT)
+
+        # Nota informativa
+        info_label = ttk.Label(
+            main_frame,
+            text="Los datos marcados reemplazarán a los del PDF.\nLos no marcados se tomarán del PDF.",
+            font=("Segoe UI", 9),
+            foreground="gray"
+        )
+        info_label.pack(pady=(0, 10))
+
         # Frame para los campos
         fields_frame = ttk.Frame(main_frame)
         fields_frame.pack(fill=tk.BOTH, expand=True)
@@ -2383,7 +2432,7 @@ class IntegratedGUI(LoggerMixin):
         campo_frame.pack(fill=tk.X, pady=5)
 
         # Checkbox para activar/desactivar
-        var_check = tk.BooleanVar(value=True)
+        var_check = tk.BooleanVar(value=False)
         check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
         check.pack(side=tk.LEFT, padx=(0, 5))
 
@@ -2406,6 +2455,9 @@ class IntegratedGUI(LoggerMixin):
         def enviar_preingreso():
             self.log_api_message("🚀 Enviando preingreso personalizado...")
 
+            # Verificar que haya PDF o datos personalizados
+            archivo_pdf = pdf_path.get()
+
             # Recolectar datos activos
             datos_recolectados = {}
             for campo_nombre, campo_data in campos.items():
@@ -2415,15 +2467,21 @@ class IntegratedGUI(LoggerMixin):
                         datos_recolectados[campo_nombre] = valor
                         self.log_api_message(f"  ✓ {campo_data['label']}: {valor}")
 
-            if not datos_recolectados:
-                self.log_api_message("❌ No hay datos para enviar", level="ERROR")
+            # Validar que haya al menos un PDF o datos personalizados
+            if not archivo_pdf and not datos_recolectados:
+                self.log_api_message("❌ Debe seleccionar un PDF o ingresar datos personalizados", level="ERROR")
+                from tkinter import messagebox
+                messagebox.showerror(
+                    "Error",
+                    "Debe seleccionar un archivo PDF o ingresar al menos un dato personalizado"
+                )
                 return
 
             # Cerrar modal
             modal.destroy()
 
             # Procesar el preingreso
-            self._procesar_preingreso_personalizado(datos_recolectados)
+            self._procesar_preingreso_personalizado(datos_recolectados, archivo_pdf)
 
         # Frame de botones
         button_frame = ttk.Frame(main_frame)
@@ -2445,8 +2503,13 @@ class IntegratedGUI(LoggerMixin):
         )
         cancel_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
 
-    def _procesar_preingreso_personalizado(self, datos_recolectados):
-        """Procesa y envía el preingreso personalizado"""
+    def _procesar_preingreso_personalizado(self, datos_recolectados, archivo_pdf=None):
+        """Procesa y envía el preingreso personalizado
+
+        Args:
+            datos_recolectados: Diccionario con los datos personalizados activos
+            archivo_pdf: Ruta del archivo PDF base (opcional)
+        """
         self.log_api_message("📤 Procesando preingreso personalizado...")
 
         # Callbacks
@@ -2482,17 +2545,85 @@ class IntegratedGUI(LoggerMixin):
 
         # Función asíncrona para procesar
         async def procesar():
-            # Crear objeto DatosExtraidosPDF con valores personalizados
+            # Inicializar datos del PDF con valores por defecto
+            datos_extraidos_pdf = {}
+            archivo_adjunto = None
+
+            # Si hay un archivo PDF, extraer sus datos
+            if archivo_pdf:
+                self.log_api_message(f"📄 Extrayendo datos del PDF: {os.path.basename(archivo_pdf)}")
+
+                # Crear referencia al archivo
+                archivo_adjunto = ArchivoAdjunto(
+                    nombre_archivo=os.path.basename(archivo_pdf),
+                    ruta_archivo=archivo_pdf,
+                    tipo_mime="application/pdf"
+                )
+
+                # Leer el archivo PDF
+                pdf_content = await archivo_adjunto.leer_contenido()
+                self.log_api_message(f"📊 Tamaño del archivo: {len(pdf_content):,} bytes")
+
+                # Extraer texto del PDF
+                self.log_api_message("🔍 Extrayendo datos del PDF...")
+                datos_extraidos_pdf = self.extraer_datos_boleta_pdf(pdf_content)
+
+                if not datos_extraidos_pdf:
+                    raise ValueError("No se pudieron extraer datos del PDF")
+
+                self.log_api_message("✅ Datos del PDF extraídos correctamente")
+
+            # Combinar datos: usar personalizados si están activos, sino usar los del PDF
+            # Si un dato personalizado está activo, reemplaza al del PDF
+            self.log_api_message("🔄 Combinando datos personalizados con datos del PDF...")
+
+            # Función auxiliar para obtener el valor correcto
+            def get_valor(campo_personalizado, campo_pdf, valor_defecto=''):
+                """Obtiene el valor: prioriza personalizado, luego PDF, luego defecto"""
+                # Si hay dato personalizado, usar ese
+                if campo_personalizado in datos_recolectados:
+                    return datos_recolectados[campo_personalizado]
+                # Si hay dato del PDF, usar ese
+                if datos_extraidos_pdf and campo_pdf in datos_extraidos_pdf:
+                    return strip_if_string(datos_extraidos_pdf.get(campo_pdf, valor_defecto))
+                # Sino, valor por defecto
+                return valor_defecto
+
+            # Crear objeto DatosExtraidosPDF combinando datos personalizados y del PDF
             datos_pdf = DatosExtraidosPDF(
-                numero_boleta=datos_recolectados.get('numero_boleta', ''),
-                referencia='',  # Valor por defecto
-                nombre_sucursal='',  # Valor por defecto
-                numero_transaccion='',  # Valor por defecto
-                cliente_telefono='',  # Valor por defecto
-                cliente_correo='',  # Valor por defecto
-                serie='',  # Valor por defecto
-                garantia_nombre=''  # Valor por defecto
+                numero_boleta=get_valor('numero_boleta', 'numero_boleta'),
+                referencia=get_valor('referencia', 'referencia'),
+                nombre_sucursal=get_valor('nombre_sucursal', 'sucursal'),
+                numero_transaccion=get_valor('numero_transaccion', 'numero_transaccion'),
+                cliente_nombre=get_valor('cliente_nombre', 'nombre_cliente'),
+                cliente_contacto=get_valor('cliente_contacto', 'nombre_contacto'),
+                cliente_telefono=get_valor('cliente_telefono', 'telefono_cliente'),
+                cliente_correo=get_valor('cliente_correo', 'correo_cliente'),
+                serie=get_valor('serie', 'serie'),
+                garantia_nombre=get_valor('garantia_nombre', 'tipo_garantia'),
+                fecha_compra=get_valor('fecha_compra', 'fecha_compra', None),
+                factura=get_valor('factura', 'numero_factura', None),
+                cliente_cedula=get_valor('cliente_cedula', 'cedula_cliente', None),
+                cliente_direccion=get_valor('cliente_direccion', 'direccion_cliente', None),
+                cliente_telefono2=get_valor('cliente_telefono2', 'telefono_adicional', None),
+                fecha_transaccion=get_valor('fecha_transaccion', 'fecha', None),
+                transaccion_gestionada_por=get_valor('transaccion_gestionada_por', 'gestionada_por', None),
+                telefono_sucursal=get_valor('telefono_sucursal', 'telefono_sucursal', None),
+                producto_codigo=get_valor('producto_codigo', 'codigo_producto', None),
+                producto_descripcion=get_valor('producto_descripcion', 'descripcion_producto', None),
+                marca_nombre=get_valor('marca_nombre', 'marca', None),
+                modelo_nombre=get_valor('modelo_nombre', 'modelo', None),
+                garantia_fecha=get_valor('garantia_fecha', 'fecha_garantia', None),
+                danos=get_valor('danos', 'danos', None),
+                observaciones=get_valor('observaciones', 'observaciones', None),
+                hecho_por=get_valor('hecho_por', 'hecho_por', None)
             )
+
+            # Mostrar resumen de datos a usar
+            self.log_api_message("📋 Datos finales a enviar:")
+            self.log_api_message(f"   Número de Boleta: {datos_pdf.numero_boleta}")
+            self.log_api_message(f"   Referencia: {datos_pdf.referencia}")
+            self.log_api_message(f"   Sucursal: {datos_pdf.nombre_sucursal}")
 
             # Crear caso de uso
             use_case = CreatePreingresoUseCase(self.repository, self.retry_policy)
@@ -2503,7 +2634,7 @@ class IntegratedGUI(LoggerMixin):
             result = await use_case.execute(
                 CreatePreingresoInput(
                     datos_pdf=datos_pdf,
-                    archivo_adjunto=None  # No hay archivo adjunto
+                    archivo_adjunto=archivo_adjunto
                 )
             )
 
