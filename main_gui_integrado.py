@@ -2661,8 +2661,8 @@ class IntegratedGUI(LoggerMixin):
 
         self.log_api_message(f"📮 Enviando a {len(cc_users)} destinatarios...")
 
-        # Obtener configuración de correo
-        email_config = config.get('email', {})
+        # Obtener configuración de correo usando el método correcto del ConfigManager
+        email_config = self.config_manager.get_email_config()
         provider = email_config.get('provider', 'gmail')
         email_addr = email_config.get('email', '')
         password = email_config.get('password', '')
