@@ -1,9 +1,5 @@
 # use_cases.py
-
-"""
-API Integration Context - Use Cases (Application Layer)
-Casos de uso para interactuar con la API externa
-"""
+# casos de uso para interactuar con la API externa
 
 import time
 from datetime import datetime
