@@ -1,8 +1,5 @@
 # main.py
-"""
-main_integrado.py - Punto de entrada principal del sistema integrado
-API iFR Pro + Bot de Correo Electrónico
-"""
+# Punto de entrada principal del sistema integrado
 
 import argparse
 import os
