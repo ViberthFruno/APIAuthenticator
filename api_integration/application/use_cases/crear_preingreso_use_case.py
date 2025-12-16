@@ -1,9 +1,6 @@
 # crear_preingreso_use_case.py
+# Casos de uso para crear un preingreso
 
-"""
-API Integration Context - Use Cases (Application Layer)
-Casos de uso para crear un preingreso
-"""
 from datetime import datetime
 from typing import Optional
 
