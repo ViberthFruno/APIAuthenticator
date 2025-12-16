@@ -2501,6 +2501,30 @@ class IntegratedGUI(LoggerMixin):
             'label': 'Tipo de Garantía'
         }
 
+        # Campo: correo_propietario
+        campo_frame = ttk.Frame(fields_frame)
+        campo_frame.pack(fill=tk.X, pady=5)
+
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=False)
+        check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
+        check.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Label
+        label = ttk.Label(campo_frame, text="Correo del Propietario:", width=20)
+        label.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Entry
+        entry = ttk.Entry(campo_frame)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Almacenar referencia
+        campos['cliente_correo'] = {
+            'entry': entry,
+            'check': var_check,
+            'label': 'Correo del Propietario'
+        }
+
         # Función para enviar el preingreso
         def enviar_preingreso():
             self.log_api_message("🚀 Enviando preingreso personalizado...")
