@@ -2351,7 +2351,7 @@ class IntegratedGUI(LoggerMixin):
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
         modal.title("Preingreso Personalizado")
-        modal.geometry("600x600")
+        modal.geometry("600x650")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -2473,6 +2473,32 @@ class IntegratedGUI(LoggerMixin):
             'entry': entry,
             'check': var_check,
             'label': 'Nombre de Cliente'
+        }
+
+        # Campo: tipo_garantia (Dropdown)
+        campo_frame = ttk.Frame(fields_frame)
+        campo_frame.pack(fill=tk.X, pady=5)
+
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=False)
+        check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
+        check.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Label
+        label = ttk.Label(campo_frame, text="Tipo de Garantía:", width=20)
+        label.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Combobox (Dropdown) con los tipos de garantía
+        tipos_garantia = ["Normal", "DOA", "STOCK", "DAP", "Sin", "C.S.R."]
+        combo = ttk.Combobox(campo_frame, values=tipos_garantia, state="readonly")
+        combo.set("Normal")  # Valor por defecto
+        combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Almacenar referencia
+        campos['garantia_nombre'] = {
+            'entry': combo,  # Usamos 'entry' para mantener consistencia con la lógica existente
+            'check': var_check,
+            'label': 'Tipo de Garantía'
         }
 
         # Función para enviar el preingreso
