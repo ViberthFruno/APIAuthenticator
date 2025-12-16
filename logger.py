@@ -1,8 +1,6 @@
 # logger.py
-"""
-Sistema de Logging centralizado
-Usa structlog para logs estructurados con contexto
-"""
+# Sistema de Logging centralizado
+
 import logging
 import sys
 from pathlib import Path
