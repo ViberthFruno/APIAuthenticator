@@ -2338,71 +2338,11 @@ class IntegratedGUI(LoggerMixin):
         )
 
     def abrir_preingreso_personalizado(self):
-        """Abre un popup para crear un preingreso con datos personalizados mezclados con datos del PDF"""
-        from tkinter import filedialog
-
+        """Abre un popup para crear un preingreso con datos personalizados"""
         self.log_api_message("=" * 60)
-        self.log_api_message("Iniciando Preingreso Personalizado")
+        self.log_api_message("Abriendo Preingreso Personalizado")
         self.log_api_message("=" * 60)
 
-        # Paso 1: Seleccionar archivo PDF
-        archivo_pdf = filedialog.askopenfilename(
-            title="Seleccionar Boleta de Reparación (PDF)",
-            filetypes=[("Archivos PDF", "*.pdf"), ("Todos los archivos", "*.*")],
-            initialdir=os.path.expanduser("~")
-        )
-
-        if not archivo_pdf:
-            self.log_api_message("❌ No se seleccionó ningún archivo")
-            return
-
-        self.log_api_message(f"📄 Archivo seleccionado: {os.path.basename(archivo_pdf)}")
-
-        # Paso 2: Extraer datos del PDF de forma asíncrona
-        def on_extract_success(datos_extraidos):
-            """Callback cuando la extracción es exitosa"""
-            self.log_api_message("✅ Datos extraídos del PDF correctamente")
-
-            # Paso 3: Abrir modal de personalización con los datos del PDF en el hilo principal
-            self.root.after(0, lambda: self._mostrar_modal_personalizacion(archivo_pdf, datos_extraidos))
-
-        def on_extract_error(error):
-            """Callback cuando hay un error en la extracción"""
-            self.log_api_message(f"❌ Error al extraer datos del PDF: {str(error)}", level="ERROR")
-            import traceback
-            self.log_api_message(traceback.format_exc(), level="ERROR")
-
-        # Función asíncrona para extraer datos
-        async def extraer_datos():
-            # Crear referencia al archivo
-            archivo_adjunto = ArchivoAdjunto(
-                nombre_archivo=os.path.basename(archivo_pdf),
-                ruta_archivo=archivo_pdf,
-                tipo_mime="application/pdf"
-            )
-
-            # Leer el archivo PDF
-            pdf_content = await archivo_adjunto.leer_contenido()
-            self.log_api_message(f"📊 Tamaño del archivo: {len(pdf_content):,} bytes")
-
-            # Extraer texto del PDF
-            self.log_api_message("🔍 Extrayendo datos del PDF...")
-            datos_extraidos = self.extraer_datos_boleta_pdf(pdf_content)
-
-            if not datos_extraidos:
-                raise ValueError("No se pudieron extraer datos del PDF")
-
-            return datos_extraidos
-
-        # Ejecutar extracción asíncronamente
-        run_async_with_callback(
-            extraer_datos(),
-            on_success=on_extract_success,
-            on_error=on_extract_error
-        )
-
-    def _mostrar_modal_personalizacion(self, archivo_pdf, datos_extraidos):
-        """Muestra el modal de personalización con los datos del PDF"""
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
         modal.title("Preingreso Personalizado")
@@ -2426,19 +2366,10 @@ class IntegratedGUI(LoggerMixin):
         # Título
         title_label = ttk.Label(
             main_frame,
-            text="Personalice los datos del preingreso",
+            text="Ingrese los datos del preingreso",
             font=("Segoe UI", 11, "bold")
         )
-        title_label.pack(pady=(0, 5))
-
-        # Subtítulo informativo
-        info_label = ttk.Label(
-            main_frame,
-            text="Los campos activados reemplazarán los datos del PDF.\nLos desactivados usarán los valores del PDF.",
-            font=("Segoe UI", 9),
-            foreground="gray"
-        )
-        info_label.pack(pady=(0, 15))
+        title_label.pack(pady=(0, 15))
 
         # Frame para los campos
         fields_frame = ttk.Frame(main_frame)
@@ -2451,8 +2382,8 @@ class IntegratedGUI(LoggerMixin):
         campo_frame = ttk.Frame(fields_frame)
         campo_frame.pack(fill=tk.X, pady=5)
 
-        # Checkbox para activar/desactivar (desactivado por defecto)
-        var_check = tk.BooleanVar(value=False)
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=True)
         check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
         check.pack(side=tk.LEFT, padx=(0, 5))
 
@@ -2475,20 +2406,24 @@ class IntegratedGUI(LoggerMixin):
         def enviar_preingreso():
             self.log_api_message("🚀 Enviando preingreso personalizado...")
 
-            # Recolectar datos activos (solo los que están marcados Y tienen valor)
+            # Recolectar datos activos
             datos_recolectados = {}
             for campo_nombre, campo_data in campos.items():
                 if campo_data['check'].get():  # Si está activado
                     valor = campo_data['entry'].get().strip()
-                    if valor:  # Si tiene valor
+                    if valor:
                         datos_recolectados[campo_nombre] = valor
                         self.log_api_message(f"  ✓ {campo_data['label']}: {valor}")
+
+            if not datos_recolectados:
+                self.log_api_message("❌ No hay datos para enviar", level="ERROR")
+                return
 
             # Cerrar modal
             modal.destroy()
 
-            # Procesar el preingreso con datos mezclados
-            self._procesar_preingreso_personalizado(archivo_pdf, datos_extraidos, datos_recolectados)
+            # Procesar el preingreso
+            self._procesar_preingreso_personalizado(datos_recolectados)
 
         # Frame de botones
         button_frame = ttk.Frame(main_frame)
@@ -2510,8 +2445,8 @@ class IntegratedGUI(LoggerMixin):
         )
         cancel_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
 
-    def _procesar_preingreso_personalizado(self, archivo_pdf, datos_extraidos, datos_recolectados):
-        """Procesa y envía el preingreso personalizado mezclando datos del PDF con datos personalizados"""
+    def _procesar_preingreso_personalizado(self, datos_recolectados):
+        """Procesa y envía el preingreso personalizado"""
         self.log_api_message("📤 Procesando preingreso personalizado...")
 
         # Callbacks
@@ -2547,57 +2482,16 @@ class IntegratedGUI(LoggerMixin):
 
         # Función asíncrona para procesar
         async def procesar():
-            # Crear referencia al archivo PDF
-            archivo_adjunto = ArchivoAdjunto(
-                nombre_archivo=os.path.basename(archivo_pdf),
-                ruta_archivo=archivo_pdf,
-                tipo_mime="application/pdf"
-            )
-
-            # Mezclar datos: usar personalizados si existen, sino usar los del PDF
-            self.log_api_message("📊 Mezclando datos personalizados con datos del PDF...")
-
-            # Función helper para obtener valor: personalizado o PDF
-            def get_valor(campo_personalizado, campo_pdf_key):
-                """Obtiene el valor personalizado si existe, sino usa el del PDF"""
-                valor_personalizado = datos_recolectados.get(campo_personalizado)
-                if valor_personalizado:
-                    self.log_api_message(f"   ✏️  Usando dato personalizado para '{campo_personalizado}': {valor_personalizado}")
-                    return valor_personalizado
-                else:
-                    valor_pdf = strip_if_string(datos_extraidos.get(campo_pdf_key, ''))
-                    if valor_pdf:
-                        self.log_api_message(f"   📄 Usando dato del PDF para '{campo_personalizado}': {valor_pdf}")
-                    return valor_pdf
-
-            # Crear objeto DatosExtraidosPDF mezclando datos personalizados con datos del PDF
+            # Crear objeto DatosExtraidosPDF con valores personalizados
             datos_pdf = DatosExtraidosPDF(
-                numero_boleta=get_valor('numero_boleta', 'numero_boleta'),
-                referencia=strip_if_string(datos_extraidos.get('referencia', '')),
-                nombre_sucursal=strip_if_string(datos_extraidos.get('sucursal', '')),
-                numero_transaccion=strip_if_string(datos_extraidos.get('numero_transaccion', '')),
-                cliente_nombre=strip_if_string(datos_extraidos.get('nombre_cliente', '')),
-                cliente_contacto=strip_if_string(datos_extraidos.get('nombre_contacto', '')),
-                cliente_telefono=strip_if_string(datos_extraidos.get('telefono_cliente', '')),
-                cliente_correo=strip_if_string(datos_extraidos.get('correo_cliente', '')),
-                serie=strip_if_string(datos_extraidos.get('serie', '')),
-                garantia_nombre=strip_if_string(datos_extraidos.get('tipo_garantia', '')),
-                fecha_compra=strip_if_string(datos_extraidos.get('fecha_compra')),
-                factura=strip_if_string(datos_extraidos.get('numero_factura')),
-                cliente_cedula=strip_if_string(datos_extraidos.get('cedula_cliente')),
-                cliente_direccion=strip_if_string(datos_extraidos.get('direccion_cliente')),
-                cliente_telefono2=strip_if_string(datos_extraidos.get('telefono_adicional')),
-                fecha_transaccion=strip_if_string(datos_extraidos.get('fecha')),
-                transaccion_gestionada_por=strip_if_string(datos_extraidos.get('gestionada_por')),
-                telefono_sucursal=strip_if_string(datos_extraidos.get('telefono_sucursal')),
-                producto_codigo=strip_if_string(datos_extraidos.get('codigo_producto')),
-                producto_descripcion=strip_if_string(datos_extraidos.get('descripcion_producto')),
-                marca_nombre=strip_if_string(datos_extraidos.get('marca')),
-                modelo_nombre=strip_if_string(datos_extraidos.get('modelo')),
-                garantia_fecha=strip_if_string(datos_extraidos.get('fecha_garantia')),
-                danos=strip_if_string(datos_extraidos.get('danos')),
-                observaciones=strip_if_string(datos_extraidos.get('observaciones')),
-                hecho_por=strip_if_string(datos_extraidos.get('hecho_por'))
+                numero_boleta=datos_recolectados.get('numero_boleta', ''),
+                referencia='',  # Valor por defecto
+                nombre_sucursal='',  # Valor por defecto
+                numero_transaccion='',  # Valor por defecto
+                cliente_telefono='',  # Valor por defecto
+                cliente_correo='',  # Valor por defecto
+                serie='',  # Valor por defecto
+                garantia_nombre=''  # Valor por defecto
             )
 
             # Crear caso de uso
@@ -2609,7 +2503,7 @@ class IntegratedGUI(LoggerMixin):
             result = await use_case.execute(
                 CreatePreingresoInput(
                     datos_pdf=datos_pdf,
-                    archivo_adjunto=archivo_adjunto
+                    archivo_adjunto=None  # No hay archivo adjunto
                 )
             )
 
