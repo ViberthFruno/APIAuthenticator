@@ -189,26 +189,115 @@ def extract_repair_data(text, logger):
             data['telefono_cliente'] = match.group(1).strip()
 
         # ============================================================================
-        # EXTRACCIÓN DE CORREO ELECTRÓNICO - VERSIÓN ULTRA ROBUSTA
+        # EXTRACCIÓN DE CORREO ELECTRÓNICO - VERSIÓN ULTRA ROBUSTA (6 NIVELES)
         # ============================================================================
         # Estrategia multi-nivel:
+        # 0. Búsqueda heurística basada en "Correo:" (SIN @ requerido - para OCR que omite @)
         # 1. Regex estándar (para correos bien formados)
         # 2. Búsqueda de "@" + reconstrucción de tokens adyacentes (para OCR fragmentado)
         # 3. Búsqueda sin puntos en extensión
         # 4. Búsqueda con espacios internos
+        # 5. Patrón extremo (letras muy separadas)
         # ============================================================================
 
         correo_encontrado = None
+        nivel_encontrado = None  # Para tracking de diagnóstico
         logger.info("🔍 Iniciando búsqueda ULTRA ROBUSTA de correo electrónico...")
+
+        # ============================================================================
+        # NIVEL 0: Búsqueda heurística basada en palabra clave "Correo:" (SIN "@")
+        # ============================================================================
+        # Este nivel maneja casos donde el OCR omite completamente el símbolo "@"
+        # Ejemplo: "Correo: yere1981\nhotmail.com" → "yere1981@hotmail.com"
+        # Estrategia: Buscar "Correo:" + [usuario] + [0-10 caracteres] + [dominio_conocido.ext]
+        # ============================================================================
+        logger.info("📍 NIVEL 0: Búsqueda heurística basada en palabra clave 'Correo:' (sin @ requerido)...")
+
+        # Buscar la palabra clave "Correo:" (y variantes)
+        patron_palabra_clave = r'(?:Correo|Email|E-mail|Correo\s+Electr[oó]nico)\s*:\s*'
+        match_palabra_clave = re.search(patron_palabra_clave, text, re.IGNORECASE)
+
+        if match_palabra_clave:
+            # Posición donde termina "Correo:"
+            pos_inicio = match_palabra_clave.end()
+            logger.info(f"   ✓ Palabra clave encontrada en posición {pos_inicio}")
+
+            # Extraer ventana de texto después de "Correo:" (150 caracteres)
+            ventana_size = 150
+            ventana_texto = text[pos_inicio:pos_inicio + ventana_size]
+            logger.info(f"   🔍 Ventana de texto: '{ventana_texto[:80]}...'")
+
+            # Lista de dominios conocidos para validación
+            dominios_conocidos = [
+                'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
+                'hotmail.es', 'outlook.es', 'yahoo.es',
+                'live.com', 'icloud.com', 'aol.com',
+                'gollo.com', 'fruno.com'
+            ]
+
+            # Lista de extensiones válidas
+            extensiones_validas = ['com', 'es', 'net', 'org', 'mx', 'co', 'ar', 'cl', 'pe', 'ec']
+
+            # Construir patrón dinámico para buscar dominios conocidos
+            # Patrón: [usuario][0-10 caracteres][dominio.extensión]
+            # Los "0-10 caracteres" pueden incluir espacios, saltos de línea, o incluso el @ mal interpretado
+            for dominio_completo in dominios_conocidos:
+                # Separar dominio de extensión (ej: "hotmail.com" → "hotmail" + "com")
+                if '.' in dominio_completo:
+                    partes_dominio = dominio_completo.rsplit('.', 1)
+                    dominio_base = partes_dominio[0]
+                    extension = partes_dominio[1]
+
+                    # Patrón flexible:
+                    # - Usuario: alfanumérico con puntos/guiones/underscores (3-64 chars)
+                    # - Separador: 0-10 caracteres cualesquiera (puede incluir @, espacios, \n, etc.)
+                    # - Dominio: el dominio específico que estamos buscando (ej: "hotmail")
+                    # - Punto: puede tener espacios alrededor
+                    # - Extensión: la extensión correspondiente (ej: "com")
+                    patron_heuristico = rf'([a-zA-Z0-9][a-zA-Z0-9\._\-]{{2,63}})[\s\S]{{0,10}}?({re.escape(dominio_base)})\s*\.\s*({re.escape(extension)})'
+
+                    match_heuristico = re.search(patron_heuristico, ventana_texto, re.IGNORECASE)
+
+                    if match_heuristico:
+                        usuario_parte = match_heuristico.group(1).strip()
+                        dominio_parte = match_heuristico.group(2).strip().lower()
+                        extension_parte = match_heuristico.group(3).strip().lower()
+
+                        logger.info(f"   ✓ Patrón heurístico encontrado:")
+                        logger.info(f"      Usuario: {usuario_parte}")
+                        logger.info(f"      Dominio: {dominio_parte}.{extension_parte}")
+
+                        # Reconstruir el correo con @ (aunque no estuviera en el texto original)
+                        correo_reconstruido = f"{usuario_parte}@{dominio_parte}.{extension_parte}"
+                        correo_reconstruido = re.sub(r'\s+', '', correo_reconstruido).lower()
+
+                        logger.info(f"   ✓ Correo reconstruido: {correo_reconstruido}")
+
+                        # Validaciones finales
+                        if 6 <= len(correo_reconstruido) <= 254:
+                            if correo_reconstruido.count('@') == 1:
+                                if not '..' in correo_reconstruido:
+                                    # Validar que la parte local no empiece/termine con punto
+                                    local_part = correo_reconstruido.split('@')[0]
+                                    if not local_part.startswith('.') and not local_part.endswith('.'):
+                                        correo_encontrado = correo_reconstruido
+                                        nivel_encontrado = "NIVEL 0 (heurístico sin @)"
+                                        logger.info(f"✅ NIVEL 0 exitoso: Correo reconstruido heurísticamente: {correo_encontrado}")
+                                        logger.info(f"   ℹ️ El símbolo '@' fue inferido (no estaba presente en el PDF)")
+                                        break
+
+        if not correo_encontrado:
+            logger.info("   ✗ NIVEL 0: No se encontró correo con búsqueda heurística")
 
         # ============================================================================
         # NIVEL 1: Regex estándar (método rápido para correos bien formados)
         # ============================================================================
-        logger.info("📍 NIVEL 1: Búsqueda con regex estándar...")
-        patron_email = r'([a-zA-Z0-9][a-zA-Z0-9\.\-_]{0,63})\s*@\s*([a-zA-Z0-9][a-zA-Z0-9\.\-]{0,253})\s*\.\s*([a-zA-Z]{2,6})'
-        matches = re.findall(patron_email, text, re.IGNORECASE)
+        if not correo_encontrado:
+            logger.info("📍 NIVEL 1: Búsqueda con regex estándar...")
+            patron_email = r'([a-zA-Z0-9][a-zA-Z0-9\.\-_]{0,63})\s*@\s*([a-zA-Z0-9][a-zA-Z0-9\.\-]{0,253})\s*\.\s*([a-zA-Z]{2,6})'
+            matches = re.findall(patron_email, text, re.IGNORECASE)
 
-        if matches:
+        if not correo_encontrado and matches:
             logger.info(f"✓ Encontrados {len(matches)} posibles correos en el documento")
 
             # Lista de dominios comunes (para priorización)
@@ -290,6 +379,7 @@ def extract_repair_data(text, logger):
 
                 # Seleccionar el primer candidato válido
                 correo_encontrado = correos_candidatos[0]['correo']
+                nivel_encontrado = "NIVEL 1 (regex estándar)"
 
                 if correos_candidatos[0]['es_dominio_comun']:
                     logger.info(f"✅ Correo seleccionado (dominio común): {correo_encontrado}")
@@ -372,6 +462,7 @@ def extract_repair_data(text, logger):
                                 # Validaciones adicionales
                                 if correo_temp.count('@') == 1 and not '..' in correo_temp:
                                     correo_encontrado = correo_temp
+                                    nivel_encontrado = "NIVEL 2 (reconstrucción con @)"
                                     logger.info(
                                         f"✅ NIVEL 2 exitoso: Correo reconstruido de tokens fragmentados: {correo_encontrado}")
                                     break
@@ -410,6 +501,7 @@ def extract_repair_data(text, logger):
                                             if 6 <= len(correo_temp) <= 254:
                                                 if correo_temp.count('@') == 1 and not '..' in correo_temp:
                                                     correo_encontrado = correo_temp
+                                                    nivel_encontrado = "NIVEL 2 (reconstrucción sin punto)"
                                                     logger.info(
                                                         f"✅ NIVEL 2 exitoso: Correo reconstruido sin punto: {correo_encontrado}")
                                                     break
@@ -478,6 +570,7 @@ def extract_repair_data(text, logger):
                         # Validaciones básicas
                         if len(correo_temp) >= 6 and correo_temp.count('@') == 1:
                             correo_encontrado = correo_temp
+                            nivel_encontrado = "NIVEL 3 (corrección de punto)"
                             logger.info(f"✅ Correo extraído con corrección de punto: {correo_encontrado}")
                             break
 
@@ -505,6 +598,7 @@ def extract_repair_data(text, logger):
                     # Validaciones básicas
                     if len(correo_temp) >= 6 and correo_temp.count('@') == 1:
                         correo_encontrado = correo_temp
+                        nivel_encontrado = "NIVEL 3 (patrón genérico)"
                         logger.info(f"✅ Correo extraído con patrón genérico: {correo_encontrado}")
 
         # ============================================================================
@@ -521,6 +615,7 @@ def extract_repair_data(text, logger):
                 # Limpiar espacios y reconstruir
                 correo_encontrado = f"{match.group(1)}@{match.group(2)}.{match.group(3)}"
                 correo_encontrado = re.sub(r'\s+', '', correo_encontrado).lower()
+                nivel_encontrado = "NIVEL 4 (espacios internos)"
                 logger.info(f"✓ Correo encontrado con espacios internos: {correo_encontrado}")
             else:
                 # ============================================================================
@@ -534,6 +629,7 @@ def extract_repair_data(text, logger):
                 if match_extremo:
                     correo_encontrado = match_extremo.group(0)
                     correo_encontrado = re.sub(r'\s+', '', correo_encontrado).lower()
+                    nivel_encontrado = "NIVEL 5 (letras separadas)"
                     logger.info(f"✅ NIVEL 5 exitoso: {correo_encontrado}")
 
         # Validación final y asignación
@@ -543,9 +639,11 @@ def extract_repair_data(text, logger):
                 # Validar longitud razonable
                 if 6 <= len(correo_encontrado) <= 254:
                     data['correo_cliente'] = correo_encontrado
-                    # NUEVO: Guardar el texto original extraído del OCR para diagnóstico
-                    data['correo_ocr_raw'] = correo_encontrado
+                    # NUEVO: Guardar el texto original extraído del OCR para diagnóstico + nivel de detección
+                    data['correo_ocr_raw'] = f"{correo_encontrado} [{nivel_encontrado}]" if nivel_encontrado else correo_encontrado
                     logger.info(f"✅ Correo extraído y validado exitosamente: {correo_encontrado}")
+                    if nivel_encontrado:
+                        logger.info(f"   📊 Detectado mediante: {nivel_encontrado}")
                 else:
                     logger.warning(
                         f"⚠️ Correo con longitud inválida ({len(correo_encontrado)} caracteres): {correo_encontrado}")
