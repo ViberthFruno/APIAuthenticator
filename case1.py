@@ -1,6 +1,6 @@
 # Archivo: case1.py
 # Ubicación: raíz del proyecto
-# Descripción: Caso 1 - Procesa PDFs de boletas de reparación y crea preingresos en la API
+# Descripción: Caso 1 - Procesa PDFs de boletas de reparación y crea preingresos en la API.
 
 import re
 import tempfile
