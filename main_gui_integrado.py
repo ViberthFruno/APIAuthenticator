@@ -33,11 +33,12 @@ load_dotenv()
 import os
 import sys
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import tkinter.font as tkfont
 import threading
 import time
 from datetime import datetime
+from PIL import Image, ImageTk, ImageDraw
 
 # Importar módulos necesarios
 try:
@@ -93,6 +94,21 @@ class IntegratedGUI(LoggerMixin):
         self.notebook = None
         self.email_manager = None
         self.api_client = None
+
+        # Variables para la pestaña de Análisis
+        self.analisis_frame = None
+        self.analisis_pdf_label = None
+        self.analisis_upload_button = None
+        self.analisis_canvas = None
+        self.analisis_image_label = None
+        self.analisis_tree = None
+        self.analisis_text_widget = None
+        self.analisis_toggle_var = None
+        self.current_pdf_data = None
+        self.current_ocr_results = None
+        self.current_extracted_fields = None
+        self.current_image = None
+        self.current_photo = None
 
         self.root = root
         self.root.title("API iFR Pro + Bot de Correo - Sistema Integrado")
@@ -219,6 +235,18 @@ class IntegratedGUI(LoggerMixin):
 
         self.setup_api_left_panel()
         self.setup_api_right_panel()
+
+        # Pestaña 3: Análisis OCR
+        self.analisis_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.analisis_frame, text="Análisis")
+
+        # Configurar diseño de dos columnas para la pestaña Análisis
+        self.analisis_frame.columnconfigure(0, weight=1)
+        self.analisis_frame.columnconfigure(1, weight=2)
+        self.analisis_frame.rowconfigure(0, weight=1)
+
+        self.setup_analisis_left_panel()
+        self.setup_analisis_right_panel()
 
     def setup_top_panel(self):
         """Configura el panel superior principal"""
@@ -434,6 +462,426 @@ class IntegratedGUI(LoggerMixin):
 
         # Estado inicial deshabilitado (solo lectura)
         self.api_log_text.config(state=tk.DISABLED)
+
+    def setup_analisis_left_panel(self):
+        """Configura el panel izquierdo de la pestaña Análisis con visor de PDF"""
+        left_panel = ttk.LabelFrame(self.analisis_frame, text="Visor de PDF")
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+
+        # Botón para subir PDF
+        self.analisis_upload_button = ttk.Button(
+            left_panel,
+            text="📤 Subir PDF",
+            command=self.upload_pdf_for_analysis
+        )
+        self.analisis_upload_button.pack(pady=10, padx=10, fill=tk.X)
+
+        # Frame para la imagen del PDF
+        image_frame = ttk.Frame(left_panel)
+        image_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Canvas para mostrar la imagen con scroll
+        self.analisis_canvas = tk.Canvas(image_frame, bg="white")
+        self.analisis_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Scrollbars para el canvas
+        v_scrollbar = ttk.Scrollbar(image_frame, orient=tk.VERTICAL, command=self.analisis_canvas.yview)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        h_scrollbar = ttk.Scrollbar(left_panel, orient=tk.HORIZONTAL, command=self.analisis_canvas.xview)
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.analisis_canvas.config(
+            yscrollcommand=v_scrollbar.set,
+            xscrollcommand=h_scrollbar.set
+        )
+
+        # Label para mostrar la imagen en el canvas
+        self.analisis_image_label = tk.Label(self.analisis_canvas, bg="white")
+        self.analisis_canvas.create_window(0, 0, window=self.analisis_image_label, anchor="nw")
+
+    def setup_analisis_right_panel(self):
+        """Configura el panel derecho de la pestaña Análisis con tabla de resultados"""
+        right_panel = ttk.LabelFrame(self.analisis_frame, text="Análisis OCR")
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+
+        # Frame para el toggle y controles
+        controls_frame = ttk.Frame(right_panel)
+        controls_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Label(controls_frame, text="Mostrar:").pack(side=tk.LEFT, padx=(0, 5))
+
+        # Variable para el toggle
+        self.analisis_toggle_var = tk.StringVar(value="campos")
+
+        # Radiobuttons para toggle
+        ttk.Radiobutton(
+            controls_frame,
+            text="Solo Campos Extraídos",
+            variable=self.analisis_toggle_var,
+            value="campos",
+            command=self.update_analisis_table
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Radiobutton(
+            controls_frame,
+            text="Todas las Detecciones",
+            variable=self.analisis_toggle_var,
+            value="todo",
+            command=self.update_analisis_table
+        ).pack(side=tk.LEFT, padx=5)
+
+        # Frame para la tabla
+        table_frame = ttk.Frame(right_panel)
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Crear Treeview para mostrar resultados
+        columns = ("campo", "valor", "confianza")
+        self.analisis_tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            height=15
+        )
+
+        # Configurar columnas
+        self.analisis_tree.heading("campo", text="Campo")
+        self.analisis_tree.heading("valor", text="Valor")
+        self.analisis_tree.heading("confianza", text="Confianza")
+
+        self.analisis_tree.column("campo", width=150)
+        self.analisis_tree.column("valor", width=200)
+        self.analisis_tree.column("confianza", width=80)
+
+        # Scrollbar para la tabla
+        tree_scrollbar = ttk.Scrollbar(table_frame, command=self.analisis_tree.yview)
+        tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.analisis_tree.config(yscrollcommand=tree_scrollbar.set)
+        self.analisis_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Bind evento de click
+        self.analisis_tree.bind("<Double-Button-1>", self.on_tree_double_click)
+
+        # Frame para texto completo
+        text_frame = ttk.LabelFrame(right_panel, text="Texto Completo Extraído")
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        self.analisis_text_widget = tk.Text(
+            text_frame,
+            wrap=tk.WORD,
+            height=8,
+            font=("Courier", 9)
+        )
+        self.analisis_text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        text_scrollbar = ttk.Scrollbar(text_frame, command=self.analisis_text_widget.yview)
+        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.analisis_text_widget.config(yscrollcommand=text_scrollbar.set)
+
+    def upload_pdf_for_analysis(self):
+        """Abre diálogo para subir PDF y lo procesa con OCR"""
+        file_path = filedialog.askopenfilename(
+            title="Seleccionar PDF",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")]
+        )
+
+        if not file_path:
+            return
+
+        try:
+            # Leer el archivo PDF
+            with open(file_path, 'rb') as f:
+                pdf_data = f.read()
+
+            self.current_pdf_data = pdf_data
+
+            # Mostrar mensaje de procesamiento
+            messagebox.showinfo("Procesando", "Procesando PDF con OCR. Esto puede tomar unos momentos...")
+
+            # Procesar PDF con OCR en un thread para no bloquear la GUI
+            threading.Thread(
+                target=self._process_pdf_analysis,
+                args=(pdf_data,),
+                daemon=True
+            ).start()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al cargar PDF:\n{e}")
+            self.logger.error(f"Error al cargar PDF: {e}")
+
+    def _process_pdf_analysis(self, pdf_data):
+        """Procesa el PDF con OCR (en thread separado)"""
+        try:
+            # Llamar a la función modificada que retorna coordenadas
+            ocr_results, full_text = self._extract_text_from_pdf_with_coords(pdf_data)
+
+            # Extraer campos del texto
+            extracted_fields = extract_repair_data(full_text, self.logger)
+
+            # Convertir PDF a imagen para visualización
+            pdf_image = self._pdf_to_image(pdf_data)
+
+            # Actualizar GUI en el hilo principal
+            self.root.after(0, self._display_analysis_results, ocr_results, full_text, extracted_fields, pdf_image)
+
+        except Exception as e:
+            self.root.after(0, messagebox.showerror, "Error", f"Error procesando PDF:\n{e}")
+            self.logger.error(f"Error procesando PDF: {e}")
+
+    def _display_analysis_results(self, ocr_results, full_text, extracted_fields, pdf_image):
+        """Muestra los resultados del análisis en la GUI"""
+        try:
+            # Guardar resultados
+            self.current_ocr_results = ocr_results
+            self.current_extracted_fields = extracted_fields
+            self.current_image = pdf_image
+
+            # Mostrar imagen del PDF
+            self._display_pdf_image(pdf_image)
+
+            # Mostrar texto completo
+            self.analisis_text_widget.config(state=tk.NORMAL)
+            self.analisis_text_widget.delete(1.0, tk.END)
+            self.analisis_text_widget.insert(1.0, full_text)
+            self.analisis_text_widget.config(state=tk.DISABLED)
+
+            # Actualizar tabla
+            self.update_analisis_table()
+
+            messagebox.showinfo("Éxito", "PDF procesado correctamente")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error mostrando resultados:\n{e}")
+            self.logger.error(f"Error mostrando resultados: {e}")
+
+    def _display_pdf_image(self, image):
+        """Muestra la imagen del PDF en el canvas"""
+        try:
+            # Redimensionar imagen si es muy grande
+            max_width = 600
+            max_height = 800
+
+            width, height = image.size
+            if width > max_width or height > max_height:
+                ratio = min(max_width / width, max_height / height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+            # Convertir a PhotoImage
+            self.current_photo = ImageTk.PhotoImage(image)
+
+            # Mostrar en el label
+            self.analisis_image_label.config(image=self.current_photo)
+
+            # Actualizar región de scroll
+            self.analisis_canvas.config(scrollregion=self.analisis_canvas.bbox("all"))
+
+        except Exception as e:
+            self.logger.error(f"Error mostrando imagen: {e}")
+
+    def update_analisis_table(self):
+        """Actualiza la tabla de análisis según el toggle seleccionado"""
+        if not self.current_ocr_results:
+            return
+
+        # Limpiar tabla
+        for item in self.analisis_tree.get_children():
+            self.analisis_tree.delete(item)
+
+        mode = self.analisis_toggle_var.get()
+
+        if mode == "campos":
+            # Mostrar solo campos extraídos
+            if self.current_extracted_fields:
+                for campo, valor in self.current_extracted_fields.items():
+                    if valor and str(valor).strip():
+                        # Buscar confianza en OCR results
+                        confidence = self._find_confidence_for_text(str(valor))
+                        self.analisis_tree.insert(
+                            "",
+                            tk.END,
+                            values=(campo, valor, f"{confidence:.2%}" if confidence else "N/A"),
+                            tags=(campo,)
+                        )
+        else:
+            # Mostrar todas las detecciones
+            for i, detection in enumerate(self.current_ocr_results):
+                bbox, text, confidence = detection
+                self.analisis_tree.insert(
+                    "",
+                    tk.END,
+                    values=(f"Detección {i+1}", text, f"{confidence:.2%}"),
+                    tags=(str(i),)
+                )
+
+    def _find_confidence_for_text(self, text):
+        """Busca la confianza para un texto en los resultados OCR"""
+        if not self.current_ocr_results:
+            return None
+
+        text_normalized = text.lower().strip()
+
+        for detection in self.current_ocr_results:
+            bbox, ocr_text, confidence = detection
+            if ocr_text.lower().strip() in text_normalized or text_normalized in ocr_text.lower().strip():
+                return confidence
+
+        return None
+
+    def on_tree_double_click(self, event):
+        """Maneja el doble click en la tabla para resaltar área en la imagen"""
+        selection = self.analisis_tree.selection()
+        if not selection:
+            return
+
+        item = self.analisis_tree.item(selection[0])
+        values = item['values']
+        tags = item['tags']
+
+        if not tags:
+            return
+
+        # Obtener el índice o campo
+        tag = tags[0]
+
+        # Resaltar en la imagen
+        if self.analisis_toggle_var.get() == "todo":
+            # Es una detección directa
+            try:
+                idx = int(tag)
+                if idx < len(self.current_ocr_results):
+                    detection = self.current_ocr_results[idx]
+                    self._highlight_bbox(detection[0])
+            except:
+                pass
+        else:
+            # Es un campo extraído, buscar en OCR
+            valor = str(values[1])
+            self._highlight_text(valor)
+
+    def _highlight_bbox(self, bbox):
+        """Resalta un bounding box en la imagen"""
+        if not self.current_image:
+            return
+
+        try:
+            # Crear copia de la imagen
+            img = self.current_image.copy()
+            draw = ImageDraw.Draw(img)
+
+            # Dibujar rectángulo
+            # bbox es [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            points = [(int(p[0]), int(p[1])) for p in bbox]
+            draw.polygon(points, outline="red", width=3)
+
+            # Actualizar imagen
+            self._display_pdf_image(img)
+
+        except Exception as e:
+            self.logger.error(f"Error resaltando bbox: {e}")
+
+    def _highlight_text(self, text):
+        """Busca y resalta un texto en la imagen"""
+        if not self.current_ocr_results:
+            return
+
+        text_normalized = text.lower().strip()
+
+        for detection in self.current_ocr_results:
+            bbox, ocr_text, confidence = detection
+            if ocr_text.lower().strip() in text_normalized or text_normalized in ocr_text.lower().strip():
+                self._highlight_bbox(bbox)
+                break
+
+    def _extract_text_from_pdf_with_coords(self, pdf_data):
+        """
+        Extrae texto del PDF usando OCR con EasyOCR y retorna coordenadas
+        Retorna: (ocr_results, full_text)
+        - ocr_results: lista de (bbox, text, confidence)
+        - full_text: texto completo concatenado
+        """
+        try:
+            import io
+            import numpy as np
+            from PIL import Image
+            import easyocr
+            import fitz  # PyMuPDF
+
+            self.logger.info("🤖 Iniciando extracción de texto con OCR (EasyOCR)...")
+
+            # Detectar si hay GPU disponible e inicializar EasyOCR
+            try:
+                import torch
+                gpu_available = torch.cuda.is_available()
+                if gpu_available:
+                    self.logger.info("🎮 GPU detectado - Inicializando EasyOCR con aceleración GPU...")
+                    reader = easyocr.Reader(['es', 'en'], gpu=True)
+                else:
+                    self.logger.info("💻 GPU no disponible - Inicializando EasyOCR con CPU")
+                    reader = easyocr.Reader(['es', 'en'], gpu=False)
+            except ImportError:
+                self.logger.warning("⚠️ PyTorch no instalado - usando CPU para OCR")
+                reader = easyocr.Reader(['es', 'en'], gpu=False)
+            except Exception as e:
+                self.logger.warning(f"⚠️ Error al detectar GPU: {e} - fallback a CPU")
+                reader = easyocr.Reader(['es', 'en'], gpu=False)
+
+            # Abrir PDF con PyMuPDF
+            pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+            total_pages = len(pdf_document)
+            self.logger.info(f"📄 Documento tiene {total_pages} página(s)")
+
+            all_results = []
+            text = ""
+
+            for page_num in range(total_pages):
+                self.logger.info(f"🔍 Procesando página {page_num + 1}/{total_pages}...")
+
+                page = pdf_document[page_num]
+                pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))  # 300 DPI
+
+                # Convertir a numpy array
+                img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+
+                # Extraer texto con EasyOCR (detail=1 para obtener coordenadas)
+                results = reader.readtext(img_array, detail=1)
+
+                # results es una lista de [bbox, text, confidence]
+                for result in results:
+                    all_results.append(result)
+                    text += result[1] + "\n"
+
+            pdf_document.close()
+
+            self.logger.info(f"✅ OCR completado - {len(all_results)} detecciones, {len(text)} caracteres")
+
+            return all_results, text
+
+        except Exception as e:
+            self.logger.exception(f"Error en OCR con coordenadas: {e}")
+            return [], ""
+
+    def _pdf_to_image(self, pdf_data):
+        """Convierte la primera página del PDF a imagen PIL"""
+        try:
+            import fitz
+            import numpy as np
+
+            pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+            page = pdf_document[0]
+            pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))
+
+            # Convertir a PIL Image
+            img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+            img = Image.fromarray(img_array)
+
+            pdf_document.close()
+
+            return img
+
+        except Exception as e:
+            self.logger.error(f"Error convirtiendo PDF a imagen: {e}")
+            return None
 
     def initialize_components(self):
         """Inicializa componentes adicionales y carga la configuración"""
