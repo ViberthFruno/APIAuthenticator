@@ -1,6 +1,6 @@
 # Archivo: base_case.py
 # Ubicación: raíz del proyecto
-# Descripción: Clase base para todos los casos de procesamiento de correo
+# Descripción: Clase base para todos los casos de procesamiento de correo.
 
 from config_manager import ConfigManager
 
