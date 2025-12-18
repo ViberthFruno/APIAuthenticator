@@ -72,6 +72,7 @@ class IntegratedGUI(LoggerMixin):
         self.preingreso_button = None
         self.marca_button = None
         self.garantias_button = None
+        self.servitotal_button = None
         self.categoria_entry = None
         self.dispositivo_button = None
         self.search_button = None
@@ -330,6 +331,14 @@ class IntegratedGUI(LoggerMixin):
             command=self.open_proveedores_modal
         )
         self.proveedores_button.grid(row=5, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
+        # Botón para configurar mapeos de códigos Servitotal
+        self.servitotal_button = ttk.Button(
+            self.bottom_left_panel,
+            text="Servitotal",
+            command=self.open_servitotal_modal
+        )
+        self.servitotal_button.grid(row=6, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
         self.bottom_left_panel.columnconfigure(0, weight=1)
 
@@ -1952,6 +1961,297 @@ class IntegratedGUI(LoggerMixin):
 
         # Cargar proveedores iniciales
         cargar_proveedores()
+
+    def open_servitotal_modal(self):
+        """Abre una ventana modal para configurar los mapeos de códigos Servitotal"""
+        from config_manager import get_servitotal_config, save_servitotal_config
+
+        # Cargar configuración de servitotal
+        config_data = get_servitotal_config()
+        mapeos_list = config_data.get('mapeos', [])
+
+        # Crear ventana modal
+        modal = tk.Toplevel(self.root)
+        modal.title("Configurar Servitotal - Mapeo de Códigos")
+        modal.geometry("700x500")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Frame principal
+        main_frame = ttk.Frame(modal, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título y descripción
+        title_frame = ttk.Frame(main_frame)
+        title_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(
+            title_frame,
+            text="Mapeo de Códigos Servitotal",
+            font=("Arial", 12, "bold")
+        ).pack()
+
+        ttk.Label(
+            title_frame,
+            text="Configure códigos que serán reemplazados cuando se detecte 'servitotal' en el correo",
+            font=("Arial", 9)
+        ).pack()
+
+        # Frame para la lista de mapeos
+        list_frame = ttk.LabelFrame(main_frame, text="Mapeos Configurados", padding="10")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        # Treeview para mostrar los mapeos
+        columns = ('codigo_buscar', 'codigo_enviar')
+        mapeos_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=12)
+
+        mapeos_tree.heading('codigo_buscar', text='Código a Buscar')
+        mapeos_tree.heading('codigo_enviar', text='Código a Enviar')
+
+        mapeos_tree.column('codigo_buscar', width=150, anchor='center')
+        mapeos_tree.column('codigo_enviar', width=150, anchor='center')
+
+        mapeos_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Scrollbar para el treeview
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=mapeos_tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        mapeos_tree.config(yscrollcommand=scrollbar.set)
+
+        def cargar_mapeos():
+            """Carga los mapeos en el treeview"""
+            mapeos_tree.delete(*mapeos_tree.get_children())
+            for mapeo in mapeos_list:
+                codigo_buscar = mapeo.get('codigo_buscar', '')
+                codigo_enviar = mapeo.get('codigo_enviar', '')
+                mapeos_tree.insert('', tk.END, values=(codigo_buscar, codigo_enviar))
+
+        def agregar_mapeo():
+            """Agrega un nuevo mapeo de código"""
+            # Crear ventana para ingresar el mapeo
+            mapeo_modal = tk.Toplevel(modal)
+            mapeo_modal.title("Agregar Mapeo")
+            mapeo_modal.geometry("450x200")
+            mapeo_modal.transient(modal)
+            mapeo_modal.grab_set()
+
+            # Centrar ventana
+            mapeo_modal.update_idletasks()
+            mw = mapeo_modal.winfo_width()
+            mh = mapeo_modal.winfo_height()
+            mx = (mapeo_modal.winfo_screenwidth() // 2) - (mw // 2)
+            my = (mapeo_modal.winfo_screenheight() // 2) - (mh // 2)
+            mapeo_modal.geometry(f"{mw}x{mh}+{mx}+{my}")
+
+            # Frame
+            frame = ttk.Frame(mapeo_modal, padding="20")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            # Entrada de código a buscar
+            ttk.Label(frame, text="Código a buscar:").grid(row=0, column=0, sticky="w", pady=(0, 15))
+            entrada_buscar = ttk.Entry(frame, width=30)
+            entrada_buscar.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+            entrada_buscar.focus_set()
+
+            # Entrada de código a enviar
+            ttk.Label(frame, text="Código a enviar:").grid(row=1, column=0, sticky="w", pady=(0, 15))
+            entrada_enviar = ttk.Entry(frame, width=30)
+            entrada_enviar.grid(row=1, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+
+            def guardar_mapeo():
+                codigo_buscar = entrada_buscar.get().strip()
+                codigo_enviar = entrada_enviar.get().strip()
+
+                if not codigo_buscar or not codigo_enviar:
+                    messagebox.showwarning("Advertencia", "Ambos códigos son requeridos")
+                    return
+
+                # Verificar que no exista ya el mismo código_buscar
+                for mapeo in mapeos_list:
+                    if mapeo.get('codigo_buscar') == codigo_buscar:
+                        messagebox.showwarning("Advertencia", f"Ya existe un mapeo para el código '{codigo_buscar}'")
+                        return
+
+                # Agregar a la lista
+                nuevo_mapeo = {
+                    "codigo_buscar": codigo_buscar,
+                    "codigo_enviar": codigo_enviar
+                }
+                mapeos_list.append(nuevo_mapeo)
+
+                # Actualizar treeview
+                cargar_mapeos()
+                mapeo_modal.destroy()
+                messagebox.showinfo("Éxito", "✅ Mapeo agregado correctamente")
+
+            button_frame = ttk.Frame(frame)
+            button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+
+            ttk.Button(button_frame, text="Guardar", command=guardar_mapeo).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=mapeo_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+
+            frame.columnconfigure(1, weight=1)
+
+            # Permitir Enter para guardar
+            entrada_enviar.bind('<Return>', lambda e: guardar_mapeo())
+
+        def editar_mapeo():
+            """Edita el mapeo seleccionado"""
+            selection = mapeos_tree.selection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona un mapeo para editar")
+                return
+
+            item = selection[0]
+            values = mapeos_tree.item(item, 'values')
+            codigo_buscar_actual = values[0]
+            codigo_enviar_actual = values[1]
+
+            # Encontrar el índice del mapeo en la lista
+            idx = None
+            for i, mapeo in enumerate(mapeos_list):
+                if mapeo.get('codigo_buscar') == codigo_buscar_actual:
+                    idx = i
+                    break
+
+            if idx is None:
+                messagebox.showerror("Error", "No se pudo encontrar el mapeo")
+                return
+
+            # Crear ventana para editar
+            editar_modal = tk.Toplevel(modal)
+            editar_modal.title("Editar Mapeo")
+            editar_modal.geometry("450x200")
+            editar_modal.transient(modal)
+            editar_modal.grab_set()
+
+            # Centrar ventana
+            editar_modal.update_idletasks()
+            ew = editar_modal.winfo_width()
+            eh = editar_modal.winfo_height()
+            ex = (editar_modal.winfo_screenwidth() // 2) - (ew // 2)
+            ey = (editar_modal.winfo_screenheight() // 2) - (eh // 2)
+            editar_modal.geometry(f"{ew}x{eh}+{ex}+{ey}")
+
+            # Frame
+            frame = ttk.Frame(editar_modal, padding="20")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            # Entrada de código a buscar
+            ttk.Label(frame, text="Código a buscar:").grid(row=0, column=0, sticky="w", pady=(0, 15))
+            entrada_buscar = ttk.Entry(frame, width=30)
+            entrada_buscar.insert(0, codigo_buscar_actual)
+            entrada_buscar.grid(row=0, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+            entrada_buscar.focus_set()
+
+            # Entrada de código a enviar
+            ttk.Label(frame, text="Código a enviar:").grid(row=1, column=0, sticky="w", pady=(0, 15))
+            entrada_enviar = ttk.Entry(frame, width=30)
+            entrada_enviar.insert(0, codigo_enviar_actual)
+            entrada_enviar.grid(row=1, column=1, pady=(0, 15), padx=(10, 0), sticky="ew")
+
+            def guardar_edicion():
+                codigo_buscar = entrada_buscar.get().strip()
+                codigo_enviar = entrada_enviar.get().strip()
+
+                if not codigo_buscar or not codigo_enviar:
+                    messagebox.showwarning("Advertencia", "Ambos códigos son requeridos")
+                    return
+
+                # Verificar que no exista ya el mismo codigo_buscar (excepto el actual)
+                for i, mapeo in enumerate(mapeos_list):
+                    if i != idx and mapeo.get('codigo_buscar') == codigo_buscar:
+                        messagebox.showwarning("Advertencia", f"Ya existe un mapeo para el código '{codigo_buscar}'")
+                        return
+
+                # Actualizar en la lista
+                mapeos_list[idx] = {
+                    "codigo_buscar": codigo_buscar,
+                    "codigo_enviar": codigo_enviar
+                }
+
+                # Actualizar treeview
+                cargar_mapeos()
+                editar_modal.destroy()
+                messagebox.showinfo("Éxito", "✅ Mapeo actualizado correctamente")
+
+            button_frame = ttk.Frame(frame)
+            button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+
+            ttk.Button(button_frame, text="Guardar", command=guardar_edicion).pack(side=tk.LEFT, expand=True, padx=5)
+            ttk.Button(button_frame, text="Cancelar", command=editar_modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+
+            frame.columnconfigure(1, weight=1)
+
+            # Permitir Enter para guardar
+            entrada_enviar.bind('<Return>', lambda e: guardar_edicion())
+
+        def eliminar_mapeo():
+            """Elimina el mapeo seleccionado"""
+            selection = mapeos_tree.selection()
+            if not selection:
+                messagebox.showwarning("Advertencia", "Selecciona un mapeo para eliminar")
+                return
+
+            item = selection[0]
+            values = mapeos_tree.item(item, 'values')
+            codigo_buscar = values[0]
+
+            # Confirmar eliminación
+            if messagebox.askyesno("Confirmar", f"¿Eliminar el mapeo '{codigo_buscar}' → '{values[1]}'?"):
+                # Eliminar de la lista
+                for i, mapeo in enumerate(mapeos_list):
+                    if mapeo.get('codigo_buscar') == codigo_buscar:
+                        mapeos_list.pop(i)
+                        break
+
+                # Actualizar treeview
+                cargar_mapeos()
+                messagebox.showinfo("Éxito", "✅ Mapeo eliminado correctamente")
+
+        # Frame para botones de acciones
+        actions_frame = ttk.Frame(main_frame)
+        actions_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Button(actions_frame, text="➕ Agregar", command=agregar_mapeo).pack(side=tk.LEFT, expand=True, padx=2)
+        ttk.Button(actions_frame, text="✏️ Editar", command=editar_mapeo).pack(side=tk.LEFT, expand=True, padx=2)
+        ttk.Button(actions_frame, text="🗑️ Eliminar", command=eliminar_mapeo).pack(side=tk.LEFT, expand=True, padx=2)
+
+        # Frame para botones principales (guardar/cancelar)
+        main_button_frame = ttk.Frame(main_frame)
+        main_button_frame.pack(fill=tk.X)
+
+        def guardar_configuracion():
+            """Guarda la configuración de servitotal en el archivo JSON"""
+            try:
+                config_data = {
+                    "mapeos": mapeos_list
+                }
+
+                if save_servitotal_config(config_data):
+                    messagebox.showinfo("Éxito", "✅ Configuración de Servitotal guardada correctamente")
+                    self.log_api_message("✅ Configuración de Servitotal actualizada", level="INFO")
+                    modal.destroy()
+                else:
+                    messagebox.showerror("Error", "Error al guardar la configuración")
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al guardar la configuración:\n{e}")
+
+        ttk.Button(main_button_frame, text="💾 Guardar", command=guardar_configuracion).pack(side=tk.LEFT, expand=True, padx=5)
+        ttk.Button(main_button_frame, text="❌ Cancelar", command=modal.destroy).pack(side=tk.LEFT, expand=True, padx=5)
+
+        # Cargar mapeos iniciales
+        cargar_mapeos()
 
     # ===== MÉTODOS DE ACCIÓN =====
 

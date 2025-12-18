@@ -245,6 +245,11 @@ def _detectar_servitotal_en_correo(body_text, logger):
     Detecta si en el cuerpo del correo viene la palabra clave 'servitotal'
     seguida de un código de sucursal (1-4 dígitos, opcionalmente seguido de nombre).
 
+    Ahora con soporte para mapeo de códigos configurables:
+    - Si se detecta "servitotal" con un código, busca en los mapeos configurados
+    - Si encuentra un mapeo para ese código, lo reemplaza con el código configurado
+    - Si no hay mapeo, usa el código tal como viene en el correo
+
     Formatos soportados:
     - servitotal: 123
     - servitotal: 045 CIUDAD NEILY
@@ -263,6 +268,7 @@ def _detectar_servitotal_en_correo(body_text, logger):
 
     try:
         import re
+        from config_manager import get_servitotal_config
 
         # Normalizar el texto a mayúsculas para búsqueda case-insensitive
         body_upper = body_text.upper()
@@ -275,12 +281,34 @@ def _detectar_servitotal_en_correo(body_text, logger):
         match = re.search(pattern, body_upper)
 
         if match:
-            codigo_sucursal = match.group(1)
-            logger.info(f"✓ Palabra clave 'servitotal' detectada en correo con código: '{codigo_sucursal}'")
-            logger.info(f"  Se intentará usar este código de sucursal en lugar del extraído del PDF")
+            codigo_original = match.group(1)
+            logger.info(f"✓ Palabra clave 'servitotal' detectada en correo con código original: '{codigo_original}'")
+
+            # Cargar configuración de mapeos
+            config_data = get_servitotal_config()
+            mapeos = config_data.get('mapeos', [])
+
+            # Buscar si existe un mapeo para este código
+            codigo_final = codigo_original
+            mapeo_encontrado = False
+
+            for mapeo in mapeos:
+                codigo_buscar = mapeo.get('codigo_buscar', '')
+                codigo_enviar = mapeo.get('codigo_enviar', '')
+
+                if codigo_buscar == codigo_original:
+                    codigo_final = codigo_enviar
+                    mapeo_encontrado = True
+                    logger.info(f"  ✓ Mapeo encontrado: '{codigo_original}' → '{codigo_final}'")
+                    break
+
+            if not mapeo_encontrado:
+                logger.info(f"  ℹ No se encontró mapeo para '{codigo_original}', usando código original")
+
+            logger.info(f"  Se usará código de sucursal: '{codigo_final}'")
             return {
                 'encontrado': True,
-                'codigo_sucursal': codigo_sucursal
+                'codigo_sucursal': codigo_final
             }
 
         # No se encontró la palabra clave servitotal
