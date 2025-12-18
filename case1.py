@@ -1120,6 +1120,16 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
             message_lines.append("   Por favor, contacte con soporte técnico de Fruno para asistencia.")
             message_lines.append("")
 
+        # Sección de alerta de nombre no encontrado
+        if extracted_data and not extracted_data.get('nombre_cliente'):
+            message_lines.append("📌 Nombre del cliente no encontrado en el documento")
+            message_lines.append("")
+            message_lines.append("   El sistema no pudo extraer el nombre del propietario del PDF adjunto.")
+            message_lines.append("   Se ha asignado temporalmente 'N/A' para permitir el registro del preingreso.")
+            message_lines.append("")
+            message_lines.append("   Por favor, contacte con soporte técnico de Fruno para asistencia.")
+            message_lines.append("")
+
         # Sección de consulta del estado
         if result.get('consultar_reparacion'):
             message_lines.append("🔗 Consulta del estado:")

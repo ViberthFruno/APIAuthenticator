@@ -1053,6 +1053,33 @@ class EmailManager:
                                 ""
                             ])
 
+                    # Agregar alertas si hay datos no encontrados
+                    if extracted_data:
+                        # Alerta de correo no encontrado
+                        if extracted_data.get('correo_cliente') == "correo_no_encontrado@gollo.com":
+                            cc_body_lines.extend([
+                                "📌 Correo no encontrado en el documento",
+                                "",
+                                "   El sistema no pudo extraer el correo electrónico del PDF adjunto.",
+                                "   Se ha asignado temporalmente correo_no_encontrado@gollo.com para permitir",
+                                "   el registro del preingreso.",
+                                "",
+                                "   Por favor, contacte con soporte técnico de Fruno para asistencia.",
+                                ""
+                            ])
+
+                        # Alerta de nombre no encontrado
+                        if not extracted_data.get('nombre_cliente'):
+                            cc_body_lines.extend([
+                                "📌 Nombre del cliente no encontrado en el documento",
+                                "",
+                                "   El sistema no pudo extraer el nombre del propietario del PDF adjunto.",
+                                "   Se ha asignado temporalmente 'N/A' para permitir el registro del preingreso.",
+                                "",
+                                "   Por favor, contacte con soporte técnico de Fruno para asistencia.",
+                                ""
+                            ])
+
                     cc_body_lines.extend([
                         "",
                         "Este es un correo automático generado por GolloBot.",
