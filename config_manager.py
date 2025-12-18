@@ -1,5 +1,5 @@
 # Archivo: config_manager.py
-# Ubicación: raíz del proyecto
+# Ubicación: raíz del proyecto.
 # Descripción: Gestiona la configuración y almacenamiento en JSON
 
 import json
