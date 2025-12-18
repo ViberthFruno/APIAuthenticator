@@ -1141,10 +1141,9 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
     message_lines.append("")
     message_lines.append("⚠️ Importante para el correcto funcionamiento del sistema de preingresos")
     message_lines.append("")
-    message_lines.append("   Para garantizar una lectura precisa de los archivos y evitar errores en el proceso automático,")
-    message_lines.append("   envía un correo nuevo por cada PDF. No uses la opción \"Responder\" o \"Reenviar\" sobre")
-    message_lines.append("   mensajes anteriores, ya que esto puede alterar la estructura del contenido y afectar la")
-    message_lines.append("   correcta interpretación del sistema de preingresos.")
+    message_lines.append("   • Envía un correo nuevo por cada PDF que necesites procesar.")
+    message_lines.append("   • No uses la opción \"Responder\" o \"Reenviar\" sobre mensajes anteriores.")
+    message_lines.append("   • Esto garantiza una lectura precisa y evita errores en el proceso automático.")
     message_lines.append("")
 
     # Agregar sección de recordatorio de funcionamiento
