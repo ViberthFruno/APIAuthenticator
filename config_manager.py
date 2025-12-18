@@ -437,3 +437,97 @@ def save_proveedores_config(config):
     except Exception as e:
         print(f"[DEBUG ConfigManager] ❌ Error al guardar proveedores: {str(e)}")
         return False
+
+
+# ============================================================================
+# FUNCIONES PARA CONFIGURACIÓN DE SERVITOTAL (MAPEO DE CÓDIGOS)
+# ============================================================================
+
+def get_servitotal_config_path():
+    """
+    Función global para obtener la ruta correcta a config_servitotal.json
+    Compatible con PyInstaller y desarrollo.
+
+    Returns:
+        str: Ruta absoluta al archivo config_servitotal.json
+    """
+    if getattr(sys, 'frozen', False):
+        # Si es ejecutable con PyInstaller
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Si es desarrollo, usar directorio del script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_dir, 'config_servitotal.json')
+
+
+def get_servitotal_config():
+    """
+    Función global para cargar la configuración de mapeos de códigos servitotal.
+    Compatible con PyInstaller y desarrollo.
+
+    Returns:
+        Dict: Configuración de mapeos servitotal con estructura:
+              {
+                  "mapeos": [
+                      {"codigo_buscar": "00", "codigo_enviar": "123"},
+                      {"codigo_buscar": "01", "codigo_enviar": "456"}
+                  ]
+              }
+    """
+    servitotal_file = get_servitotal_config_path()
+
+    # Configuración por defecto
+    default_servitotal = {
+        "mapeos": []
+    }
+
+    try:
+        print(f"[DEBUG ConfigManager] Buscando config_servitotal.json en: {servitotal_file}")
+        print(f"[DEBUG ConfigManager] ¿Existe el archivo? {os.path.exists(servitotal_file)}")
+
+        if os.path.exists(servitotal_file):
+            print(f"[DEBUG ConfigManager] ✓ Archivo encontrado, cargando...")
+            with open(servitotal_file, 'r', encoding='utf-8') as file:
+                config_data = json.load(file)
+                print(f"[DEBUG ConfigManager] ✓ Mapeos servitotal cargados: {len(config_data.get('mapeos', []))} mapeos")
+                return config_data
+        else:
+            print(f"[DEBUG ConfigManager] ❌ Archivo NO encontrado, creando con valores por defecto...")
+            # Crear el archivo con valores por defecto
+            save_servitotal_config(default_servitotal)
+            print(f"[DEBUG ConfigManager] ✓ Archivo config_servitotal.json creado en: {servitotal_file}")
+            return default_servitotal
+
+    except Exception as e:
+        print(f"[DEBUG ConfigManager] ❌ Error al cargar servitotal: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Si hay error, intentar crear el archivo con valores por defecto
+        try:
+            save_servitotal_config(default_servitotal)
+            return default_servitotal
+        except:
+            return default_servitotal
+
+
+def save_servitotal_config(config):
+    """
+    Función global para guardar la configuración de mapeos servitotal.
+    Compatible con PyInstaller y desarrollo.
+
+    Args:
+        config (Dict): Configuración de mapeos servitotal a guardar
+
+    Returns:
+        bool: True si se guardó correctamente, False en caso contrario
+    """
+    servitotal_file = get_servitotal_config_path()
+    try:
+        with open(servitotal_file, 'w', encoding='utf-8') as file:
+            json.dump(config, file, indent=2, ensure_ascii=False)
+        print(f"[DEBUG ConfigManager] ✓ Mapeos servitotal guardados en: {servitotal_file}")
+        return True
+    except Exception as e:
+        print(f"[DEBUG ConfigManager] ❌ Error al guardar servitotal: {str(e)}")
+        return False
