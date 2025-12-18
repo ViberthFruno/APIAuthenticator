@@ -1,7 +1,5 @@
 # settings.py
-"""
-Configuración del servicio de autenticación API
-"""
+# Configuración del servicio de autenticación API
 
 import os
 import json
