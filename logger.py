@@ -1,5 +1,5 @@
 # logger.py
-# Sistema de Logging centralizado
+# Sistema de Logging centralizado.
 
 import logging
 import sys
