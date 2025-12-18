@@ -166,10 +166,12 @@ def extract_repair_data(text, logger):
 
         # Cliente/Contacto (más flexible para OCR que puede separar con espacios)
         # Buscar primero CONTACTO, luego CLIENTE como alternativa
-        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O\s*:?\s+([A-Z\s]+?)(?=\s+Tel|CED)', text, re.IGNORECASE)
+        # NOTA: Usar captura GREEDY ([A-Z\s]+) en lugar de no-greedy ([A-Z\s]+?)
+        # para capturar el nombre COMPLETO en casos donde el OCR separa en múltiples líneas
+        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O\s*:?\s+([A-Z\s]+)(?=\s+Tel|CED)', text, re.IGNORECASE)
         if not match:
             # Si no se encontró CONTACTO, buscar CLIENTE
-            match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E\s*:?\s+([A-Z\s]+?)(?=\s+Tel|CED)', text, re.IGNORECASE)
+            match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E\s*:?\s+([A-Z\s]+)(?=\s+Tel|CED)', text, re.IGNORECASE)
 
         if match:
             # Limpiar espacios múltiples del nombre encontrado

@@ -27,6 +27,7 @@ class CrearPreingresoBuilder:
 
         - Si hay 3 o más partes: las dos primeras se consideran apellidos, el resto nombres.
         - Si hay 2 o menos partes: la primera es apellido, la segunda (si existe) es nombre.
+        - FALLBACK: Si nombres queda vacío, usar 'N/A' para evitar errores de validación.
 
         Args:
             nombre_completo (str | None): El nombre completo del cliente, como una sola cadena
@@ -52,6 +53,15 @@ class CrearPreingresoBuilder:
             # Usar índices con valor por defecto vacío
             apellidos = partes[0] if num_partes > 0 else ''
             nombres = partes[1] if num_partes > 1 else ''
+
+        # FALLBACK CRÍTICO: Si nombres quedó vacío (caso de 1 sola palabra),
+        # usar 'N/A' para evitar que la validación falle
+        if not nombres:
+            nombres = 'N/A'
+
+        # FALLBACK CRÍTICO: Si apellidos quedó vacío, usar 'N/A'
+        if not apellidos:
+            apellidos = 'N/A'
 
         return {
             'nombres': nombres,
