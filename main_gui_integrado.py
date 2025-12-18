@@ -2799,7 +2799,7 @@ class IntegratedGUI(LoggerMixin):
         # Crear ventana modal
         modal = tk.Toplevel(self.root)
         modal.title("Preingreso Personalizado")
-        modal.geometry("600x650")
+        modal.geometry("600x750")
         modal.transient(self.root)
         modal.grab_set()
         modal.focus_set()
@@ -2947,6 +2947,78 @@ class IntegratedGUI(LoggerMixin):
             'entry': combo,  # Usamos 'entry' para mantener consistencia con la lógica existente
             'check': var_check,
             'label': 'Tipo de Garantía'
+        }
+
+        # Campo: nombre_contacto
+        campo_frame = ttk.Frame(fields_frame)
+        campo_frame.pack(fill=tk.X, pady=5)
+
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=False)
+        check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
+        check.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Label
+        label = ttk.Label(campo_frame, text="Nombre de Contacto:", width=20)
+        label.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Entry
+        entry = ttk.Entry(campo_frame)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Almacenar referencia
+        campos['nombre_contacto'] = {
+            'entry': entry,
+            'check': var_check,
+            'label': 'Nombre de Contacto'
+        }
+
+        # Campo: nombre_cliente
+        campo_frame = ttk.Frame(fields_frame)
+        campo_frame.pack(fill=tk.X, pady=5)
+
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=False)
+        check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
+        check.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Label
+        label = ttk.Label(campo_frame, text="Nombre Cliente:", width=20)
+        label.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Entry
+        entry = ttk.Entry(campo_frame)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Almacenar referencia
+        campos['nombre_cliente'] = {
+            'entry': entry,
+            'check': var_check,
+            'label': 'Nombre Cliente'
+        }
+
+        # Campo: telefono_cliente
+        campo_frame = ttk.Frame(fields_frame)
+        campo_frame.pack(fill=tk.X, pady=5)
+
+        # Checkbox para activar/desactivar
+        var_check = tk.BooleanVar(value=False)
+        check = ttk.Checkbutton(campo_frame, variable=var_check, width=2)
+        check.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Label
+        label = ttk.Label(campo_frame, text="Teléfono del Cliente:", width=20)
+        label.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Entry
+        entry = ttk.Entry(campo_frame)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Almacenar referencia
+        campos['telefono_cliente'] = {
+            'entry': entry,
+            'check': var_check,
+            'label': 'Teléfono del Cliente'
         }
 
         # Campo: correo_propietario
@@ -3117,9 +3189,9 @@ class IntegratedGUI(LoggerMixin):
                 referencia=get_valor('referencia', 'referencia'),
                 nombre_sucursal=get_valor('nombre_sucursal', 'sucursal'),
                 numero_transaccion=get_valor('numero_transaccion', 'numero_transaccion'),
-                cliente_nombre=get_valor('cliente_nombre', 'nombre_cliente'),
-                cliente_contacto=get_valor('cliente_contacto', 'nombre_contacto'),
-                cliente_telefono=get_valor('cliente_telefono', 'telefono_cliente'),
+                cliente_nombre=get_valor('nombre_cliente', 'nombre_cliente') or get_valor('cliente_nombre', 'nombre_cliente'),
+                cliente_contacto=get_valor('nombre_contacto', 'nombre_contacto') or get_valor('cliente_contacto', 'nombre_contacto'),
+                cliente_telefono=get_valor('telefono_cliente', 'telefono_cliente') or get_valor('cliente_telefono', 'telefono_cliente'),
                 cliente_correo=get_valor('cliente_correo', 'correo_cliente'),
                 serie=get_valor('serie', 'serie'),
                 garantia_nombre=get_valor('garantia_nombre', 'tipo_garantia'),
