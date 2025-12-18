@@ -1,5 +1,5 @@
 # Archivo: case_handler.py
-# Ubicación: raíz del proyecto
+# Ubicación: raíz del proyecto.
 # Descripción: Manejador principal para cargar y ejecutar casos de respuesta automática
 
 import sys
