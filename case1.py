@@ -1027,7 +1027,7 @@ def _traducir_mensaje_garantia_usuario(msg_garantia):
     return "Se procesó la garantía según la información proporcionada. Si necesita realizar algún cambio, por favor contáctese con soporte técnico de Fruno."
 
 
-def _generate_success_message(preingreso_results, failed_files, non_pdf_files, api_base_url=None):
+def _generate_success_message(preingreso_results, failed_files, non_pdf_files, api_base_url=None, extracted_data=None):
     """
     Genera el mensaje de éxito con el preingreso creado
 
@@ -1036,6 +1036,7 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
         failed_files: Lista de dicts con {filename, error} (vacía si fue exitoso)
         non_pdf_files: Lista de nombres de archivos que no son PDF
         api_base_url: URL base de la API para generar links de consulta
+        extracted_data: Dict con los datos extraídos del PDF (incluye correo_cliente)
     """
     message_lines = [
         "Estimado/a Usuario,",
@@ -1067,15 +1068,6 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
             else:
                 message_lines.append(f"   Garantía de preingreso: {result['garantia_nombre']}")
 
-        message_lines.append("")
-
-        # Sección de alerta importante (NUEVA)
-        message_lines.append("⚠️ Importante para el correcto funcionamiento del sistema de preingresos")
-        message_lines.append("")
-        message_lines.append("   Para garantizar una lectura precisa de los archivos y evitar errores en el proceso automático,")
-        message_lines.append("   envía un correo nuevo por cada PDF. No uses la opción \"Responder\" o \"Reenviar\" sobre")
-        message_lines.append("   mensajes anteriores, ya que esto puede alterar la estructura del contenido y afectar la")
-        message_lines.append("   correcta interpretación del sistema de preingresos.")
         message_lines.append("")
 
         # Sección de información sobre la garantía (NUEVA)
@@ -1115,6 +1107,17 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
 
                 message_lines.append("")
 
+        # Sección de alerta de correo no encontrado
+        if extracted_data and extracted_data.get('correo_cliente') == "correo_no_encontrado@gollo.com":
+            message_lines.append("📌 Correo no encontrado en el documento")
+            message_lines.append("")
+            message_lines.append("   El sistema no pudo extraer el correo electrónico del PDF adjunto.")
+            message_lines.append("   Se ha asignado temporalmente correo_no_encontrado@gollo.com para permitir")
+            message_lines.append("   el registro del preingreso.")
+            message_lines.append("")
+            message_lines.append("   Por favor, contacte con soporte técnico de Fruno para asistencia.")
+            message_lines.append("")
+
         # Sección de consulta del estado
         if result.get('consultar_reparacion'):
             message_lines.append("🔗 Consulta del estado:")
@@ -1133,6 +1136,16 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
         for file in non_pdf_files:
             message_lines.append(f"   • {file}")
         message_lines.append("")
+
+    # Sección de alerta importante
+    message_lines.append("")
+    message_lines.append("⚠️ Importante para el correcto funcionamiento del sistema de preingresos")
+    message_lines.append("")
+    message_lines.append("   Para garantizar una lectura precisa de los archivos y evitar errores en el proceso automático,")
+    message_lines.append("   envía un correo nuevo por cada PDF. No uses la opción \"Responder\" o \"Reenviar\" sobre")
+    message_lines.append("   mensajes anteriores, ya que esto puede alterar la estructura del contenido y afectar la")
+    message_lines.append("   correcta interpretación del sistema de preingresos.")
+    message_lines.append("")
 
     # Agregar sección de recordatorio de funcionamiento
     message_lines.append("")
@@ -1769,7 +1782,8 @@ class Case(BaseCase):
                 preingreso_results,
                 failed_files,
                 non_pdf_files,
-                api_base_url=settings.API_BASE_URL
+                api_base_url=settings.API_BASE_URL,
+                extracted_data=extracted_data
             )
 
             # Generar subject con número de boleta y timestamp
