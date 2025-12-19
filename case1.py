@@ -124,6 +124,39 @@ def _generate_formatted_text(data):
     return "\n".join(lines)
 
 
+def normalizar_caracteres_espanoles(texto):
+    """
+    Normaliza caracteres españoles (tildes y ñ) para facilitar extracción con regex.
+
+    Convierte:
+    - Á, É, Í, Ó, Ú → A, E, I, O, U
+    - á, é, í, ó, ú → a, e, i, o, u
+    - Ñ → N
+    - ñ → n
+    - Ü, ü → U, u
+
+    Args:
+        texto (str): Texto original con posibles caracteres especiales
+
+    Returns:
+        str: Texto normalizado sin tildes ni ñ
+    """
+    if not texto:
+        return texto
+
+    # Mapeo de caracteres especiales españoles a sus equivalentes sin acentos
+    reemplazos = {
+        'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ü': 'U', 'Ñ': 'N',
+        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ü': 'u', 'ñ': 'n'
+    }
+
+    texto_normalizado = texto
+    for original, reemplazo in reemplazos.items():
+        texto_normalizado = texto_normalizado.replace(original, reemplazo)
+
+    return texto_normalizado
+
+
 def extract_repair_data(text, logger):
     """Extrae los campos relevantes del texto del PDF (optimizado para OCR)"""
     data = {}
@@ -165,20 +198,39 @@ def extract_repair_data(text, logger):
             data['telefono_sucursal'] = match.group(1).strip()
 
         # Cliente/Contacto (más flexible para OCR que puede separar con espacios)
+        # MEJORA: Normalizar caracteres españoles (ñ, tildes) ANTES del regex
+        # para evitar fallos cuando el nombre contiene NÚÑEZ, JOSÉ, MARÍA, etc.
         # Buscar primero CONTACTO, luego CLIENTE como alternativa
-        # NOTA: Usar captura GREEDY ([A-Z\s]+) en lugar de no-greedy ([A-Z\s]+?)
-        # para capturar el nombre COMPLETO en casos donde el OCR separa en múltiples líneas
-        match = re.search(r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O\s*:?\s+([A-Z\s]+)(?=\s+Tel|CED)', text, re.IGNORECASE)
+        logger.info("🔍 Iniciando extracción de nombre cliente/contacto...")
+
+        # Normalizar caracteres especiales españoles para facilitar la extracción
+        text_normalizado = normalizar_caracteres_espanoles(text)
+        logger.info(f"📝 Texto normalizado (primeros 500 chars): {text_normalizado[:500]}")
+
+        # NOTA: Usar captura NON-GREEDY ([A-Z\s]+?) para evitar capturar texto extra
+        # Delimitadores: Tel, CED (principales), Direcc, No. Factura (fallback)
+        match = re.search(
+            r'C\s*O\s*N\s*T\s*A\s*C\s*T\s*O\s*:?\s+([A-Z\s]+?)(?=\s+(?:Tel|CED|Direcc|No\.\s*Factura))',
+            text_normalizado,
+            re.IGNORECASE
+        )
         if not match:
             # Si no se encontró CONTACTO, buscar CLIENTE
-            match = re.search(r'C\s*L\s*I\s*E\s*N\s*T\s*E\s*:?\s+([A-Z\s]+)(?=\s+Tel|CED)', text, re.IGNORECASE)
+            logger.info("⚠️ No se encontró CONTACTO, buscando CLIENTE...")
+            match = re.search(
+                r'C\s*L\s*I\s*E\s*N\s*T\s*E\s*:?\s+([A-Z\s]+?)(?=\s+(?:Tel|CED|Direcc|No\.\s*Factura))',
+                text_normalizado,
+                re.IGNORECASE
+            )
 
         if match:
             # Limpiar espacios múltiples del nombre encontrado
             nombre_limpio = re.sub(r'\s+', ' ', match.group(1).strip())
             data['nombre_contacto'] = nombre_limpio
             data['nombre_cliente'] = nombre_limpio
-            logger.info(f"Cliente/Contacto: {nombre_limpio}")
+            logger.info(f"✅ Cliente/Contacto extraído exitosamente: {nombre_limpio}")
+        else:
+            logger.warning("❌ No se pudo extraer nombre_cliente/nombre_contacto - verificar formato del PDF")
 
         # Cédula (más flexible)
         match = re.search(r'CED\s*:?\s*([\d\-]+)', text, re.IGNORECASE)
