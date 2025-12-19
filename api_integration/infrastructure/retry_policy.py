@@ -3,11 +3,6 @@
 
 from typing import Optional
 class RetryPolicy:
-    """
-    Política de reintentos para peticiones HTTP.
-
-    Implementa estrategia de backoff exponencial para reintentos.
-    """
 
     def __init__(self, max_retries: int = 3, base_delay: float = 1.0,
                  max_delay: float = 10.0, backoff_factor: float = 2.0):
