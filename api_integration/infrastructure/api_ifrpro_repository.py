@@ -1,8 +1,6 @@
 # api_ifrpro_repository.py
-"""
-API Integration Context - Infrastructure: PreingresoRepository
-Implementación del repositorio de preingresos usando la API externa
-"""
+# Implementación del repositorio de preingresos usando la API externa
+
 from __future__ import annotations
 import uuid
 from typing import Optional
