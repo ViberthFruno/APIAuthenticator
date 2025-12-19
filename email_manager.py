@@ -16,6 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from case_handler import CaseHandler
+from case1 import _traducir_mensaje_garantia_usuario
 
 
 def _mark_as_read(imap_connection, msg_id, logger):
@@ -1080,6 +1081,47 @@ class EmailManager:
                                 f"   👉 {consultar_reparacion}",
                                 ""
                             ])
+
+                        # Agregar sección de información sobre la garantía
+                        msg_garantia = preingreso_results[0].get('msg_garantia')
+                        if msg_garantia:
+                            mensaje_usuario = _traducir_mensaje_garantia_usuario(msg_garantia)
+                            if mensaje_usuario:
+                                cc_body_lines.extend([
+                                    "ℹ️ Información sobre la garantía:",
+                                    "",
+                                    f"   {mensaje_usuario}",
+                                    ""
+                                ])
+
+                        # Agregar sección de información sobre el código de sucursal usado (servitotal)
+                        sucursal_info = preingreso_results[0].get('sucursal_usada_info')
+                        if sucursal_info:
+                            origen = sucursal_info.get('origen')
+                            codigo = sucursal_info.get('codigo')
+                            nombre_sucursal = sucursal_info.get('nombre_sucursal')
+                            codigo_correo_intentado = sucursal_info.get('codigo_correo_intentado')
+
+                            # Solo mostrar mensaje si el usuario proporcionó un código con servitotal
+                            if codigo_correo_intentado:
+                                cc_body_lines.extend([
+                                    "🏪 Código de sucursal:",
+                                    ""
+                                ])
+
+                                if origen == 'correo':
+                                    # Se usó el código del correo exitosamente
+                                    cc_body_lines.append(f"   Se utilizó el código de sucursal '{codigo}' que usted proporcionó en el correo con la palabra clave 'servitotal'.")
+                                    if nombre_sucursal:
+                                        cc_body_lines.append(f"   Sucursal identificada: {nombre_sucursal}")
+                                elif origen == 'pdf':
+                                    # El código del correo falló, se usó el del PDF como fallback
+                                    cc_body_lines.append(f"   El código de sucursal '{codigo_correo_intentado}' que proporcionó en el correo no pudo ser validado.")
+                                    cc_body_lines.append(f"   Se utilizó el código '{codigo}' extraído del PDF adjunto.")
+                                    if nombre_sucursal:
+                                        cc_body_lines.append(f"   Sucursal identificada: {nombre_sucursal}")
+
+                                cc_body_lines.append("")
 
                     # Agregar alertas si hay datos no encontrados
                     if extracted_data:
