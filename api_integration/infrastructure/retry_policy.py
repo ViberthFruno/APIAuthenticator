@@ -1,5 +1,5 @@
 # retry_policy.py.
-
+# Implementa estrategia de backoff exponencial para reintentos.
 
 from typing import Optional
 class RetryPolicy:
