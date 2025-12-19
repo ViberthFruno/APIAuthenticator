@@ -293,8 +293,9 @@ def extract_repair_data(text, logger):
             extensiones_validas = ['com', 'es', 'net', 'org', 'mx', 'co', 'ar', 'cl', 'pe', 'ec']
 
             # Construir patrón dinámico para buscar dominios conocidos
-            # Patrón: [usuario][0-10 caracteres][dominio.extensión]
-            # Los "0-10 caracteres" pueden incluir espacios, saltos de línea, o incluso el @ mal interpretado
+            # Patrón: [usuario][0-20 caracteres][dominio.extensión]
+            # Los "0-20 caracteres" pueden incluir espacios, saltos de línea, o incluso el @ mal interpretado
+            # MEJORA: Ahora soporta dominios CON y SIN punto, y limpieza de caracteres especiales
             for dominio_completo in dominios_conocidos:
                 # Separar dominio de extensión (ej: "hotmail.com" → "hotmail" + "com")
                 if '.' in dominio_completo:
@@ -302,22 +303,25 @@ def extract_repair_data(text, logger):
                     dominio_base = partes_dominio[0]
                     extension = partes_dominio[1]
 
-                    # Patrón flexible:
+                    # ========================================================================
+                    # MEJORA #1: INTENTAR PRIMERO CON PUNTO (búsqueda estricta 0-10)
+                    # ========================================================================
+                    # Patrón flexible CON PUNTO:
                     # - Usuario: alfanumérico con puntos/guiones/underscores (3-64 chars)
                     # - Separador: 0-10 caracteres cualesquiera (puede incluir @, espacios, \n, etc.)
                     # - Dominio: el dominio específico que estamos buscando (ej: "hotmail")
                     # - Punto: puede tener espacios alrededor
                     # - Extensión: la extensión correspondiente (ej: "com")
-                    patron_heuristico = rf'([a-zA-Z0-9][a-zA-Z0-9\._\-]{{2,63}})[\s\S]{{0,10}}?({re.escape(dominio_base)})\s*\.\s*({re.escape(extension)})'
+                    patron_heuristico_con_punto = rf'([a-zA-Z0-9][a-zA-Z0-9\._\-]{{2,63}})[\s\S]{{0,10}}?({re.escape(dominio_base)})\s*\.\s*({re.escape(extension)})'
 
-                    match_heuristico = re.search(patron_heuristico, ventana_texto, re.IGNORECASE)
+                    match_heuristico = re.search(patron_heuristico_con_punto, ventana_texto, re.IGNORECASE)
 
                     if match_heuristico:
                         usuario_parte = match_heuristico.group(1).strip()
                         dominio_parte = match_heuristico.group(2).strip().lower()
                         extension_parte = match_heuristico.group(3).strip().lower()
 
-                        logger.info(f"   ✓ Patrón heurístico encontrado:")
+                        logger.info(f"   ✓ Patrón heurístico CON PUNTO encontrado (búsqueda estricta 0-10):")
                         logger.info(f"      Usuario: {usuario_parte}")
                         logger.info(f"      Dominio: {dominio_parte}.{extension_parte}")
 
@@ -335,10 +339,130 @@ def extract_repair_data(text, logger):
                                     local_part = correo_reconstruido.split('@')[0]
                                     if not local_part.startswith('.') and not local_part.endswith('.'):
                                         correo_encontrado = correo_reconstruido
-                                        nivel_encontrado = "NIVEL 0 (heurístico sin @)"
+                                        nivel_encontrado = "NIVEL 0 (heurístico con punto - estricto)"
                                         logger.info(f"✅ NIVEL 0 exitoso: Correo reconstruido heurísticamente: {correo_encontrado}")
                                         logger.info(f"   ℹ️ El símbolo '@' fue inferido (no estaba presente en el PDF)")
                                         break
+
+                    # ========================================================================
+                    # MEJORA #1 y #3: INTENTAR CON PUNTO (búsqueda flexible 0-20)
+                    # ========================================================================
+                    if not correo_encontrado:
+                        patron_heuristico_con_punto_flexible = rf'([a-zA-Z0-9][a-zA-Z0-9\._\-]{{2,63}})[\s\S]{{0,20}}?({re.escape(dominio_base)})\s*\.\s*({re.escape(extension)})'
+
+                        match_heuristico = re.search(patron_heuristico_con_punto_flexible, ventana_texto, re.IGNORECASE)
+
+                        if match_heuristico:
+                            usuario_parte = match_heuristico.group(1).strip()
+                            dominio_parte = match_heuristico.group(2).strip().lower()
+                            extension_parte = match_heuristico.group(3).strip().lower()
+
+                            logger.info(f"   ✓ Patrón heurístico CON PUNTO encontrado (búsqueda flexible 0-20):")
+                            logger.info(f"      Usuario: {usuario_parte}")
+                            logger.info(f"      Dominio: {dominio_parte}.{extension_parte}")
+
+                            # Reconstruir el correo con @ (aunque no estuviera en el texto original)
+                            correo_reconstruido = f"{usuario_parte}@{dominio_parte}.{extension_parte}"
+                            correo_reconstruido = re.sub(r'\s+', '', correo_reconstruido).lower()
+
+                            logger.info(f"   ✓ Correo reconstruido: {correo_reconstruido}")
+
+                            # Validaciones finales
+                            if 6 <= len(correo_reconstruido) <= 254:
+                                if correo_reconstruido.count('@') == 1:
+                                    if not '..' in correo_reconstruido:
+                                        # Validar que la parte local no empiece/termine con punto
+                                        local_part = correo_reconstruido.split('@')[0]
+                                        if not local_part.startswith('.') and not local_part.endswith('.'):
+                                            correo_encontrado = correo_reconstruido
+                                            nivel_encontrado = "NIVEL 0 (heurístico con punto - flexible)"
+                                            logger.info(f"✅ NIVEL 0 exitoso: Correo reconstruido heurísticamente: {correo_encontrado}")
+                                            logger.info(f"   ℹ️ El símbolo '@' fue inferido (no estaba presente en el PDF)")
+                                            break
+
+                    # ========================================================================
+                    # MEJORA #1, #4: INTENTAR SIN PUNTO (búsqueda estricta 0-10)
+                    # ========================================================================
+                    # Patrón SIN PUNTO: busca "gmailcom", "hotmailcom", etc.
+                    # MEJORA #2: Permite caracteres especiales antes del dominio que serán limpiados
+                    if not correo_encontrado:
+                        dominio_sin_punto = f"{dominio_base}{extension}"  # Ej: "gmailcom"
+
+                        # Patrón que busca el dominio+extensión SIN punto
+                        # Permite caracteres especiales (como ') antes del dominio
+                        patron_heuristico_sin_punto = rf'([a-zA-Z0-9][a-zA-Z0-9\._\-]{{2,63}})[\s\S]{{0,10}}?[^a-zA-Z0-9]*({re.escape(dominio_base)})\s*({re.escape(extension)})'
+
+                        match_heuristico = re.search(patron_heuristico_sin_punto, ventana_texto, re.IGNORECASE)
+
+                        if match_heuristico:
+                            usuario_parte = match_heuristico.group(1).strip()
+                            dominio_parte = match_heuristico.group(2).strip().lower()
+                            extension_parte = match_heuristico.group(3).strip().lower()
+
+                            logger.info(f"   ✓ Patrón heurístico SIN PUNTO encontrado (búsqueda estricta 0-10):")
+                            logger.info(f"      Usuario: {usuario_parte}")
+                            logger.info(f"      Dominio sin punto: {dominio_parte}{extension_parte}")
+                            logger.info(f"      MEJORA #2: Caracteres especiales limpiados automáticamente")
+
+                            # Reconstruir el correo con @ y PUNTO (aunque no estuvieran en el texto original)
+                            correo_reconstruido = f"{usuario_parte}@{dominio_parte}.{extension_parte}"
+                            correo_reconstruido = re.sub(r'\s+', '', correo_reconstruido).lower()
+
+                            logger.info(f"   ✓ Correo reconstruido: {correo_reconstruido}")
+
+                            # Validaciones finales
+                            if 6 <= len(correo_reconstruido) <= 254:
+                                if correo_reconstruido.count('@') == 1:
+                                    if not '..' in correo_reconstruido:
+                                        # Validar que la parte local no empiece/termine con punto
+                                        local_part = correo_reconstruido.split('@')[0]
+                                        if not local_part.startswith('.') and not local_part.endswith('.'):
+                                            correo_encontrado = correo_reconstruido
+                                            nivel_encontrado = "NIVEL 0 (heurístico sin punto - estricto)"
+                                            logger.info(f"✅ NIVEL 0 exitoso: Correo reconstruido SIN PUNTO: {correo_encontrado}")
+                                            logger.info(f"   ℹ️ El símbolo '@' y el '.' fueron inferidos (no estaban presentes en el PDF)")
+                                            break
+
+                    # ========================================================================
+                    # MEJORA #1, #3, #4: INTENTAR SIN PUNTO (búsqueda flexible 0-20)
+                    # ========================================================================
+                    if not correo_encontrado:
+                        patron_heuristico_sin_punto_flexible = rf'([a-zA-Z0-9][a-zA-Z0-9\._\-]{{2,63}})[\s\S]{{0,20}}?[^a-zA-Z0-9]*({re.escape(dominio_base)})\s*({re.escape(extension)})'
+
+                        match_heuristico = re.search(patron_heuristico_sin_punto_flexible, ventana_texto, re.IGNORECASE)
+
+                        if match_heuristico:
+                            usuario_parte = match_heuristico.group(1).strip()
+                            dominio_parte = match_heuristico.group(2).strip().lower()
+                            extension_parte = match_heuristico.group(3).strip().lower()
+
+                            logger.info(f"   ✓ Patrón heurístico SIN PUNTO encontrado (búsqueda flexible 0-20):")
+                            logger.info(f"      Usuario: {usuario_parte}")
+                            logger.info(f"      Dominio sin punto: {dominio_parte}{extension_parte}")
+                            logger.info(f"      MEJORA #2: Caracteres especiales limpiados automáticamente")
+
+                            # Reconstruir el correo con @ y PUNTO (aunque no estuvieran en el texto original)
+                            correo_reconstruido = f"{usuario_parte}@{dominio_parte}.{extension_parte}"
+                            correo_reconstruido = re.sub(r'\s+', '', correo_reconstruido).lower()
+
+                            logger.info(f"   ✓ Correo reconstruido: {correo_reconstruido}")
+
+                            # Validaciones finales
+                            if 6 <= len(correo_reconstruido) <= 254:
+                                if correo_reconstruido.count('@') == 1:
+                                    if not '..' in correo_reconstruido:
+                                        # Validar que la parte local no empiece/termine con punto
+                                        local_part = correo_reconstruido.split('@')[0]
+                                        if not local_part.startswith('.') and not local_part.endswith('.'):
+                                            correo_encontrado = correo_reconstruido
+                                            nivel_encontrado = "NIVEL 0 (heurístico sin punto - flexible)"
+                                            logger.info(f"✅ NIVEL 0 exitoso: Correo reconstruido SIN PUNTO: {correo_encontrado}")
+                                            logger.info(f"   ℹ️ El símbolo '@' y el '.' fueron inferidos (no estaban presentes en el PDF)")
+                                            break
+
+                # Si encontró correo, salir del loop de dominios
+                if correo_encontrado:
+                    break
 
         if not correo_encontrado:
             logger.info("   ✗ NIVEL 0: No se encontró correo con búsqueda heurística")
