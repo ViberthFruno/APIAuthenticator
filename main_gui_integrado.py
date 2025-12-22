@@ -340,6 +340,14 @@ class IntegratedGUI(LoggerMixin):
         )
         self.servitotal_button.grid(row=6, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
+        # Botón para gestionar dominios de correo
+        self.dominios_button = ttk.Button(
+            self.bottom_left_panel,
+            text="Dominio",
+            command=self.open_dominios_modal
+        )
+        self.dominios_button.grid(row=7, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
         self.bottom_left_panel.columnconfigure(0, weight=1)
 
     def setup_bottom_right_panel(self):
@@ -1250,6 +1258,142 @@ class IntegratedGUI(LoggerMixin):
         cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
 
         save_button = ttk.Button(button_frame, text="Guardar", command=save_cc_users)
+        save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+    def open_dominios_modal(self):
+        """Abre una ventana modal para configurar dominios de correo"""
+        from config_manager import get_dominios_config, save_dominios_config
+
+        # Cargar dominios actuales
+        config_data = get_dominios_config()
+        dominios_list = config_data.get('dominios', [])
+
+        modal = tk.Toplevel(self.root)
+        modal.title("Configurar Dominios de Correo")
+        modal.geometry("500x450")
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.focus_set()
+
+        # Centrar ventana
+        modal.update_idletasks()
+        width = modal.winfo_width()
+        height = modal.winfo_height()
+        x = (modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (modal.winfo_screenheight() // 2) - (height // 2)
+        modal.geometry(f"{width}x{height}+{x}+{y}")
+
+        dominios_frame = ttk.Frame(modal, padding="10")
+        dominios_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Frame superior: Agregar dominio
+        add_frame = ttk.Frame(dominios_frame)
+        add_frame.pack(fill=tk.X, padx=5, pady=(0, 10))
+
+        add_label = ttk.Label(add_frame, text="Agregar Dominio:", font=("Segoe UI", 9, "bold"))
+        add_label.pack(anchor="w", pady=(0, 5))
+
+        info_label = ttk.Label(add_frame, text="Ingrese el dominio sin @ (ejemplo: gmail.com, fruno.com)",
+                               font=("Segoe UI", 8), foreground="gray")
+        info_label.pack(anchor="w", pady=(0, 5))
+
+        input_frame = ttk.Frame(add_frame)
+        input_frame.pack(fill=tk.X)
+
+        dominio_entry = ttk.Entry(input_frame)
+        dominio_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
+        def add_dominio():
+            dominio = dominio_entry.get().strip()
+            if dominio:
+                # Validar formato básico (no vacío y sin @)
+                if '@' in dominio:
+                    self.log_api_message("⚠️ El dominio no debe incluir el símbolo @", level="WARNING")
+                    return
+
+                # Validar que no esté duplicado
+                if dominio not in dominio_listbox.get(0, tk.END):
+                    dominio_listbox.insert(tk.END, dominio)
+                    dominio_entry.delete(0, tk.END)
+                else:
+                    self.log_api_message("⚠️ El dominio ya está en la lista.", level="WARNING")
+            else:
+                self.log_api_message("⚠️ Por favor ingrese un dominio válido.", level="WARNING")
+
+        add_button = ttk.Button(input_frame, text="Agregar", command=add_dominio)
+        add_button.pack(side=tk.LEFT)
+
+        # Permitir agregar con Enter
+        dominio_entry.bind('<Return>', lambda e: add_dominio())
+
+        # Frame central: Lista de dominios configurados
+        list_frame = ttk.Frame(dominios_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 10))
+
+        list_label = ttk.Label(list_frame, text="Dominios Configurados:", font=("Segoe UI", 9, "bold"))
+        list_label.pack(anchor="w", pady=(0, 5))
+
+        # Listbox con scrollbar
+        listbox_frame = ttk.Frame(list_frame)
+        listbox_frame.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        dominio_listbox = tk.Listbox(listbox_frame, yscrollcommand=scrollbar.set, selectmode=tk.EXTENDED)
+        dominio_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=dominio_listbox.yview)
+
+        # Cargar dominios existentes
+        for dominio in dominios_list:
+            dominio_listbox.insert(tk.END, dominio)
+
+        # Frame de botones de acción
+        action_button_frame = ttk.Frame(dominios_frame)
+        action_button_frame.pack(fill=tk.X, pady=(0, 10))
+
+        def delete_selected():
+            selected_indices = dominio_listbox.curselection()
+            if selected_indices:
+                # Eliminar desde el final para no afectar los índices
+                for index in reversed(selected_indices):
+                    dominio_listbox.delete(index)
+            else:
+                self.log_api_message("⚠️ Por favor seleccione al menos un dominio para eliminar.", level="WARNING")
+
+        def clear_all():
+            if dominio_listbox.size() > 0:
+                dominio_listbox.delete(0, tk.END)
+            else:
+                self.log_api_message("⚠️ La lista ya está vacía.", level="WARNING")
+
+        delete_button = ttk.Button(action_button_frame, text="Eliminar Seleccionado", command=delete_selected)
+        delete_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        clear_button = ttk.Button(action_button_frame, text="Limpiar Todo", command=clear_all)
+        clear_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        # Frame de botones principales
+        button_frame = ttk.Frame(dominios_frame)
+        button_frame.pack(fill=tk.X)
+
+        def save_dominios():
+            dominios_list = list(dominio_listbox.get(0, tk.END))
+
+            config_data = {
+                'dominios': dominios_list
+            }
+
+            if save_dominios_config(config_data):
+                self.log_api_message("✅ Lista de dominios guardada correctamente.", level="INFO")
+                modal.destroy()
+            else:
+                self.log_api_message("❌ Error al guardar la lista de dominios.", level="ERROR")
+
+        cancel_button = ttk.Button(button_frame, text="Cancelar", command=modal.destroy)
+        cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+
+        save_button = ttk.Button(button_frame, text="Guardar", command=save_dominios)
         save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
 
     def open_categorias_modal(self):
