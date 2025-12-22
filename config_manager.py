@@ -531,3 +531,112 @@ def save_servitotal_config(config):
     except Exception as e:
         print(f"[DEBUG ConfigManager] ❌ Error al guardar servitotal: {str(e)}")
         return False
+
+
+# ============================================================================
+# FUNCIONES PARA CONFIGURACIÓN DE DOMINIOS
+# ============================================================================
+
+def get_dominios_config_path():
+    """
+    Función global para obtener la ruta correcta a config_dominios.json
+    Compatible con PyInstaller y desarrollo.
+
+    Returns:
+        str: Ruta absoluta al archivo config_dominios.json
+    """
+    if getattr(sys, 'frozen', False):
+        # Si es ejecutable con PyInstaller
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Si es desarrollo, usar directorio del script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_dir, 'config_dominios.json')
+
+
+def get_dominios_config():
+    """
+    Función global para cargar la configuración de dominios.
+    Compatible con PyInstaller y desarrollo.
+
+    Returns:
+        Dict: Configuración de dominios con estructura:
+              {
+                  "dominios": [
+                      "gmail.com",
+                      "hotmail.com",
+                      "fruno.com",
+                      ...
+                  ]
+              }
+    """
+    dominios_file = get_dominios_config_path()
+
+    # Dominios por defecto (los que estaban hardcodeados en case1.py)
+    default_dominios = {
+        "dominios": [
+            "gmail.com",
+            "hotmail.com",
+            "outlook.com",
+            "yahoo.com",
+            "hotmail.es",
+            "outlook.es",
+            "yahoo.es",
+            "live.com",
+            "icloud.com",
+            "aol.com",
+            "gollo.com",
+            "fruno.com"
+        ]
+    }
+
+    try:
+        print(f"[DEBUG ConfigManager] Buscando config_dominios.json en: {dominios_file}")
+        print(f"[DEBUG ConfigManager] ¿Existe el archivo? {os.path.exists(dominios_file)}")
+
+        if os.path.exists(dominios_file):
+            print(f"[DEBUG ConfigManager] ✓ Archivo encontrado, cargando...")
+            with open(dominios_file, 'r', encoding='utf-8') as file:
+                config_data = json.load(file)
+                print(f"[DEBUG ConfigManager] ✓ Dominios cargados: {len(config_data.get('dominios', []))} dominios")
+                return config_data
+        else:
+            print(f"[DEBUG ConfigManager] ❌ Archivo NO encontrado, creando con valores por defecto...")
+            # Crear el archivo con valores por defecto
+            save_dominios_config(default_dominios)
+            print(f"[DEBUG ConfigManager] ✓ Archivo config_dominios.json creado en: {dominios_file}")
+            return default_dominios
+
+    except Exception as e:
+        print(f"[DEBUG ConfigManager] ❌ Error al cargar dominios: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Si hay error, intentar crear el archivo con valores por defecto
+        try:
+            save_dominios_config(default_dominios)
+            return default_dominios
+        except:
+            return default_dominios
+
+
+def save_dominios_config(config):
+    """
+    Función global para guardar la configuración de dominios.
+    Compatible con PyInstaller y desarrollo.
+
+    Args:
+        config (Dict): Configuración de dominios a guardar
+
+    Returns:
+        bool: True si se guardó correctamente, False en caso contrario
+    """
+    dominios_file = get_dominios_config_path()
+    try:
+        with open(dominios_file, 'w', encoding='utf-8') as file:
+            json.dump(config, file, indent=2, ensure_ascii=False)
+        print(f"[DEBUG ConfigManager] ✓ Dominios guardados en: {dominios_file}")
+        return True
+    except Exception as e:
+        print(f"[DEBUG ConfigManager] ❌ Error al guardar dominios: {str(e)}")
+        return False

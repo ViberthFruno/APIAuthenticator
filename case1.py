@@ -281,13 +281,18 @@ def extract_repair_data(text, logger):
             ventana_texto = text[pos_inicio:pos_inicio + ventana_size]
             logger.info(f"   🔍 Ventana de texto: '{ventana_texto[:80]}...'")
 
-            # Lista de dominios conocidos para validación
-            dominios_conocidos = [
+            # Cargar dominios conocidos dinámicamente desde config_dominios.json
+            from config_manager import get_dominios_config
+
+            dominios_config = get_dominios_config()
+            dominios_conocidos = dominios_config.get('dominios', [
+                # Fallback por defecto si no se puede cargar el archivo
                 'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
                 'hotmail.es', 'outlook.es', 'yahoo.es',
                 'live.com', 'icloud.com', 'aol.com',
                 'gollo.com', 'fruno.com'
-            ]
+            ])
+            logger.info(f"   📋 Dominios cargados: {len(dominios_conocidos)} dominios configurados")
 
             # Lista de extensiones válidas
             extensiones_validas = ['com', 'es', 'net', 'org', 'mx', 'co', 'ar', 'cl', 'pe', 'ec']
