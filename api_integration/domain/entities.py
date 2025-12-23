@@ -723,7 +723,7 @@ class PreingresoData:
             "distribuidor_id": self.distribuidor_id or "",
             "fecha_compra": self.fecha_compra,
             "imei": "",
-            "serie": self.serie+"22",
+            "serie": self.serie,
             "marca_id": str(self.marca_id),
             "modelo_comercial_id": str(self.modelo_comercial_id),
             "modelo_fabrica_id": "",
