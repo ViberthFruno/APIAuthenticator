@@ -964,10 +964,22 @@ def extract_repair_data(text, logger):
                 data['descripcion_producto'] = descripcion_encontrada
                 logger.info(f"Descripción producto (búsqueda post-código): {descripcion_encontrada}")
 
-        # Serie (más flexible)
-        match = re.search(r'Serie\s*:?\s*([A-Z0-9\-]+)', text, re.IGNORECASE)
+        # Serie (más flexible) - Captura toda la serie incluyendo caracteres especiales
+        # Luego los elimina y guarda la serie limpia
+        match = re.search(r'Serie\s*:?\s*([^\s\n]+(?:\s+[^\s\n]+)*?)(?=\s{2,}|\n|$)', text, re.IGNORECASE)
         if match:
-            data['serie'] = match.group(1).strip()
+            serie_raw = match.group(1).strip()
+            # Detectar si hay caracteres especiales (cualquier cosa que no sea letra o número)
+            caracteres_especiales_detectados = bool(re.search(r'[^A-Z0-9]', serie_raw, re.IGNORECASE))
+            # Limpiar la serie - solo dejar letras y números
+            serie_limpia = re.sub(r'[^A-Z0-9]', '', serie_raw, flags=re.IGNORECASE)
+
+            # Guardar la serie limpia y marcar si se detectaron caracteres especiales
+            data['serie'] = serie_limpia
+            if caracteres_especiales_detectados:
+                data['serie_original'] = serie_raw
+                data['serie_tenia_caracteres_especiales'] = True
+                logger.info(f"Serie con caracteres especiales detectada: '{serie_raw}' → Limpiada: '{serie_limpia}'")
 
         # Marca (más flexible)
         match = re.search(r'Marca\s*:?\s*(\w+)', text, re.IGNORECASE)
@@ -1309,6 +1321,13 @@ def _generate_success_message(preingreso_results, failed_files, non_pdf_files, a
             message_lines.append("   Se ha asignado temporalmente 'N/A' para permitir el registro del preingreso.")
             message_lines.append("")
             message_lines.append("   Por favor, contacte con soporte técnico de Fruno para asistencia.")
+            message_lines.append("")
+
+        # Sección de nota sobre caracteres especiales en la serie
+        if extracted_data and extracted_data.get('serie_tenia_caracteres_especiales'):
+            serie_limpia = extracted_data.get('serie', '')
+            message_lines.append("📋 NOTA: Se detectaron caracteres especiales en el número de serie ingresado.")
+            message_lines.append("   Estos fueron removidos automáticamente. Serie procesada: " + serie_limpia)
             message_lines.append("")
 
         # Sección de consulta del estado

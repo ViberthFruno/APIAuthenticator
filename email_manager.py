@@ -1150,6 +1150,15 @@ class EmailManager:
                                 ""
                             ])
 
+                        # Nota sobre caracteres especiales en la serie
+                        if extracted_data.get('serie_tenia_caracteres_especiales'):
+                            serie_limpia = extracted_data.get('serie', '')
+                            cc_body_lines.extend([
+                                "📋 NOTA: Se detectaron caracteres especiales en el número de serie ingresado.",
+                                "   Estos fueron removidos automáticamente. Serie procesada: " + serie_limpia,
+                                ""
+                            ])
+
                     cc_body_lines.extend([
                         "",
                         "Este es un correo automático generado por GolloBot.",
