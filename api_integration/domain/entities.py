@@ -1,5 +1,5 @@
 # entities.py
-# Entidades para manejar requests/responses de API externa
+# Entidades para manejar requests/responses de API externa.
 
 import json
 from dataclasses import dataclass, field
