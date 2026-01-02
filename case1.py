@@ -966,7 +966,7 @@ def extract_repair_data(text, logger):
 
         # Serie (más flexible) - Captura toda la serie incluyendo caracteres especiales
         # Luego los elimina y guarda la serie limpia
-        match = re.search(r'Serie\s*:?\s*([^\s\n]+(?:\s+[^\s\n]+)*?)(?=\s{2,}|\n|$)', text, re.IGNORECASE)
+        match = re.search(r'Serie\s*:?\s*(\S+)', text, re.IGNORECASE)
         if match:
             serie_raw = match.group(1).strip()
             # Detectar si hay caracteres especiales (cualquier cosa que no sea letra o número)
